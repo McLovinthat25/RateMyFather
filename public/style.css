@@ -3,7 +3,7 @@
    centered column, 16px universal radius, soft two-layer shadows, arched hero,
    leaded-glass divider strips, lead score boxes, gold stars and category bars. */
 :root {
-  --bg:#fbf7ef; --surface:#fffdf8; --surface-alt:#efe6d8; --text:#2b2118; --dim:#7a6a58;
+  --bg:#fbf7ef; --surface:#fffdf8; --surface-alt:#efe6d8; --text:#2b2118; --dim:#6b5a48;
   --border:#ddd0ba; --accent:#7a1f2b; --accent-soft:#f3e3e0; --accent-hover:#571420;
   --gold:#c49a3c; --glass-lead:#38291a; --glass-ruby:#7a1f2b; --glass-amber:#c49a3c;
   --radius:16px;
@@ -11,7 +11,7 @@
   --shadow-lift:0 2px 4px rgb(43 33 24 / 0.06), 0 16px 32px -16px rgb(43 33 24 / 0.28);
   /* legacy names, kept so existing server-rendered pages keep working */
   --burgundy:#7a1f2b; --burgundy-dark:#571420; --gold-soft:#e8d9a0;
-  --cream:#fbf7ef; --paper:#fffdf8; --ink:#2b2118; --muted:#7a6a58; --line:#ddd0ba;
+  --cream:#fbf7ef; --paper:#fffdf8; --ink:#2b2118; --muted:#6b5a48; --line:#ddd0ba;
   --green:#2e5e4e; --red:#b8452a;
 }
 @media (prefers-color-scheme: dark) {
@@ -27,10 +27,39 @@
 body { margin:0; background:var(--bg); color:var(--text);
   font-family:"Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   font-size:16px; line-height:1.5; }
+/* Stained-glass mural: one large window, fixed behind all content site-wide,
+   with a warm gold glow at the top. A single composed window (not a repeating
+   tile), strong enough to read as a mural, light enough that text stays
+   clearly readable: the darkest leaded pane, blended at this opacity over
+   the parchment, still leaves body text above a 10:1 contrast ratio. */
+body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    radial-gradient(ellipse 90% 46% at 50% 0%, rgb(196 154 60 / 0.16), transparent 70%),
+    url("/mural.svg");
+  background-repeat:no-repeat, no-repeat;
+  background-position:center 0, center 2%;
+  background-size:100% 46%, min(120vmin, 920px) auto;
+  opacity:0.16; }
+/* Parchment veil: the mural burns bright at the page edges and softens
+   behind the reading column, so secondary text keeps a 5.6:1 contrast
+   even over the darkest leaded pane. */
+body::after { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:linear-gradient(90deg, rgb(251 247 239 / 0) 0%, rgb(251 247 239 / 0.68) 22%,
+    rgb(251 247 239 / 0.68) 78%, rgb(251 247 239 / 0) 100%); }
+main, footer.site-footer { position:relative; z-index:1; }
+@media (prefers-color-scheme: dark) {
+  body::before { opacity:0.11; }
+  body::after { background:linear-gradient(90deg, rgb(23 16 8 / 0) 0%, rgb(23 16 8 / 0.68) 22%,
+    rgb(23 16 8 / 0.68) 78%, rgb(23 16 8 / 0) 100%); }
+}
+@media print {
+  body::before { display:none; }
+  body::after { display:none; }
+}
 h1, h2, h3, .brand, .font-display { font-family:Georgia, "Times New Roman", Times, serif;
-  letter-spacing:-0.01em; color:var(--text); }
-h1 { font-size:30px; line-height:36px; font-weight:700; margin:0 0 8px; }
-h2 { font-size:24px; line-height:32px; font-weight:700; margin:40px 0 0; }
+  letter-spacing:-0.02em; color:var(--text); }
+h1 { font-size:32px; line-height:36px; font-weight:700; margin:0 0 8px; }
+h2 { font-size:26px; line-height:32px; font-weight:700; margin:40px 0 0; }
 h3 { font-size:20px; line-height:28px; font-weight:700; margin:0 0 4px; }
 p { margin:12px 0 0; }
 p:first-child { margin-top:0; }
@@ -40,9 +69,12 @@ a { color:var(--accent); }
 /* ---------- Layout: one narrow centered column ---------- */
 .wrap { max-width:768px; margin:0 auto; padding:0 16px; }
 @media (min-width:640px) { .wrap { padding:0 20px; } }
-main { padding:40px 0 64px; }
-.home-section { margin-top:40px; }
+main { padding:48px 0 64px; }
+.home-section { margin-top:56px; }
 .home-section h2 { margin-top:0; }
+/* Gold kicker rule above section headings: the hierarchy mark. */
+.home-section h2::before, .place-section h2::before { content:""; display:block;
+  width:40px; height:4px; background:var(--gold); border-radius:2px; margin-bottom:12px; }
 .explainer { font-size:14px; color:var(--dim); margin-top:4px; }
 
 /* ---------- Header: sticky, blurred, glass strip below ---------- */
@@ -52,11 +84,12 @@ main { padding:40px 0 64px; }
   border-bottom:1px solid var(--border);
   border-bottom:1px solid color-mix(in srgb, var(--border) 50%, transparent); }
 .nav-inner { display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap; padding:8px 0; }
-.brand { color:var(--text); text-decoration:none; font-size:16px; font-weight:600; }
+.brand { color:var(--text); text-decoration:none; font-size:18px; font-weight:700; letter-spacing:-0.01em; }
 .brand .accent { color:var(--accent); }
 .topnav nav { display:flex; gap:4px; flex-wrap:wrap; margin-left:auto; }
 @media (max-width:639px) { .topnav nav { margin-left:0; width:100%; } }
-.topnav nav a { color:var(--dim); text-decoration:none; font-size:13px; padding:8px 6px; }
+.topnav nav a { color:var(--dim); text-decoration:none; font-size:12px; font-weight:600;
+  text-transform:uppercase; letter-spacing:0.09em; padding:8px 6px; }
 .topnav nav a:hover { color:var(--accent); }
 
 /* ---------- Leaded-glass divider strips ---------- */
@@ -76,10 +109,10 @@ main { padding:40px 0 64px; }
   height:176px; }
 @media (min-width:640px) { .sg-frame { height:240px; } }
 .sg-frame svg { display:block; width:100%; height:100%; }
-.hero h1 { font-size:48px; line-height:1.05; margin:32px 0 0; }
-@media (min-width:640px) { .hero h1 { font-size:60px; } }
+.hero h1 { font-size:54px; line-height:0.98; letter-spacing:-0.02em; margin:32px 0 0; }
+@media (min-width:640px) { .hero h1 { font-size:68px; } }
 .hero h1 .accent { color:var(--accent); }
-.hero .tagline { font-size:18px; line-height:28px; color:var(--dim); margin:12px 0 0; max-width:36rem; }
+.hero .tagline { font-size:19px; line-height:28px; color:var(--dim); margin:16px 0 0; max-width:36rem; }
 .hero .stats { font-size:14px; color:var(--dim); margin-top:8px; }
 
 /* ---------- Search ---------- */
@@ -99,8 +132,8 @@ form textarea, #chat-input {
 
 /* ---------- Buttons and chips ---------- */
 button, .btn { background:var(--accent); color:#fff; border:0; border-radius:var(--radius);
-  padding:12px 16px; font-size:16px; font-weight:600; cursor:pointer; text-decoration:none;
-  display:inline-block; }
+  padding:12px 18px; font-size:16px; font-weight:700; letter-spacing:0.01em; cursor:pointer; text-decoration:none;
+  display:inline-block; box-shadow:0 1px 2px rgb(43 33 24 / 0.25); }
 button:hover, .btn:hover { background:var(--accent-hover); }
 .btn-secondary { background:var(--surface); color:var(--text); border:1px solid var(--border);
   font-weight:500; }
@@ -126,6 +159,7 @@ button:hover, .btn:hover { background:var(--accent-hover); }
 .card h3 { margin:0 0 4px; }
 .card h3 a { color:var(--text); text-decoration:none; }
 .priest-card { display:flex; gap:16px; align-items:flex-start; text-decoration:none; color:inherit; }
+.priest-card:hover { border-color:var(--gold); }
 .priest-card:hover .priest-name { color:var(--accent); }
 .priest-main { flex:1; min-width:0; }
 .priest-name { font-family:Georgia, "Times New Roman", Times, serif; font-size:18px; font-weight:700;
@@ -139,10 +173,11 @@ button:hover, .btn:hover { background:var(--accent-hover); }
 .priest-card .badge { margin-top:6px; }
 .chevron { flex:none; font-size:24px; color:var(--dim); line-height:1; align-self:center; }
 
-/* Lead score boxes: rated (lead bg, white text) or unrated (alt bg, border). */
+/* Lead score boxes: rated (lead bg, white text) or unrated (alt bg, border).
+   A thin gold ring keeps the lead boxes rich against the parchment. */
 .score-box { flex:none; width:56px; height:64px; border-radius:10px; background:var(--glass-lead);
   color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; }
+  text-align:center; box-shadow:inset 0 0 0 1px rgb(196 154 60 / 0.5); }
 .score-box .num { font-family:Georgia, "Times New Roman", Times, serif; font-size:20px;
   font-weight:700; line-height:1; }
 .score-box .lbl { font-size:9px; font-weight:600; text-transform:uppercase;
@@ -151,7 +186,7 @@ button:hover, .btn:hover { background:var(--accent-hover); }
   font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; padding:4px; }
 .score-box-lg { flex:none; width:72px; height:80px; border-radius:10px; background:var(--glass-lead);
   color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; }
+  text-align:center; box-shadow:inset 0 0 0 1px rgb(196 154 60 / 0.5); }
 .score-box-lg .num { font-family:Georgia, "Times New Roman", Times, serif; font-size:30px;
   font-weight:700; line-height:1; }
 .score-box-lg .lbl { font-size:9px; font-weight:600; text-transform:uppercase;
@@ -208,6 +243,11 @@ form input[type="checkbox"] { width:16px; height:16px; margin:0 6px 0 0;
   vertical-align:middle; accent-color:var(--accent); }
 form .guidance { background:var(--surface-alt); border-radius:var(--radius);
   padding:10px 12px; font-size:14px; }
+/* Live character counters under the length-limited review fields. */
+.char-count { margin:4px 0 0; }
+.char-count-full { color:var(--accent); font-weight:600; }
+/* Find-by-place load failure: an inline note, not a silent dead end. */
+.place-error { color:var(--accent); font-weight:600; margin-top:8px; }
 
 /* ---------- Profile page ---------- */
 .profile-card { overflow:hidden; border-radius:var(--radius); border:1px solid var(--border);

@@ -193,6 +193,13 @@
   }
 
   // ================= The Parish Bowl =================
+  // St Mary's vs St Swithin's. Four downs to gain ten yards, four quarters
+  // of 45 seconds. Run it or pass it: reach the gold X and hold still to
+  // catch, then run it in. A touchdown is the yards gained plus a bonus.
+  //
+  // Design: poster-bold. Burgundy, gold and parchment, big uppercase
+  // Georgia display type, a real scoreboard strip, a gold first-down line
+  // on the field, and a burgundy result slab that says what each play earned.
   var RUNGUN_QUARTER_SECONDS = 45;
   var RUNGUN_PASS_BONUS_YARDS = 20;
   var RUNGUN_PASS_STUN_SECONDS = 1.5;
@@ -202,74 +209,175 @@
   var BOWL_CATCH_DWELL = 0.55;
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 6; // bonus points on top of the yards gained
+  var BOWL_PLAY_MAX_SECONDS = 9; // whistle: no play runs forever, no stall at 0:00
+  var BOWL_WAVE_SECONDS = 2.4;
+  var BOWL_DEFENDER_CAP = 10;
+  var BOWL_TURN_RATE = 6; // rad/s: defenders steer, so a cut beats a chase
+  var BOWL_BURGUNDY = '#7a1f2b', BOWL_BURGUNDY_DEEP = '#571420', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
+  var BOWL_GOLD = '#c49a3c', BOWL_GOLD_BRIGHT = '#e8bd55', BOWL_GOLD_PALE = '#f0d48a';
+  var BOWL_PARCHMENT = '#f7ecd4', BOWL_INK = '#2b1d12';
+  var BOWL_FIELD = '#1e4d33', BOWL_FIELD_STRIPE = '#27603f';
 
   function mountBowl(parent, onBack) {
     var api = createStage(parent, { title: 'The Parish Bowl', onBack: onBack });
+    api.overlay.style.overflowY = 'auto';
     var priestName = storeGet('rmf-parish-bowl-priest') || 'Father Murphy';
     var parishName = storeGet('rmf-parish-bowl-parish') || 'St Mary\u2019s';
     var opponent = 'St Swithin\u2019s';
     var state = 'ready'; // ready | choose | run | pass | result | over
     var paused = false;
     var quarter = 1, clock = RUNGUN_QUARTER_SECONDS;
-    var score = 0, best = readBest('rungun');
+    var score = 0, best = readBest('rungun'), tds = 0;
+    var down = 1, seriesStart = 80, seriesGain = 0; // four downs, ten yards for a first
     var px = GAME_W / 2, py = BOWL_START_Y;
     var defenders = [];
-    var waveT = 0, yardsAtWave = 80, playStartYards = 80;
-    var passTarget = null, catchT = 0, caught = false, bigPlayT = 0, freezeT = 0;
-    var resultText = '', resultT = 0, timeGoneShown = false;
-    var coachLine = 'Coach: Run it or pass it, ' + priestName + '. Your call.';
+    var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = BOWL_START_Y, playT = 0;
+    var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
+    var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false;
+    var coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
     var raf = 0, last = 0, destroyed = false;
 
-    function yardsToGo() { return Math.max(0, (py - BOWL_GOAL_Y) / PX_PER_YARD); }
+    function yardsToGo() { return Math.max(0, Math.round((py - BOWL_GOAL_Y) / PX_PER_YARD)); }
+    function downWord() { return down === 1 ? '1ST' : down === 2 ? '2ND' : down === 3 ? '3RD' : '4TH'; }
+    function toGoLabel() { return seriesStart <= 10 ? 'GOAL' : String(10 - seriesGain); }
+    function downLabel() { return downWord() + ' & ' + toGoLabel(); }
     function defenderCount() { return 4 + quarter; }
-    function spawnDefenders(n, upfield) {
+    // The defence lines up in a dense front line across the field ahead of
+    // the runner, so every lane is contested and the play is about picking a
+    // gap and cutting late — not about outrunning a scattered chase. Wave
+    // reinforcements keep coming to the ball, near the runner's lane, so
+    // beating the line is not a free touchdown.
+    function spawnDefenders(n, upfield, line) {
       for (var i = 0; i < n; i++) {
-        defenders.push({
-          x: rand(40, GAME_W - 40),
-          y: upfield ? rand(BOWL_GOAL_Y + 10, Math.max(BOWL_GOAL_Y + 20, py - 70)) : rand(BOWL_GOAL_Y + 10, BOWL_START_Y - 20),
-          speed: rand(135, 165),
-        });
+        var d = null;
+        for (var tries = 0; tries < 8; tries++) {
+          var cand;
+          if (line) {
+            var slot = (i + 0.5) / Math.max(1, n);
+            cand = {
+              x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
+              y: clamp(py - rand(100, 140), BOWL_GOAL_Y + 10, BOWL_START_Y - 20),
+              speed: rand(140, 168),
+              heading: 0,
+            };
+          } else if (upfield) {
+            cand = {
+              x: clamp(px + rand(-140, 140), 40, GAME_W - 40),
+              y: clamp(py - rand(120, 170), BOWL_GOAL_Y + 10, BOWL_START_Y - 20),
+              speed: rand(140, 168),
+              heading: 0,
+            };
+          } else {
+            cand = {
+              x: rand(40, GAME_W - 40),
+              y: rand(BOWL_GOAL_Y + 10, BOWL_START_Y - 20),
+              speed: rand(140, 168),
+              heading: 0,
+            };
+          }
+          // Fair spawn: never on top of the runner, never on the catch spot.
+          if (Math.hypot(cand.x - px, cand.y - py) < 80) continue;
+          if (passTarget && Math.hypot(cand.x - passTarget.x, cand.y - passTarget.y) < 70) continue;
+          d = cand; break;
+        }
+        if (!d) continue;
+        d.heading = Math.atan2(py - d.y, px - d.x);
+        defenders.push(d);
       }
     }
+    function pickPassTarget() {
+      var depth = clamp(playStartYards * 0.45, 8, 26);
+      var baseX = px, baseY = Math.max(BOWL_GOAL_Y + 14, py - depth * PX_PER_YARD);
+      var bestSpot = null, bestScore = -1e9;
+      var offsets = [[0, 0], [-45, 0], [45, 0], [-80, 0], [80, 0], [0, -20], [-45, -20], [45, -20], [0, 20]];
+      offsets.forEach(function (o) {
+        var tx = clamp(baseX + o[0], 30, GAME_W - 30);
+        var ty = clamp(baseY + o[1], BOWL_GOAL_Y + 14, BOWL_START_Y - 10);
+        var minD = 999;
+        defenders.forEach(function (dd) { minD = Math.min(minD, Math.hypot(dd.x - tx, dd.y - ty)); });
+        var s = minD - Math.hypot(tx - baseX, ty - baseY) * 0.4;
+        if (s > bestScore) { bestScore = s; bestSpot = { x: tx, y: ty }; }
+      });
+      return bestSpot;
+    }
     function startPlay(kind) {
+      if (paused) doResume();
       playStartYards = yardsToGo();
-      caught = false; catchT = 0; bigPlayT = 0; freezeT = 0;
+      playStartPy = py;
+      playT = 0;
+      caught = false; catchT = 0; freezeT = 0;
       defenders = [];
-      spawnDefenders(defenderCount(), true);
+      spawnDefenders(defenderCount(), true, true);
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
-        var depth = clamp(playStartYards * 0.55, 10, 32);
-        passTarget = { x: clamp(px + rand(-70, 70), 30, GAME_W - 30), y: Math.max(BOWL_GOAL_Y + 14, py - depth * PX_PER_YARD) };
+        passTarget = pickPassTarget();
+        hasBall = false;
         state = 'pass';
       } else {
         passTarget = null;
+        hasBall = true;
         state = 'run';
       }
       api.hideOverlay();
       updateHud();
     }
-    function endPlay(gained, text, driveOver) {
+    // One place where a play is scored and the downs are booked, so the
+    // result slab, the coach line and the HUD always agree.
+    function endPlay(gained, main, sub, flags) {
+      flags = flags || {};
+      gained = Math.max(0, Math.round(gained));
       score += gained;
-      resultText = text; resultT = 1.4; state = 'result';
-      coachLine = 'Coach: ' + text;
-      if (driveOver) { py = BOWL_START_Y; }
+      var note = '';
+      if (flags.touchdown) {
+        tds += 1;
+        py = BOWL_START_Y; px = GAME_W / 2;
+        down = 1; seriesStart = 80; seriesGain = 0;
+      } else if (flags.incomplete) {
+        py = playStartPy;
+        down += 1;
+        if (down > 4) {
+          note = ' Turnover on downs — back to the 80.';
+          py = BOWL_START_Y; px = GAME_W / 2;
+          down = 1; seriesStart = 80; seriesGain = 0;
+        }
+      } else {
+        seriesGain += gained;
+        if (seriesGain >= 10) {
+          note = ' First down!';
+          down = 1; seriesStart = yardsToGo(); seriesGain = 0;
+        } else {
+          down += 1;
+          if (down > 4) {
+            note = ' Turnover on downs — back to the 80.';
+            py = BOWL_START_Y; px = GAME_W / 2;
+            down = 1; seriesStart = 80; seriesGain = 0;
+          }
+        }
+      }
+      resultMain = main; resultSub = sub + note;
+      resultT = 1.6; state = 'result';
+      coachLine = main + ' ' + sub + note;
       updateHud();
     }
     function endQuarter() {
       if (quarter >= 4) { gameOver(); return; }
       quarter += 1; clock = RUNGUN_QUARTER_SECONDS; timeGoneShown = false;
       py = BOWL_START_Y; px = GAME_W / 2;
+      down = 1; seriesStart = 80; seriesGain = 0;
       state = 'choose'; showChoose();
     }
     function gameOver() {
       state = 'over';
       var finalBest = writeBest('rungun', score);
       best = finalBest;
-      api.showOverlay('<h3>Full time</h3><p>' + esc(parishName) + ' ' + score + ' — ' + esc(opponent) + ' 0.<br>Best: ' + finalBest + '</p>' +
-        '<button type="button" class="big-btn press" id="bowl-again">Play again</button>' +
-        '<button type="button" class="linklike" id="bowl-back">Back to arcade</button>');
+      var yardsGained = Math.max(0, score - tds * RUNGUN_TOUCHDOWN_BONUS);
+      api.showOverlay(bowlCard('Full time', esc(parishName) + ' ' + score + ' — ' + esc(opponent) + ' 0',
+        '<p style="margin:0 0 4px;font-size:15px;">' + tds + (tds === 1 ? ' touchdown' : ' touchdowns') + ' · ' + yardsGained + ' yards gained.</p>' +
+        '<p style="margin:0 0 16px;font-size:14px;">Best: ' + finalBest + '</p>',
+        '<button type="button" class="big-btn press" id="bowl-again" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">Play again</button>' +
+        '<button type="button" class="linklike" id="bowl-back">Back to arcade</button>'));
       var again = document.getElementById('bowl-again');
       if (again) again.addEventListener('click', function () { resetGame(); });
       var back = document.getElementById('bowl-back');
@@ -277,17 +385,31 @@
       updateHud();
     }
     function resetGame() {
-      quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0;
+      quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0; tds = 0;
       px = GAME_W / 2; py = BOWL_START_Y; timeGoneShown = false;
+      down = 1; seriesStart = 80; seriesGain = 0;
+      coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
+      defenders = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0;
       state = 'choose'; showChoose();
+    }
+    // ---- designed overlay card: parchment panel, burgundy frame, gold rule ----
+    function bowlCard(eyebrow, title, body, extra) {
+      return '<div style="background:' + BOWL_PARCHMENT + ';border:3px solid ' + BOWL_BURGUNDY + ';border-radius:16px;padding:24px 22px 20px;max-width:430px;margin:0 auto;text-align:center;box-shadow:0 14px 34px rgba(20,8,6,.45);color:' + BOWL_INK + ';font-family:Georgia,serif;">' +
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:' + BOWL_BURGUNDY_BRIGHT + '">' + eyebrow + '</div>' +
+        '<div style="font-size:32px;font-weight:700;line-height:1.05;margin:10px 0 2px;letter-spacing:.01em;">' + title + '</div>' +
+        '<div style="width:64px;height:3px;background:' + BOWL_GOLD + ';margin:12px auto;"></div>' +
+        body + (extra || '') + '</div>';
+    }
+    function bowlBtn(id, label) {
+      return '<button type="button" class="big-btn press" id="' + id + '" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">' + label + '</button>';
     }
     function showStart() {
       state = 'ready';
-      api.showOverlay('<h3>The Parish Bowl</h3>' +
-        '<p>' + esc(parishName) + ' vs ' + esc(opponent) + '. Four quarters of 45 seconds. Run or pass your way down the field.</p>' +
-        '<p>' + gameMark('rungun') + '</p>' +
-        '<button type="button" class="big-btn press" id="bowl-kickoff">Kick off for ' + esc(parishName) + '</button>' +
-        '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>');
+      api.showOverlay(bowlCard(esc(parishName) + ' vs ' + esc(opponent), 'The Parish Bowl',
+        '<p style="margin:0 0 6px;font-size:15px;line-height:1.45;">Four quarters of 45 seconds. Run or pass your way down the field — four downs to gain ten yards, and the end zone pays six.</p>' +
+        '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">' + gameMark('rungun') + '</p>',
+        bowlBtn('bowl-kickoff', 'Kick off for ' + esc(parishName)) +
+        '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>'));
       var kick = document.getElementById('bowl-kickoff');
       if (kick) kick.addEventListener('click', function () { state = 'choose'; showChoose(); });
       var custom = document.getElementById('bowl-custom');
@@ -295,13 +417,13 @@
       updateHud();
     }
     function showCustomize() {
-      api.showOverlay('<h3>Your home parish priest</h3>' +
-        '<p>Your priest and parish run through the game: the scoreboard, the coach, and the results.</p>' +
-        '<label>Priest name<input id="rungun-priest-name" placeholder="Father Murphy" value="' + esc(storeGet('rmf-parish-bowl-priest') || '') + '"></label>' +
-        '<label>Parish name<input id="rungun-parish-name" placeholder="St Patrick\u2019s" value="' + esc(storeGet('rmf-parish-bowl-parish') || '') + '"></label>' +
-        '<button type="button" class="big-btn press" id="bowl-save-names">Save</button>' +
+      api.showOverlay(bowlCard('Your home parish priest', 'Who\u2019s carrying it?',
+        '<p style="margin:0 0 14px;font-size:14px;line-height:1.45;">Your priest and parish run through the game: the scoreboard, the coach, and the results.</p>' +
+        '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;">Priest name<input id="rungun-priest-name" placeholder="Father Murphy" value="' + esc(storeGet('rmf-parish-bowl-priest') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>' +
+        '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:16px;">Parish name<input id="rungun-parish-name" placeholder="St Patrick\u2019s" value="' + esc(storeGet('rmf-parish-bowl-parish') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>',
+        '<button type="button" class="big-btn press" id="bowl-save-names" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">Save</button>' +
         '<button type="button" class="linklike" id="bowl-forget-names">Forget my names</button>' +
-        '<button type="button" class="linklike" id="bowl-custom-back">Back</button>');
+        '<button type="button" class="linklike" id="bowl-custom-back">Back</button>'));
       var save = document.getElementById('bowl-save-names');
       if (save) save.addEventListener('click', function () {
         var pn = (document.getElementById('rungun-priest-name').value || '').trim();
@@ -310,12 +432,14 @@
         if (pp) storeSet('rmf-parish-bowl-parish', pp); else storeDel('rmf-parish-bowl-parish');
         priestName = pn || 'Father Murphy';
         parishName = pp || 'St Mary\u2019s';
+        coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
         showStart();
       });
       var forget = document.getElementById('bowl-forget-names');
       if (forget) forget.addEventListener('click', function () {
         storeDel('rmf-parish-bowl-priest'); storeDel('rmf-parish-bowl-parish');
         priestName = 'Father Murphy'; parishName = 'St Mary\u2019s';
+        coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
         showStart();
       });
       var back = document.getElementById('bowl-custom-back');
@@ -323,22 +447,27 @@
     }
     function showChoose() {
       state = 'choose';
-      api.showOverlay('<h3>Quarter ' + quarter + ' — ' + esc(parishName) + '</h3>' +
-        '<p>' + Math.ceil(yardsToGo()) + ' yards to go. ' + esc(coachLine) + '</p>' +
-        '<button type="button" class="big-btn press" id="bowl-run">RUN</button>' +
-        '<button type="button" class="big-btn press" id="bowl-pass">PASS</button>' +
-        '<p class="small">Clock stops while you choose. Pass: stand on the gold X to catch, then run. A tackle before the catch ends the drive.</p>');
+      api.showOverlay(bowlCard('Quarter ' + quarter + ' · ' + esc(parishName), esc(downLabel()),
+        '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
+        '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>',
+        bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: reach the gold X and hold still to catch, then run it in. A tackle before the catch is incomplete — no gain, next down.</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
       if (pass) pass.addEventListener('click', function () { startPlay('pass'); });
       updateHud();
     }
+    // ---- the scoreboard strip: burgundy band, gold numerals ----
     function updateHud() {
-      api.setHud('<span><strong>Q' + quarter + '</strong> ' + Math.ceil(clock) + 's</span>' +
-        '<span>' + Math.ceil(yardsToGo()) + ' yards to go</span>' +
-        '<span class="score">' + esc(parishName) + ' ' + score + '</span>' +
-        '<span>Best: ' + best + '</span>');
+      api.setHud('<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;background:' + BOWL_BURGUNDY + ';border-radius:10px;padding:9px 16px;color:' + BOWL_PARCHMENT + ';font-family:Georgia,serif;">' +
+        '<span style="font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">Q' + quarter + '</span>' +
+        '<span style="font-size:20px;font-weight:700;line-height:1;color:#fff">' + Math.ceil(clock) + '<span style="font-size:11px;color:' + BOWL_GOLD_PALE + '">s</span></span>' +
+        '<span style="font-size:14px;font-weight:700;letter-spacing:.1em;color:' + BOWL_GOLD_BRIGHT + '">' + esc(downLabel()) + '</span>' +
+        '<span style="font-size:12px;letter-spacing:.14em;text-transform:uppercase">' + yardsToGo() + ' to go</span>' +
+        '<span style="margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase">' + esc(parishName) + ' <b style="font-size:22px;color:' + BOWL_GOLD_BRIGHT + '">' + score + '</b></span>' +
+        '<span style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">Best ' + best + '</span>' +
+        '</div>');
     }
     function movePlayer(dt) {
       var ax = keys.axis();
@@ -347,21 +476,33 @@
       if (len > 0) { dx /= len; dy /= len; }
       var speed = caught ? 280 : 208;
       px = clamp(px + dx * speed * dt, 16, GAME_W - 16);
-      py = clamp(py + dy * speed * dt, BOWL_GOAL_Y + 4, BOWL_START_Y + 10);
+      // The goal line is the floor: reaching it scores. The start line is
+      // the ceiling: no running backwards past your own 80, no negative yards.
+      py = clamp(py + dy * speed * dt, BOWL_GOAL_Y, BOWL_START_Y);
     }
     function moveDefenders(dt) {
       if (freezeT > 0) return;
+      // Before the catch the defence is in coverage: half pace, closing on
+      // the receiver, so reaching the catch spot is about beating coverage
+      // to the spot. After the catch (or on a run) it hunts at full pace,
+      // but every defender steers with a limited turn rate, so a sharp cut
+      // leaves them wrong-footed instead of glued to the runner.
+      var chase = (state === 'pass' && !caught) ? 0.32 : 1;
       defenders.forEach(function (d) {
-        var dx = px - d.x, dy = py - d.y;
-        var len = Math.hypot(dx, dy) || 1;
-        d.x += (dx / len) * d.speed * dt;
-        d.y += (dy / len) * d.speed * dt;
+        var want = Math.atan2(py - d.y, px - d.x);
+        var diff = want - d.heading;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        d.heading += clamp(diff, -BOWL_TURN_RATE * dt, BOWL_TURN_RATE * dt);
+        var sp = d.speed * chase;
+        d.x += Math.cos(d.heading) * sp * dt;
+        d.y += Math.sin(d.heading) * sp * dt;
       });
     }
     function checkTackle() {
       for (var i = 0; i < defenders.length; i++) {
         var d = defenders[i];
-        if (Math.hypot(d.x - px, d.y - py) < 15) return true;
+        if (Math.hypot(d.x - px, d.y - py) < 16) return true;
       }
       return false;
     }
@@ -371,48 +512,60 @@
         clock -= dt;
         if (clock <= 0) {
           clock = 0;
-          if (!timeGoneShown) { timeGoneShown = true; api.showBanner('Time\u2019s gone — finish the play!', 2000); }
+          if (!timeGoneShown) { timeGoneShown = true; api.showBanner('Time — finish the play!', 2000); }
         }
       }
-      if (bigPlayT > 0) bigPlayT -= dt;
       if (freezeT > 0) freezeT -= dt;
       if (state === 'run' || state === 'pass') {
+        playT += dt;
         movePlayer(dt);
         moveDefenders(dt);
-        // Defender waves: every 1.8s or every 12 yards gained.
+        // Fresh legs: one defender at a time, never a wall of them. Only
+        // once the runner has the ball — no reinforcements dropping on the
+        // receiver while a pass is in the air.
         waveT += dt;
-        if (waveT >= 1.8 || (yardsAtWave - yardsToGo()) >= 12) {
+        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 12)) {
           waveT = 0; yardsAtWave = yardsToGo();
-          if (defenders.length < 12) spawnDefenders(2, true);
+          if (defenders.length < BOWL_DEFENDER_CAP) spawnDefenders(1, true);
         }
         if (state === 'pass' && passTarget && !caught) {
           var dist = Math.hypot(passTarget.x - px, passTarget.y - py);
           if (dist <= BOWL_CATCH_RADIUS) {
             catchT += dt;
             if (catchT >= BOWL_CATCH_DWELL) {
-              caught = true; freezeT = RUNGUN_PASS_STUN_SECONDS; bigPlayT = 1.6;
-              api.showBanner('+20 BIG PLAY — Caught!', 1600);
+              caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
+              api.showBanner('+' + RUNGUN_PASS_BONUS_YARDS + ' big play — caught!', 1600);
               state = 'run'; // carry on running with the ball
             }
           } else { catchT = 0; }
         }
-        if (yardsToGo() <= 0) {
+        if (state === 'run' && yardsToGo() <= 0) {
           // Touchdown: the yards gained, plus a bonus for reaching the end
           // zone, so a scoring drive is worth more than the same yards
           // gained on a tackle.
           var gained = playStartYards + RUNGUN_TOUCHDOWN_BONUS;
-          endPlay(gained, 'Touchdown, ' + priestName + '! ' + esc(parishName) + ' score. +' + RUNGUN_TOUCHDOWN_BONUS + ' bonus.', false);
-          py = BOWL_START_Y;
+          endPlay(gained, 'Touchdown, ' + priestName + '!', parishName + ' score. +' + playStartYards + ' yards, +' + RUNGUN_TOUCHDOWN_BONUS + ' bonus.', { touchdown: true });
           return;
         }
         if (checkTackle()) {
           if (state === 'pass' && !caught) {
-            endPlay(0, 'Tackled before the catch. Drive over, back to the 80.', true);
+            endPlay(0, 'Incomplete.', 'Tackled before the catch. No gain, next down.', { incomplete: true });
           } else {
             var spotYards = Math.max(1, yardsToGo() - (caught ? RUNGUN_PASS_BONUS_YARDS : 0));
-            var g = playStartYards - spotYards;
+            var g = Math.max(0, playStartYards - spotYards);
             py = BOWL_GOAL_Y + spotYards * PX_PER_YARD;
-            endPlay(g, caught ? '+20 BIG PLAY — ' + g + ' yards.' : 'Tackled. +' + g + ' yards.', false);
+            endPlay(g, caught ? 'Caught! +' + RUNGUN_PASS_BONUS_YARDS + ' big play.' : 'Tackled.', '+' + g + ' yards' + (caught ? ' — the catch is worth ' + RUNGUN_PASS_BONUS_YARDS + ' extra.' : '.'), {});
+          }
+          return;
+        }
+        if (playT >= BOWL_PLAY_MAX_SECONDS) {
+          // The whistle: a play cannot run forever, so the quarter can never
+          // stall at 0:00. Dead at the spot, or incomplete on an uncaught pass.
+          if (state === 'pass' && !caught) {
+            endPlay(0, 'Incomplete.', 'Whistle — the pass is dead. No gain, next down.', { incomplete: true });
+          } else {
+            var wg = Math.max(0, playStartYards - yardsToGo());
+            endPlay(wg, 'Whistle — play dead.', '+' + wg + ' yards at the whistle.', {});
           }
           return;
         }
@@ -425,60 +578,87 @@
     }
     function draw() {
       var ctx = api.ctx;
-      // Field
-      ctx.fillStyle = '#2e5e4e'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+      // Field: mown stripes, bold yard lines, numbered every ten.
+      for (var band = 0; band < 10; band++) {
+        ctx.fillStyle = band % 2 ? BOWL_FIELD_STRIPE : BOWL_FIELD;
+        ctx.fillRect(0, BOWL_GOAL_Y + band * 30, GAME_W, 30);
+      }
+      ctx.fillRect(0, BOWL_GOAL_Y + 300, GAME_W, GAME_H - BOWL_GOAL_Y - 300);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = 'bold 12px Georgia';
       for (var y = 10; y <= 80; y += 10) {
         var fy = BOWL_GOAL_Y + y * PX_PER_YARD;
         ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(GAME_W, fy); ctx.stroke();
-        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '11px Georgia';
-        ctx.fillText((80 - y) + '', 6, fy - 3);
+        ctx.fillText(String(80 - y), 6, fy - 4);
       }
-      // End zone
-      ctx.fillStyle = '#7a1f2b'; ctx.fillRect(0, 0, GAME_W, BOWL_GOAL_Y);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Georgia'; ctx.textAlign = 'center';
-      ctx.fillText(esc(parishName) + '  •  ' + esc(opponent), GAME_W / 2, 24);
+      // First-down line: gold, dashed, so the target is visible on the field.
+      var lineToGain = seriesStart - 10;
+      if (lineToGain > 0 && lineToGain < 80) {
+        var ly = BOWL_GOAL_Y + lineToGain * PX_PER_YARD;
+        ctx.strokeStyle = BOWL_GOLD_BRIGHT; ctx.lineWidth = 2;
+        ctx.setLineDash([7, 5]);
+        ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(GAME_W, ly); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 10px Georgia';
+        ctx.fillText('1ST DOWN', 6, ly - 4);
+      }
+      // End zone: burgundy, gold goal line, parish name in gold caps.
+      ctx.fillStyle = BOWL_BURGUNDY; ctx.fillRect(0, 0, GAME_W, BOWL_GOAL_Y);
+      ctx.fillStyle = BOWL_GOLD; ctx.fillRect(0, BOWL_GOAL_Y - 2, GAME_W, 3);
+      ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 15px Georgia'; ctx.textAlign = 'center';
+      ctx.fillText(parishName.toUpperCase(), GAME_W / 2, 25);
       ctx.textAlign = 'left';
       // Gold X (pass target)
       if (state === 'pass' && passTarget && !caught) {
-        ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 4;
+        ctx.fillStyle = 'rgba(196,154,60,0.25)';
+        ctx.beginPath(); ctx.arc(passTarget.x, passTarget.y, BOWL_CATCH_RADIUS, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 4;
         var s = 10;
         ctx.beginPath();
         ctx.moveTo(passTarget.x - s, passTarget.y - s); ctx.lineTo(passTarget.x + s, passTarget.y + s);
         ctx.moveTo(passTarget.x + s, passTarget.y - s); ctx.lineTo(passTarget.x - s, passTarget.y + s);
         ctx.stroke();
-        ctx.fillStyle = '#c49a3c'; ctx.font = '11px Georgia';
-        ctx.fillText('CATCH HERE', passTarget.x + 14, passTarget.y + 4);
+        ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('CATCH HERE', passTarget.x, passTarget.y - 20);
+        ctx.textAlign = 'left';
         if (catchT > 0) {
-          ctx.fillStyle = 'rgba(196,154,60,0.35)';
+          ctx.fillStyle = 'rgba(232,189,85,0.55)';
           ctx.beginPath(); ctx.arc(passTarget.x, passTarget.y, BOWL_CATCH_RADIUS * (catchT / BOWL_CATCH_DWELL), 0, Math.PI * 2); ctx.fill();
         }
       }
       // Defenders
       defenders.forEach(function (d) {
-        ctx.fillStyle = freezeT > 0 ? '#8a8a8a' : '#38291a';
+        ctx.fillStyle = '#33241a';
         ctx.beginPath(); ctx.arc(d.x, d.y, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = freezeT > 0 ? '#8a8a8a' : BOWL_PARCHMENT; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('S', d.x, d.y + 3); ctx.textAlign = 'left';
       });
-      // Player (Father) with the ball
-      ctx.fillStyle = '#7a1f2b';
+      // Player (Father): burgundy disc, gold ring, ball only when carrying.
+      ctx.fillStyle = BOWL_BURGUNDY;
       ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 3; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, py + 4); ctx.textAlign = 'left';
-      ctx.fillStyle = '#c49a3c';
-      ctx.beginPath(); ctx.arc(px + 10, py - 6, 4, 0, Math.PI * 2); ctx.fill();
-      // Result line
+      if (hasBall) {
+        ctx.fillStyle = BOWL_GOLD;
+        ctx.beginPath(); ctx.arc(px + 10, py - 6, 4, 0, Math.PI * 2); ctx.fill();
+      }
+      // Result slab: burgundy band, gold rules, what the play earned and why.
       if (state === 'result') {
-        ctx.fillStyle = 'rgba(20,12,8,0.75)'; ctx.fillRect(0, GAME_H / 2 - 24, GAME_W, 48);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText(resultText, GAME_W / 2, GAME_H / 2 + 6); ctx.textAlign = 'left';
+        ctx.fillStyle = BOWL_BURGUNDY; ctx.fillRect(0, GAME_H / 2 - 32, GAME_W, 64);
+        ctx.fillStyle = BOWL_GOLD; ctx.fillRect(0, GAME_H / 2 - 32, GAME_W, 3);
+        ctx.fillRect(0, GAME_H / 2 + 29, GAME_W, 3);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText(resultMain, GAME_W / 2, GAME_H / 2 - 2);
+        ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 13px Georgia';
+        ctx.fillText(resultSub, GAME_W / 2, GAME_H / 2 + 20);
+        ctx.textAlign = 'left';
       }
       // Paused veil
       if (paused) {
-        ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(87,20,32,0.85)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        ctx.fillStyle = BOWL_PARCHMENT; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
@@ -490,13 +670,13 @@
       draw();
       raf = requestAnimationFrame(loop);
     }
-    function doPause() { if (state === 'run' || state === 'pass' || state === 'result') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
+    function doPause() { if (state === 'run' || state === 'pass' || state === 'result' || state === 'choose') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. P or Esc pauses. The clock stops while you choose a play.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards.'));
     showStart();
     updateHud();
     last = performance.now();

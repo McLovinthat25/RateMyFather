@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 app.param('id', (req, res, next, id) => {
   const n = Number(id);
   if (!/^\d+$/.test(id) || !Number.isSafeInteger(n) || n > 2147483647) {
-    return res.status(404).send(page('Not found', '<h1>Not found</h1><p><a href="/">Home</a></p>'));
+    return res.status(404).send(notFoundPage());
   }
   next();
 });
@@ -90,16 +90,24 @@ function assignment(p) {
   if (loc) parts.push(esc(loc));
   return parts.join(' &middot; ') || 'Listing details not available';
 }
+// Plain-text version of assignment(), for title attributes (no HTML entities).
+function assignmentText(p) {
+  const parts = [];
+  if (p.parish) parts.push('Listed at ' + p.parish);
+  const loc = [p.city, p.state].filter(Boolean).join(', ');
+  if (loc) parts.push(loc);
+  return parts.join(' - ') || 'Listing details not available';
+}
 function priestCard(p, st) {
   const avg = overallAvg(st);
   const scoreBox = avg == null
     ? `<span class="score-box unrated">Not yet rated</span>`
     : `<span class="score-box"><span class="num">${avg.toFixed(1)}</span><span class="lbl">out of 5</span></span>`;
-  return `<a class="card card-lift priest-card" href="/priest/${p.id}">
+  return `<a class="card card-lift priest-card" href="/priest/${p.id}" title="${esc(p.name)} — ${esc(assignmentText(p))}">
     ${scoreBox}
     <span class="priest-main">
-      <span class="priest-name">${esc(p.name)}</span>
-      <span class="assign">${assignment(p)}</span>
+      <span class="priest-name" title="${esc(p.name)}">${esc(p.name)}</span>
+      <span class="assign" title="${esc(assignmentText(p))}">${assignment(p)}</span>
       ${avg == null ? '' : starsHtml(avg)}
       ${p.user_added ? '<span class="badge">User-added profile</span>' : ''}
       ${avg == null ? '' : avgLine(st)}
@@ -115,8 +123,15 @@ function glassStrip(cls = '') {
 const GLASS = glassStrip();
 
 function layout(title, body, extraHead = '') {
+  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from people in the pews. 41,736 directory profiles, searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="${description}">
+  <meta property="og:title" content="${esc(title)} | RateMyFather">
+  <meta property="og:description" content="${description}">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#7a1f2b">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>${esc(title)} | RateMyFather</title>
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
   <header class="topnav"><div class="wrap nav-inner">
@@ -128,14 +143,26 @@ function layout(title, body, extraHead = '') {
   <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
   <p>${DISCLAIMER}</p>
   <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
-  <div id="chat-widget"><button id="chat-toggle" type="button">Ask about a priest</button>
-  <div id="chat-panel" hidden><div id="chat-log"></div>
+  <div id="chat-widget"><button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat-panel">Ask about a priest</button>
+  <div id="chat-panel" hidden role="region" aria-label="Chat about a priest"><div id="chat-log"></div>
   <form id="chat-form"><input id="chat-input" name="message" placeholder="e.g. Who is rated for a quick Mass?" required>
   <button type="submit">Ask</button></form>
   <p class="small">Answers use approved-review averages with review counts only. Individual reviews are never quoted.</p></div></div>
   <script src="/chat.js"></script><script src="/places.js"></script></body></html>`;
 }
-function page(title, inner) { return layout(title, inner); }
+function page(title, inner, extraHead = '') { return layout(title, inner, extraHead); }
+// A 404 that helps the visitor recover: search box, browse, games, add.
+// Used for bad ids and for priest profiles that do not exist.
+function notFoundPage() {
+  return page('Not found', `<h1>We could not find that page</h1>
+  <p>The link may be mistyped, or the priest may not be listed. Try searching by name, parish, or city:</p>
+  <form action="/browse" method="get"><div class="search">
+    <span class="search-field"><input name="q" placeholder="Search by name, parish, or city" aria-label="Search"></span>
+    <button type="submit">Search</button>
+  </div></form>
+  <p><a class="btn" href="/browse">Browse all priests</a> <a class="btn btn-secondary" href="/games">Play the arcade</a></p>
+  <p class="small">If the priest is not listed, you can <a href="/add-priest">submit them for moderation review</a>.</p>`);
+}
 
 // ---------- owner auth (server side) ----------
 function signSession(payload) {
@@ -234,16 +261,16 @@ app.get('/', async (req, res) => {
     <form action="/browse" method="get" id="home-search">
       <div class="search">
         <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search"></span>
-        <input name="zip" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" title="5-digit ZIP">
+        <input name="zip" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" title="5-digit ZIP" inputmode="numeric" maxlength="5">
         <button type="submit">Search</button>
       </div>
       <div class="place-section">
         <h2>Find by place</h2>
         <p class="explainer">Pick a state, then a city, then a diocese.</p>
         <div class="place-filters" data-state="" data-city="" data-diocese="">
-          <select id="place-state" name="state"><option value="">Choose a state</option></select>
-          <select id="place-city" name="city" disabled><option value="">Choose a city</option></select>
-          <select id="place-diocese" name="diocese" disabled><option value="">Choose a diocese</option></select>
+          <select id="place-state" name="state" aria-label="State"><option value="">Choose a state</option></select>
+          <select id="place-city" name="city" disabled aria-label="City"><option value="">Choose a city</option></select>
+          <select id="place-diocese" name="diocese" disabled aria-label="Diocese"><option value="">Choose a diocese</option></select>
         </div>
       </div>
     </form>
@@ -346,7 +373,17 @@ app.get('/games', (req, res) => res.send(page('Games', `
   <h1>The Arcade</h1>
   <p>Take a breather between Masses. Nine little games, all free, all right here. Best scores live only in your browser.</p>
   <div id="arcade-root"><p class="small">Loading games&hellip;</p></div>
-  <script src="/arcade.js"></script>`)));
+  <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>
+  <script src="/arcade.js"></script>
+  <script>(function () {
+    // If the games shelf never renders (script blocked or failed), say so
+    // and offer a retry instead of leaving "Loading games…" up forever.
+    setTimeout(function () {
+      var root = document.getElementById('arcade-root');
+      if (!root || root.querySelector('.arcade-shelf, .game-stage')) return;
+      root.innerHTML = '<p class="notice">The games did not load. Check your connection and try again.</p><p><button type="button" onclick="location.reload()">Try again</button></p>';
+    }, 6000);
+  })();</script>`)));
 
 const FILTERS = { quick: 'pace', homily: 'homily', lovable: 'likability' };
 const FILTER_LABELS = { quick: 'Quick Mass (pace)', homily: 'Great homily', lovable: 'Lovable priest (likability)' };
@@ -380,6 +417,7 @@ app.get('/browse', async (req, res) => {
     }
   }
   let cards = [];
+  let totalCount = 0;
   if (FILTERS[filter]) {
     // Rank across ALL rated priests matching the search, not just the first
     // 200 alphabetical rows: join approved reviews and order by category
@@ -396,6 +434,8 @@ app.get('/browse', async (req, res) => {
     try {
       const frows = (await pool.query(fsql, params)).rows;
       cards = frows.map((p) => ({ p, st: { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability } }));
+      const csql = `SELECT COUNT(*)::int AS n FROM (${fsql.replace(/ ORDER BY.*$/, '')}) t`;
+      totalCount = (await pool.query(csql, params)).rows[0].n;
     } catch (e) { console.error(e.message); }
   } else {
     let sql = `SELECT * FROM priests WHERE ${where.join(' AND ')} ORDER BY name LIMIT 200`;
@@ -403,21 +443,22 @@ app.get('/browse', async (req, res) => {
     try { rows = (await pool.query(sql, params)).rows; } catch (e) { console.error(e.message); }
     const stats = await statsFor(rows.map((r) => r.id));
     cards = rows.map((p) => ({ p, st: stats[p.id] }));
+    try { totalCount = (await pool.query(`SELECT COUNT(*)::int AS n FROM priests WHERE ${where.join(' AND ')}`, params)).rows[0].n; } catch (e) { console.error(e.message); }
   }
   const heading = filter ? FILTER_LABELS[filter] : 'Search & Browse';
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
-    : `<p>No priests matched that search.</p><p><a class="btn" href="/add-priest">Add this priest</a></p><p class="small">If the priest is not listed, you can submit them for moderation review.</p>`;
+    : `<p>No priests matched that search.</p><p><a class="btn" href="/add-priest">Add this priest</a> <a class="btn btn-secondary" href="/browse">Clear search and filters</a></p><p class="small">If the priest is not listed, you can submit them for moderation review.</p>`;
   const matchLine = cards.length
-    ? `<p class="match-count">${cards.length >= 200 ? 'Showing the first 200 priests' : `${cards.length} priest${cards.length === 1 ? '' : 's'}`}</p>`
+    ? `<p class="match-count">${totalCount > 200 ? `${totalCount.toLocaleString()} priests found &mdash; showing the first 200` : `${totalCount} priest${totalCount === 1 ? '' : 's'}`}</p>`
     : '';
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   res.send(page(heading, `<h1>${esc(heading)}</h1>
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Name, parish, or city"></span>
-        <input name="zip" value="${esc(zip)}" placeholder="ZIP (area-level)" pattern="\\d{5}">
-        <select name="filter"><option value="">All priests</option>
+        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Name, parish, or city" aria-label="Search by name, parish, or city"></span>
+        <input name="zip" value="${esc(zip)}" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" inputmode="numeric" maxlength="5">
+        <select name="filter" aria-label="Filter by category"><option value="">All priests</option>
           <option value="quick" ${filter === 'quick' ? 'selected' : ''}>Quick Mass</option>
           <option value="homily" ${filter === 'homily' ? 'selected' : ''}>Great homily</option>
           <option value="lovable" ${filter === 'lovable' ? 'selected' : ''}>Lovable priest</option></select>
@@ -427,9 +468,9 @@ app.get('/browse', async (req, res) => {
         <h2>Find by place</h2>
         <p class="explainer">Pick a state, then a city, then a diocese.</p>
         <div class="place-filters stacked" data-state="${esc(state)}" data-city="${esc(city)}" data-diocese="${esc(diocese)}">
-          <select id="place-state" name="state"><option value="">Choose a state</option></select>
-          <select id="place-city" name="city" disabled><option value="">Choose a city</option></select>
-          <select id="place-diocese" name="diocese" disabled><option value="">Choose a diocese</option></select>
+          <select id="place-state" name="state" aria-label="State"><option value="">Choose a state</option></select>
+          <select id="place-city" name="city" disabled aria-label="City"><option value="">Choose a city</option></select>
+          <select id="place-diocese" name="diocese" disabled aria-label="Diocese"><option value="">Choose a diocese</option></select>
         </div>
       </div>
     </form>
@@ -449,7 +490,7 @@ const ATTENDANCE_OPTIONS = [
 // ---------- profile + rating ----------
 app.get('/priest/:id', async (req, res) => {
   const { rows } = await pool.query(`SELECT * FROM priests WHERE id=$1 AND status='approved'`, [req.params.id]);
-  if (!rows.length) return res.status(404).send(page('Not found', '<h1>Priest not found</h1><p><a href="/add-priest">Add this priest</a></p>'));
+  if (!rows.length) return res.status(404).send(notFoundPage());
   const p = rows[0];
   const stats = await statsFor([p.id]);
   const st = stats[p.id];
@@ -508,7 +549,7 @@ app.get('/priest/:id', async (req, res) => {
       <button type="submit">Submit review</button>
     </form>
     <h2>Published reviews</h2>${reviewHtml}
-    <p><a class="btn" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>`));
+    <p><a class="btn" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>`, '<script src="/review.js"></script>'));
 });
 
 app.post('/priest/:id/review', async (req, res) => {

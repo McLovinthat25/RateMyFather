@@ -8,7 +8,22 @@
   const form = document.getElementById('chat-form');
   const input = document.getElementById('chat-input');
   if (!toggle || !panel) return;
-  toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+  let greeted = false;
+  function setOpen(open) {
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      if (!greeted) {
+        greeted = true;
+        log.insertAdjacentHTML('beforeend', '<div class="msg">Hi. Ask me about a priest by name, or ask for a quick Mass, a great homily, or a lovable priest. I only use approved-review averages, with review counts.</div>');
+      }
+      input.focus();
+    }
+  }
+  toggle.addEventListener('click', () => { setOpen(panel.hidden); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !panel.hidden) { setOpen(false); toggle.focus(); }
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const message = input.value.trim();
