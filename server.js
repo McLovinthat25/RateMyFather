@@ -123,7 +123,7 @@ function glassStrip(cls = '') {
 const GLASS = glassStrip();
 
 function layout(title, body, extraHead = '') {
-  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from people in the pews. 41,736 directory profiles, searchable by name, parish, city, state, or diocese.';
+  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from people in the pews. Thousands of directory profiles, searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="${description}">
@@ -239,24 +239,15 @@ const HERO_ART = `<svg viewBox="0 0 800 420" role="img" aria-label="Stained-glas
 
 // ---------- public pages ----------
 app.get('/', async (req, res) => {
-  let regionCounts = {};
-  try {
-    const { rows } = await pool.query(`SELECT state, COUNT(*)::int AS n FROM priests WHERE status='approved' GROUP BY state`);
-    for (const r of rows) {
-      const region = regionOf(r.state);
-      regionCounts[region] = (regionCounts[region] || 0) + r.n;
-    }
-  } catch (e) { console.error(e.message); }
   const regions = ['Northeast', 'Midwest', 'South', 'West', 'Other listings'];
-  const regionHtml = regions.map((r) => `<li><a href="/browse?region=${encodeURIComponent(r)}">${r}</a> <span class="count">${regionCounts[r] || 0} profiles</span></li>`).join('');
-  const totalProfiles = Object.values(regionCounts).reduce((a, b) => a + b, 0);
+  const regionHtml = regions.map((r) => `<li><a href="/browse?region=${encodeURIComponent(r)}">${r}</a></li>`).join('');
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   res.send(page('Home', `
     <section class="hero">
       <div class="sg-frame" aria-hidden="true">${HERO_ART}</div>
       <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
       <p class="tagline">Anonymous ratings of pace, homily, and likability, from people in the pews.</p>
-      ${totalProfiles ? `<p class="stats">${totalProfiles.toLocaleString()} profiles</p>` : ''}
+      <p class="stats">Thousands of profiles</p>
     </section>${GLASS}
     <form action="/browse" method="get" id="home-search">
       <div class="search">
@@ -449,8 +440,8 @@ app.get('/browse', async (req, res) => {
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
     : `<p>No priests matched that search.</p><p><a class="btn" href="/add-priest">Add this priest</a> <a class="btn btn-secondary" href="/browse">Clear search and filters</a></p><p class="small">If the priest is not listed, you can submit them for moderation review.</p>`;
-  const matchLine = cards.length
-    ? `<p class="match-count">${totalCount > 200 ? `${totalCount.toLocaleString()} priests found &mdash; showing the first 200` : `${totalCount} priest${totalCount === 1 ? '' : 's'}`}</p>`
+  const matchLine = cards.length && totalCount > 200
+    ? `<p class="match-count">Showing the first 200 priests</p>`
     : '';
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   res.send(page(heading, `<h1>${esc(heading)}</h1>
@@ -494,13 +485,17 @@ app.get('/priest/:id', async (req, res) => {
   const p = rows[0];
   const stats = await statsFor([p.id]);
   const st = stats[p.id];
-  const revs = (await pool.query(`SELECT id, pace, homily, likability, mass_context, attendance_duration, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
+  const revs = (await pool.query(`SELECT id, pace, homily, likability, church_beauty, mass_context, attendance_duration, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
+  // Church beauty is a separate average over the BUILDING only. It never
+  // enters the priest's score, and it has its own review count.
+  const church = (await pool.query(`SELECT COUNT(*)::int AS n, AVG(church_beauty) AS avg FROM reviews WHERE priest_id=$1 AND status='approved' AND church_beauty IS NOT NULL`, [p.id])).rows[0];
   const reviewHtml = revs.length ? revs.map((r) => {
     const ravg = (Number(r.pace) + Number(r.homily) + Number(r.likability)) / 3;
     const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     return `<article class="review">
     <div class="review-head"><span class="review-score">${ravg.toFixed(1)} out of 5</span>${starsHtml(ravg)}<span class="review-date">${date}${r.mass_context ? ` &middot; ${esc(r.mass_context)}` : ''}</span></div>
     <p class="review-cats">Pace <strong>${r.pace}</strong> &middot; Homily <strong>${r.homily}</strong> &middot; Likability <strong>${r.likability}</strong></p>
+    ${r.church_beauty ? `<p class="review-church">Church beauty: <strong>${r.church_beauty} out of 5</strong> <span class="small">(the building, not the priest)</span></p>` : ''}
     ${r.attendance_duration ? `<p class="review-attendance">Attending this parish / knows this priest: <strong>${esc(r.attendance_duration)}</strong></p>` : ''}
     ${r.body ? `<p class="review-body">${esc(r.body)}</p>` : '<p class="review-body small">Star-only review (no written comment).</p>'}
     <div class="review-actions"><a href="/report?review=${r.id}&priest=${p.id}">Report this review</a></div></article>`;
@@ -525,6 +520,7 @@ app.get('/priest/:id', async (req, res) => {
       <div class="score-row">${scoreBoxLg}<div class="bars">${barsHtml}</div></div>
       ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
       ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
+      ${church && church.n ? `<div class="church-box"><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box"><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
       <p class="profile-note">${DISCLAIMER}</p>
     </div>
   </article>
@@ -539,6 +535,11 @@ app.get('/priest/:id', async (req, res) => {
       <p><label>Likability: <select name="likability" required>
         <option value="">Choose</option><option value="1">1: not likable</option><option value="2">2: below average</option>
         <option value="3">3: average</option><option value="4">4: likable</option><option value="5">5: very likable</option></select></label></p>
+      <fieldset class="church-fieldset"><legend>The church building (optional)</legend>
+      <p><label>How beautiful is the church building itself? <select name="church_beauty">
+        <option value="">No rating</option><option value="1">1: plain</option><option value="2">2: modest</option>
+        <option value="3">3: pleasant</option><option value="4">4: beautiful</option><option value="5">5: stunning</option></select></label></p>
+      <p class="small">This rates the building, not the priest. It never affects the priest's score, and it is shown separately on the profile.</p></fieldset>
       <p><label>How long have you attended this parish or known this priest? <select name="attendance_duration" required>
         <option value="">Choose</option>${ATTENDANCE_OPTIONS.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select></label></p>
       <p><label>Mass context (optional): <input name="mass_context" maxlength="120" placeholder="e.g. Sunday 10am Mass"></label></p>
@@ -560,6 +561,13 @@ app.post('/priest/:id/review', async (req, res) => {
   const body = (req.body.body || '').trim().slice(0, 2000);
   const massContext = (req.body.mass_context || '').trim().slice(0, 120);
   const attendance = (req.body.attendance_duration || '').trim();
+  // Church beauty is optional and rates the BUILDING, not the priest. It is
+  // stored on the review but never enters the priest's score.
+  const churchRaw = String(req.body.church_beauty || '').trim();
+  const churchBeauty = churchRaw === '' ? null : Number(churchRaw);
+  if (churchBeauty !== null && !(Number.isInteger(churchBeauty) && churchBeauty >= 1 && churchBeauty <= 5)) {
+    return res.status(400).send(page('Review not submitted', '<h1>Review not submitted</h1><p>Church beauty, if given, must be a whole number from 1 to 5.</p>'));
+  }
   if (![pace, homily, likability].every((v) => Number.isInteger(v) && v >= 1 && v <= 5)) {
     return res.status(400).send(page('Review not submitted', '<h1>Review not submitted</h1><p>Each rating must be a whole number from 1 to 5.</p>'));
   }
@@ -591,9 +599,9 @@ app.post('/priest/:id/review', async (req, res) => {
   const spike = await pool.query(`SELECT COUNT(*)::int AS n FROM reviews WHERE priest_id=$1 AND created_at > NOW() - INTERVAL '24 hours'`, [pid]);
   if (spike.rows[0].n >= SPIKE_THRESHOLD) { status = 'pending'; flagReason = 'spike'; }
   const ins = await pool.query(
-    `INSERT INTO reviews (priest_id, pace, homily, likability, mass_context, attendance_duration, body, status, source_token_hash, abuse_flag, flag_reason)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-    [pid, pace, homily, likability, massContext || null, attendance, body || null, status, token, abuseFlag, flagReason]);
+    `INSERT INTO reviews (priest_id, pace, homily, likability, church_beauty, mass_context, attendance_duration, body, status, source_token_hash, abuse_flag, flag_reason)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+    [pid, pace, homily, likability, churchBeauty, massContext || null, attendance, body || null, status, token, abuseFlag, flagReason]);
   await audit(status === 'approved' ? 'review_auto_approved' : 'review_held', 'review', ins.rows[0].id, flagReason);
   if (status === 'approved') {
     res.send(page('Review published', `<h1>Thank you</h1><p>Your review passed screening and is now public. It can still be removed later if it is reported and found to break the rules.</p><p><a href="/priest/${pid}">Back to profile</a></p>`));
@@ -682,9 +690,14 @@ app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p>Each rat
   <p>Each review also says how long the reviewer has attended the parish or known the priest, from a first-time visitor to a lifelong parishioner, and that is printed on the review so readers can weigh it.</p>
   <p>Screening: star-only and clearly clean reviews may auto-approve. Borderline reviews wait in the moderation queue. Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag and never auto-approved. Reviews containing phone numbers or email addresses are refused outright. A repeat review of the same priest from the same source is refused. After 5 reviews in an hour from one source, further reviews are refused. If 10 or more reviews of one priest arrive in 24 hours, further reviews of that priest are force-held.</p>
   <p>Category lists ("Quick Mass", "Great homily", "Lovable priest") show rated priests only, sorted by that category average highest first, tie-broken by review count. Listings based on a single review carry a single-review caveat.</p>
-  <p>Reviews are anonymous. No name or email is collected. For abuse prevention only, the site stores a hashed token derived from request data (see Privacy Policy).</p>`)));
-app.get('/terms', (req, res) => res.send(infoPage('Terms of Use', `<p>By submitting a review, you confirm you are 18 or older and that the review is your own honest opinion. Reviews are individual users' opinions, not statements of fact.</p>
-  <p>You must not submit private contact details, unverified factual allegations about identifiable people, or content you do not have the right to post. The owner may approve, hold, reject, or remove content under the Content and Moderation Policy.</p>
+  <p>Reviews are anonymous. No name or email is collected. For abuse prevention only, the site stores a hashed token derived from request data (see Privacy Policy).</p>
+  <p>Reviews are user opinions, not verified facts. The site does not verify or endorse them. If you believe a review is unlawful or about you, use the <a href="/legal">Legal notices</a> page or the correction form on the priest's profile.</p>
+  <p><strong>Church beauty is separate from the priest's score.</strong> When you review, you can optionally rate how beautiful the church building is, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It is shown on the profile in its own box with its own review count, and it never affects the priest's score, averages, rankings, or category lists. A priest is never punished because their church is not beautiful.</p>`)));
+app.get('/terms', (req, res) => res.send(infoPage('Terms of Use', `<p>Reviews are user-generated opinions. They are the individual reviewer's own opinion, not statements of fact, not verified by RateMyFather, and not endorsed by RateMyFather. A rating reflects one person's experience, not a finding about a priest.</p>
+  <p>By submitting a review, you confirm you are 18 or older and that the review is your own honest opinion. You are responsible for what you submit. You must not submit private contact details, unverified factual allegations about identifiable people, or content you do not have the right to post.</p>
+  <p>RateMyFather is not liable for user-submitted content. The site hosts reviews as a platform for user opinions; it does not adopt, verify, or stand behind them.</p>
+  <p>The owner may approve, hold, reject, or remove any content at any time, for any reason, under the Content and Moderation Policy. Nothing on this site is guaranteed to stay published.</p>
+  <p>If you believe content is unlawful, inaccurate, or about you, you can submit a legal notice or a correction. Use the <a href="/legal">Legal notices</a> page to submit a legal notice, or the correction form on a priest's profile to request a correction, a right of reply, or a removal. Links to both are in the footer of every page.</p>
   <p>No paid placement: no priest, parish, or diocese can pay for placement, ranking, or promotion on this site.</p>
   <p>This site does not claim that the site or its owner is immune from suit.</p>`)));
 app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What is collected:</p>
@@ -692,7 +705,8 @@ app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What i
   <li><strong>Abuse-prevention token:</strong> a SHA-256 hash derived from request data (IP address plus user agent). Only the hash is stored, never the raw IP address or user agent string. It is used only to refuse duplicates, enforce the hourly review limit, and detect review spikes.</li>
   <li><strong>Moderation submissions:</strong> reports, corrections, right-of-reply and removal requests, and legal notices, including any optional contact details you choose to provide. Contact details are never published.</li>
   <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time and a signature, nothing else.</li></ul>
-  <p>Nothing else is collected for tracking or advertising. There is no advertising on this site.</p>`)));
+  <p>Nothing else is collected for tracking or advertising. There is no advertising on this site.</p>
+  <p>To request removal of personal information you submitted, use the <a href="/legal">Legal notices</a> page. Contact details you provide in a legal notice are never published.</p>`)));
 app.get('/moderation', (req, res) => res.send(infoPage('Content & Moderation Policy', `<p>All moderation is owner-only and enforced on the server. Public buttons (report, correction, legal notice) only flag the queue; they never approve, reject, or delete anything.</p>
   <p>Star-only and clearly clean reviews may auto-approve. Borderline reviews wait for a human owner decision. Possible unverified factual allegations are force-held with an abuse flag and never auto-approved. Reviews with private contact details are refused. Repeat reviews of the same priest from the same source are refused. Hourly bursts (over 5 per source) are refused. 24-hour spikes (10 or more per priest) are force-held.</p>
   <p>The owner can approve or reject pending reviews and user-added profiles, delete reviews and user-added profiles, and resolve reports, corrections, and legal notices. Directory profiles are never deleted.</p>
@@ -794,7 +808,11 @@ app.get('/owner', requireOwner, async (req, res) => {
   const pendingCorrections = (await pool.query(`SELECT * FROM corrections WHERE status='pending' ORDER BY created_at DESC LIMIT 100`)).rows;
   const pendingLegal = (await pool.query(`SELECT * FROM legal_notices WHERE status='pending' ORDER BY created_at DESC LIMIT 100`)).rows;
   const act = (action, id) => `<form action="/owner/${action}/${id}" method="post" style="display:inline"><button type="submit">`;
-  const reviewRows = pendingReviews.map((r) => `<li>${esc(r.priest_name)}: Pace ${r.pace}, Homily ${r.homily}, Likability ${r.likability}${r.abuse_flag ? ' <strong>[abuse flag]</strong>' : ''}${r.flag_reason ? ` [${esc(r.flag_reason)}]` : ''}${r.body ? `: ${esc(r.body)}` : ' (star-only)'}
+  const abuseFlagged = pendingReviews.filter((r) => r.abuse_flag);
+  const regularReviews = pendingReviews.filter((r) => !r.abuse_flag);
+  const abuseRows = abuseFlagged.map((r) => `<li><strong class="badge" style="background:#b8452a;color:#fff">ABUSE FLAG</strong> ${esc(r.priest_name)}: Pace ${r.pace}, Homily ${r.homily}, Likability ${r.likability}${r.church_beauty ? `, Church beauty ${r.church_beauty}` : ''}${r.flag_reason ? ` &mdash; ${esc(r.flag_reason)}` : ''}${r.body ? `: ${esc(r.body)}` : ' (star-only)'}
+    ${act('review-approve', r.id)}Approve</button></form> ${act('review-reject', r.id)}Reject</button></form> ${act('review-delete', r.id)}Delete</button></form></li>`).join('') || '<li>None</li>';
+  const reviewRows = regularReviews.map((r) => `<li>${esc(r.priest_name)}: Pace ${r.pace}, Homily ${r.homily}, Likability ${r.likability}${r.church_beauty ? `, Church beauty ${r.church_beauty}` : ''}${r.flag_reason ? ` [${esc(r.flag_reason)}]` : ''}${r.body ? `: ${esc(r.body)}` : ' (star-only)'}
     ${act('review-approve', r.id)}Approve</button></form> ${act('review-reject', r.id)}Reject</button></form> ${act('review-delete', r.id)}Delete</button></form></li>`).join('') || '<li>None</li>';
   const priestRows = pendingPriests.map((p) => `<li>${esc(p.name)} (${assignment(p)})
     ${act('priest-approve', p.id)}Approve</button></form> ${act('priest-reject', p.id)}Reject</button></form></li>`).join('') || '<li>None</li>';
@@ -804,6 +822,9 @@ app.get('/owner', requireOwner, async (req, res) => {
   res.send(page('Owner moderation', `<h1>Owner moderation queue</h1>
     <p><a href="/owner/audit">View auto-approved audit list</a></p>
     <form action="/owner/logout" method="post"><button type="submit">Sign out</button></form>
+    <h2>Abuse-flagged reviews &mdash; review these first</h2>
+    <p class="small">These reviews were force-held because they may contain an unverified factual allegation (misconduct, a crime, or improper behavior). They are never auto-approved and are not public. Read each one and approve, reject, or delete it.</p>
+    <ul>${abuseRows}</ul>
     <h2>Pending reviews</h2><ul>${reviewRows}</ul>
     <h2>Pending user-added priests</h2><ul>${priestRows}</ul>
     <h2>Pending reports</h2><ul>${reportRows}</ul>
@@ -876,6 +897,11 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   res.status(500).send(page('Something went wrong', '<h1>Something went wrong</h1><p>Please try again.</p>'));
 });
+
+// Catch-all 404: any URL that matches no route above gets the site's helpful
+// 404 page (search box, Browse, Arcade, Add-a-priest), not Express's bare
+// default "Cannot GET" page.
+app.use((req, res) => res.status(404).send(notFoundPage()));
 
 // ---------- boot ----------
 async function boot() {

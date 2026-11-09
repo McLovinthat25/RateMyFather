@@ -43,11 +43,11 @@
     if (!state) return;
     try {
       const cities = await (await fetch('/api/places/cities?state=' + encodeURIComponent(state))).json();
-      fill(citySel, cities, 'city', (c) => `${c.city} (${c.n})`, 'Choose a city');
+      fill(citySel, cities, 'city', (c) => c.city, 'Choose a city');
       citySel.disabled = false;
       if (restore && selectedCity) citySel.value = selectedCity;
       const dioceses = await (await fetch('/api/places/dioceses?state=' + encodeURIComponent(state))).json();
-      fill(dioceseSel, dioceses, 'code', (d) => `${d.name} (${d.n})`, 'Choose a diocese');
+      fill(dioceseSel, dioceses, 'code', (d) => d.name, 'Choose a diocese');
       dioceseSel.disabled = false;
       if (restore && selectedDiocese) dioceseSel.value = selectedDiocese;
       restored = true;
@@ -63,7 +63,7 @@
   (async () => {
     try {
       const states = await (await fetch('/api/places/states')).json();
-      fill(stateSel, states, 'state', (s) => `${s.state} (${s.n})`, 'Choose a state');
+      fill(stateSel, states, 'state', (s) => s.state, 'Choose a state');
       if (selectedState) {
         stateSel.value = selectedState;
         await loadCities(selectedState, !restored);

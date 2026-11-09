@@ -1,5 +1,5 @@
 /* RateMyFather: demo look. Warm parchment, burgundy + gold, Georgia serif headings,
-   leaded stained-glass frames. Ported from the demo's design system: a narrow 768px
+   leaded stained-glass frames. Ported from the demo's design system: a wide 1150px
    centered column, 16px universal radius, soft two-layer shadows, arched hero,
    leaded-glass divider strips, lead score boxes, gold stars and category bars. */
 :root {
@@ -27,30 +27,32 @@
 body { margin:0; background:var(--bg); color:var(--text);
   font-family:"Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   font-size:16px; line-height:1.5; }
-/* Stained-glass mural: one large window, fixed behind all content site-wide,
-   with a warm gold glow at the top. A single composed window (not a repeating
-   tile), strong enough to read as a mural, light enough that text stays
-   clearly readable: the darkest leaded pane, blended at this opacity over
-   the parchment, still leaves body text above a 10:1 contrast ratio. */
+/* Photographic stained-glass mural: a real cathedral window photograph,
+   fixed behind all content site-wide. The photo is a Pexels free image
+   (Atlantic Ambience, La Orotava cathedral): a tall arched window in ruby,
+   cobalt and gold, with warm light streaming through. It is shown at low
+   opacity so it reads as a beautiful atmospheric mural, not a backdrop
+   that fights the text. A parchment veil softens it further behind the
+   reading column, so body text keeps a high contrast ratio. */
 body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
   background-image:
-    radial-gradient(ellipse 90% 46% at 50% 0%, rgb(196 154 60 / 0.16), transparent 70%),
-    url("/mural.svg");
+    radial-gradient(ellipse 90% 46% at 50% 0%, rgb(196 154 60 / 0.14), transparent 70%),
+    url("/mural.jpg");
   background-repeat:no-repeat, no-repeat;
-  background-position:center 0, center 2%;
-  background-size:100% 46%, min(120vmin, 920px) auto;
-  opacity:0.16; }
+  background-position:center 0, center 18%;
+  background-size:100% 46%, cover;
+  opacity:0.22; }
 /* Parchment veil: the mural burns bright at the page edges and softens
-   behind the reading column, so secondary text keeps a 5.6:1 contrast
-   even over the darkest leaded pane. */
+   behind the reading column, so secondary text keeps a 5.2:1 contrast
+   even over the brightest pane. */
 body::after { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
-  background:linear-gradient(90deg, rgb(251 247 239 / 0) 0%, rgb(251 247 239 / 0.68) 22%,
-    rgb(251 247 239 / 0.68) 78%, rgb(251 247 239 / 0) 100%); }
+  background:linear-gradient(90deg, rgb(251 247 239 / 0.10) 0%, rgb(251 247 239 / 0.60) 18%,
+    rgb(251 247 239 / 0.60) 82%, rgb(251 247 239 / 0.10) 100%); }
 main, footer.site-footer { position:relative; z-index:1; }
 @media (prefers-color-scheme: dark) {
-  body::before { opacity:0.11; }
-  body::after { background:linear-gradient(90deg, rgb(23 16 8 / 0) 0%, rgb(23 16 8 / 0.68) 22%,
-    rgb(23 16 8 / 0.68) 78%, rgb(23 16 8 / 0) 100%); }
+  body::before { opacity:0.14; }
+  body::after { background:linear-gradient(90deg, rgb(23 16 8 / 0) 0%, rgb(23 16 8 / 0.60) 18%,
+    rgb(23 16 8 / 0.60) 82%, rgb(23 16 8 / 0) 100%); }
 }
 @media print {
   body::before { display:none; }
@@ -66,9 +68,9 @@ p:first-child { margin-top:0; }
 a { color:var(--accent); }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
 
-/* ---------- Layout: one narrow centered column ---------- */
-.wrap { max-width:768px; margin:0 auto; padding:0 16px; }
-@media (min-width:640px) { .wrap { padding:0 20px; } }
+/* ---------- Layout: a wide centered column that uses the screen ---------- */
+.wrap { max-width:1150px; margin:0 auto; padding:0 20px; }
+@media (min-width:640px) { .wrap { padding:0 28px; } }
 main { padding:48px 0 64px; }
 .home-section { margin-top:56px; }
 .home-section h2 { margin-top:0; }
@@ -83,13 +85,14 @@ main { padding:48px 0 64px; }
   backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
   border-bottom:1px solid color-mix(in srgb, var(--border) 50%, transparent); }
-.nav-inner { display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap; padding:8px 0; }
-.brand { color:var(--text); text-decoration:none; font-size:18px; font-weight:700; letter-spacing:-0.01em; }
+.nav-inner { display:flex; align-items:center; gap:12px 28px; flex-wrap:wrap; padding:14px 0; }
+.brand { color:var(--text); text-decoration:none; font-size:20px; font-weight:700; letter-spacing:-0.01em; }
 .brand .accent { color:var(--accent); }
-.topnav nav { display:flex; gap:4px; flex-wrap:wrap; margin-left:auto; }
+.topnav nav { display:flex; gap:6px 14px; flex-wrap:wrap; margin-left:auto; }
 @media (max-width:639px) { .topnav nav { margin-left:0; width:100%; } }
-.topnav nav a { color:var(--dim); text-decoration:none; font-size:12px; font-weight:600;
-  text-transform:uppercase; letter-spacing:0.09em; padding:8px 6px; }
+.topnav nav a { color:var(--dim); text-decoration:none; font-size:13px; font-weight:600;
+  text-transform:uppercase; letter-spacing:0.09em; padding:10px 12px; border-radius:999px; }
+.topnav nav a:hover { color:var(--accent); background:var(--surface-alt); }
 .topnav nav a:hover { color:var(--accent); }
 
 /* ---------- Leaded-glass divider strips ---------- */
@@ -158,8 +161,9 @@ button:hover, .btn:hover { background:var(--accent-hover); }
 .card h2 { margin-top:0; }
 .card h3 { margin:0 0 4px; }
 .card h3 a { color:var(--text); text-decoration:none; }
-.priest-card { display:flex; gap:16px; align-items:flex-start; text-decoration:none; color:inherit; }
-.priest-card:hover { border-color:var(--gold); }
+.priest-card { display:flex; gap:16px; align-items:flex-start; text-decoration:none; color:inherit;
+  transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.priest-card:hover { border-color:var(--gold); transform:translateY(-2px); box-shadow:var(--shadow-lift); }
 .priest-card:hover .priest-name { color:var(--accent); }
 .priest-main { flex:1; min-width:0; }
 .priest-name { font-family:Georgia, "Times New Roman", Times, serif; font-size:18px; font-weight:700;
@@ -286,6 +290,20 @@ form .guidance { background:var(--surface-alt); border-radius:var(--radius);
 .review-actions { display:flex; justify-content:flex-end; gap:16px; margin-top:12px; }
 .review-actions a { font-size:14px; color:var(--dim); text-decoration:underline; }
 .review-actions a:hover { color:var(--accent); }
+/* Church beauty: a separate, clearly labelled section. The fieldset in the
+   review form and the box on the profile both sit apart from the priest's
+   score, so a reader can tell at a glance that the church rating is about
+   the building and never touches the priest's score. */
+.church-fieldset { border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px 16px; margin:18px 0; background:var(--surface-alt); }
+.church-fieldset legend { font-weight:700; font-size:15px; padding:0 6px; }
+.church-fieldset p { margin:8px 0; }
+.church-box { margin:20px 0 4px; padding:16px 18px; border:1px solid var(--border);
+  border-radius:var(--radius); background:var(--surface-alt); }
+.church-box h3 { margin:0 0 6px; font-size:16px; }
+.church-box p { margin:0; }
+.review-church { margin:6px 0; font-size:14px; color:var(--dim); }
+.review-church strong { color:var(--text); }
 
 /* Skeleton shimmer for loading states. */
 .skeleton { position:relative; overflow:hidden; background:var(--border); border-radius:8px; min-height:1em; }
