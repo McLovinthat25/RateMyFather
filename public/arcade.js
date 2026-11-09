@@ -23,6 +23,20 @@
   function storeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
   function storeDel(key) { try { localStorage.removeItem(key); } catch (e) {} }
 
+  // Canvas point: converts a pointer event on a game canvas to canvas
+  // coordinates, accounting for the canvas being scaled by CSS on a phone.
+  // Shared by the direct-touch controls: the player touches the play area
+  // itself instead of hunting for buttons. Arrow keys and the on-screen
+  // buttons keep working exactly as before; touch is an added input, not
+  // a replacement.
+  function canvasPoint(canvas, e) {
+    var r = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (canvas.width / r.width),
+      y: (e.clientY - r.top) * (canvas.height / r.height),
+    };
+  }
+
   // ---- shared stage ----
   function createStage(parent, opts) {
     var stage = el('div', 'game-stage');
@@ -35,6 +49,8 @@
     var canvas = document.createElement('canvas');
     canvas.width = GAME_W; canvas.height = GAME_H;
     canvas.setAttribute('aria-label', opts.title);
+    // Dragging on the field must move the player, not scroll the page.
+    canvas.style.touchAction = 'none';
     var overlay = el('div', 'game-overlay'); overlay.style.display = 'none';
     var banner = el('div', 'game-banner'); banner.style.display = 'none';
     wrap.appendChild(canvas); wrap.appendChild(overlay); wrap.appendChild(banner);
@@ -194,14 +210,14 @@
 
   // ---- game registry ----
   var ARCADE_GAMES = [
-    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move. Choose RUN or PASS, then stand on the gold X to catch.', mount: mountBowl },
-    { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, use the buttons under the window.', mount: mountStack },
-    { id: 'maze', title: 'Candle Maze', blurb: 'Light every candle in the cloister while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer. Father walks on his own.', mount: mountMaze },
+    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch.', mount: mountBowl },
+    { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
+    { id: 'maze', title: 'Candle Maze', blurb: 'Light every candle in the cloister while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
-    { id: 'holy', title: 'Holy Water Havoc', blurb: 'Fend off the devil with holy water. Charge your shots and watch for extra hearts.', verdict: 'Best for boss fighters.', how: 'Move with arrows. Hold Space to charge, release to fire. On a phone, use the move buttons and hold FIRE to charge.', mount: mountHoly },
+    { id: 'holy', title: 'Holy Water Havoc', blurb: 'Fend off the devil with holy water. Charge your shots and watch for extra hearts.', verdict: 'Best for boss fighters.', how: 'Move with arrows. Hold Space to charge, release to fire. On a phone, drag on the sanctuary to move, hold to charge, release to fire, or use the buttons below.', mount: mountHoly },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
-    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash.', mount: mountFlee },
-    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows to move. Follow the moth to the right door.', mount: mountCross },
+    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', mount: mountFlee },
+    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows to move, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
     { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Pick one choice each week. Watch the ledger.', mount: mountPastor },
   ];
 
@@ -303,7 +319,7 @@
   // catch: the defence has a real chance to close, so a completion is earned.
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
-  var BOWL_TACKLE_RADIUS = 19; // was 21: a tackle has to actually reach the runner
+  var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
   var BOWL_PLAY_MAX_SECONDS = 9; // whistle: no play runs forever, no stall at 0:00
   // Human-first defence tuning (Nov 9, second pass): Mikey played the live
   // Bowl again and the defence was still far too fast. The bots scored
@@ -312,14 +328,22 @@
   // feels: defenders at well under half the runner's pace, a slow turn so
   // a sharp cut genuinely leaves them wrong-footed, slow pre-catch
   // coverage, and wide gaps between reinforcement waves. Fair, not trivial.
-  // Final numbers (verified with a human-like driver that re-plans every
-  // 700ms and steers by the canvas): defender speed 85-105 (was 110-135),
-  // turn 2.2 rad/s (was 3.0), pre-catch chase 0.15 (was 0.3), waves every
-  // 6s (was 4.5) or 22 yards (was 18), cap 6 (was 7), opening line
-  // 2 + quarter (was 3 + quarter), tackle radius 19 (was 21).
-  var BOWL_WAVE_SECONDS = 6; // was 4.5: waves spaced out, the runner gets room
-  var BOWL_DEFENDER_CAP = 6; // was 7: fewer defenders on the field at once
-  var BOWL_TURN_RATE = 2.2; // rad/s, was 3.0: a cut beats the chase; a 180 takes ~1.4s
+  // Final numbers (verified with human-like drivers that re-plan every
+  // 700-900ms and steer by the canvas, plus a dpad-only driver that holds
+  // one direction at a time like a phone thumb): defender speed 95-120
+  // (was 110-135), turn 2.6 rad/s (was 3.0), pre-catch chase 0.15
+  // (was 0.3), waves every 4s (was 4.5) or 15 yards (was 18) arriving in
+  // pairs that bracket the runner's lane, spawning 120-180px ahead (was
+  // 150-240), cap 7, opening line 3 + quarter, tackle radius 20 (was 21),
+  // lead pursuit of 0.3s so defenders cut off the run instead of trailing
+  // it, and a 1.15x goal-line stand inside twenty yards. A perfect player
+  // still scores; a casual player gains steadily without feeling swarmed.
+  // Passes were verified separately with exact coordinates: the catch
+  // registers in 1.38s from the snap when the runner reaches the gold X
+  // and holds still, so the pass game is intact.
+  var BOWL_WAVE_SECONDS = 4; // was 4.5: fresh legs arrive sooner on a breakaway
+  var BOWL_DEFENDER_CAP = 7; // back to 7: the wave needs a body to send
+  var BOWL_TURN_RATE = 2.6; // rad/s, was 3.0: a cut beats the chase; a 180 takes ~1.2s
   var BOWL_BURGUNDY = '#6e1a26', BOWL_BURGUNDY_DEEP = '#521219', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
   var BOWL_GOLD = '#b28a2e', BOWL_GOLD_BRIGHT = '#d9b45a', BOWL_GOLD_PALE = '#f0d48a';
   var BOWL_PARCHMENT = '#f7ecd4', BOWL_INK = '#2b1d12';
@@ -342,6 +366,7 @@
     var defenders = [];
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
     var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
+    var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false;
     var coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
     var keys = makeKeys();
@@ -352,13 +377,18 @@
     function downWord() { return down === 1 ? '1ST' : down === 2 ? '2ND' : down === 3 ? '3RD' : '4TH'; }
     function toGoLabel() { return seriesStart <= 10 ? 'GOAL' : String(10 - seriesGain); }
     function downLabel() { return downWord() + ' & ' + toGoLabel(); }
-    function defenderCount() { return 2 + quarter; } // was 3 + quarter: a thinner opening line
+    function defenderCount() { return 3 + quarter; } // opening line: four in Q1, one more each quarter
     // The defence lines up ahead of the runner in the scrolling world, so
     // the play is about reading the field as it scrolls and cutting past
     // defenders in sequence — not about one wall across a squeezed field.
     // Wave reinforcements keep coming to the ball, near the runner's lane,
     // so beating the line is not a free touchdown.
-    function spawnDefenders(n, upfield, line, lineDepth) {
+    // Wave reinforcements arrive in pairs that bracket the runner's lane
+    // (one each side, seventy pixels out), so a breakaway meets a choice
+    // instead of a single slow defender it can sidestep. The pair is a
+    // gap to thread, not a wall: ninety-odd pixels stand between them, and
+    // they still turn slowly, so a sharp cut beats either one.
+    function spawnDefenders(n, upfield, line, lineDepth, bracket) {
       for (var i = 0; i < n; i++) {
         var d = null;
         for (var tries = 0; tries < 8; tries++) {
@@ -369,21 +399,21 @@
             cand = {
               x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(85, 105),
+              speed: rand(95, 120),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
-              x: clamp(px + rand(-140, 140), 40, GAME_W - 40),
-              y: clamp(py - rand(150, 240), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(85, 105),
+              x: clamp(bracket ? px + (i === 0 ? -70 : 70) + rand(-15, 15) : px + rand(-140, 140), 40, GAME_W - 40),
+              y: clamp(py - rand(120, 180), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
+              speed: rand(95, 120),
               heading: 0,
             };
           } else {
             cand = {
               x: rand(40, GAME_W - 40),
               y: rand(RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(85, 105),
+              speed: rand(95, 120),
               heading: 0,
             };
           }
@@ -597,6 +627,14 @@
     function movePlayer(dt) {
       var ax = keys.axis();
       var dx = ax.x + dpadVec.x, dy = ax.y + dpadVec.y;
+      // Direct touch: while a finger is on the field, the player runs
+      // toward it. Arrow keys and the pad feed the same vector, so every
+      // input works together and none is removed.
+      if (touchTarget) {
+        var tdx = touchTarget.x - px, tdy = touchTarget.y - py;
+        var tl = Math.hypot(tdx, tdy);
+        if (tl > 10) { dx += tdx / tl; dy += tdy / tl; }
+      }
       var len = Math.hypot(dx, dy);
       if (len > 0) { dx /= len; dy /= len; }
       var speed = 208; // Same pace with or without the ball: a caught pass
@@ -616,13 +654,21 @@
       // but every defender steers with a limited turn rate, so a sharp cut
       // leaves them wrong-footed instead of glued to the runner.
       var chase = (state === 'pass' && !caught) ? 0.15 : 1;
+      // Goal-line stand: inside twenty yards the defence digs in and moves
+      // a little faster, so breaking the line is the easy part and scoring
+      // is the hard part. The tension rises as the end zone gets closer.
+      var goalBoost = yardsToGo() <= 20 ? 1.15 : 1;
       defenders.forEach(function (d) {
-        var want = Math.atan2(py - d.y, px - d.x);
+        // Lead pursuit: aim at where the runner will be in a third of a
+        // second, not where he is, so the defence cuts off the run instead
+        // of trailing a faster man. A sharp cut still beats it, because
+        // the defender commits to the lead point and turns slowly.
+        var want = Math.atan2((py + pvy * 0.3) - d.y, (px + pvx * 0.3) - d.x);
         var diff = want - d.heading;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         d.heading += clamp(diff, -BOWL_TURN_RATE * dt, BOWL_TURN_RATE * dt);
-        var sp = d.speed * chase;
+        var sp = d.speed * chase * goalBoost;
         d.x += Math.cos(d.heading) * sp * dt;
         d.y += Math.sin(d.heading) * sp * dt;
       });
@@ -646,15 +692,18 @@
       if (freezeT > 0) freezeT -= dt;
       if (state === 'run' || state === 'pass') {
         playT += dt;
+        var opx = px, opy = py;
         movePlayer(dt);
+        pvx = dt > 0 ? (px - opx) / dt : 0;
+        pvy = dt > 0 ? (py - opy) / dt : 0;
         moveDefenders(dt);
         // Fresh legs: one defender at a time, never a wall of them. Only
         // once the runner has the ball — no reinforcements dropping on the
         // receiver while a pass is in the air.
         waveT += dt;
-        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 22)) {
+        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 15)) {
           waveT = 0; yardsAtWave = yardsToGo();
-          if (defenders.length < BOWL_DEFENDER_CAP) spawnDefenders(1, true);
+          if (defenders.length + 2 <= BOWL_DEFENDER_CAP) spawnDefenders(2, true, false, null, true);
         }
         if (state === 'pass' && passTarget && !caught) {
           var dist = Math.hypot(passTarget.x - px, passTarget.y - py);
@@ -848,6 +897,27 @@
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
+    // Direct touch on the field: touch and drag, and the player runs toward
+    // your finger; drag to the gold X and hold still there to catch a pass.
+    // The touch point is in world coordinates (the field scrolls under the
+    // camera), so the finger stays on the spot it touched.
+    var touchTarget = null;
+    api.canvas.addEventListener('pointerdown', function (e) {
+      if (state !== 'run' && state !== 'pass') return;
+      e.preventDefault();
+      var p = canvasPoint(api.canvas, e);
+      touchTarget = { x: p.x, y: p.y + camY };
+    });
+    api.canvas.addEventListener('pointermove', function (e) {
+      if (!touchTarget) return;
+      e.preventDefault();
+      var p = canvasPoint(api.canvas, e);
+      touchTarget = { x: p.x, y: p.y + camY };
+    });
+    function endBowlTouch() { touchTarget = null; }
+    api.canvas.addEventListener('pointerup', endBowlTouch);
+    api.canvas.addEventListener('pointerleave', endBowlTouch);
+    api.canvas.addEventListener('pointercancel', endBowlTouch);
     // Keyboard play-calling on the choose screen: R runs, T throws, so a
     // desktop player is not reaching for the mouse on every down. P stays
     // the pause key, so it is deliberately not the pass key.
@@ -858,7 +928,7 @@
       else if (k === 't') startPlay('pass');
     }
     document.addEventListener('keydown', onChooseKey);
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
     showStart();
     updateHud();
     last = performance.now();
@@ -923,9 +993,16 @@
         if (grid[y].every(Boolean)) { grid.splice(y, 1); grid.unshift(new Array(COLS).fill(null)); cleared++; y++; }
       }
       if (cleared) {
+        var oldLevel = level;
         score += STACK_POINTS[cleared] * level;
         lines += cleared;
         level = 1 + Math.floor(lines / 10);
+        // Say what happened: a clear used to vanish silently. The banner
+        // names the clear and its points, and a level rise gets its own
+        // callout so the quickening pace is never a surprise.
+        var clearName = ['', 'Single', 'Double', 'Triple', 'Tetris'][cleared];
+        api.showBanner(clearName + '! +' + (STACK_POINTS[cleared] * oldLevel), 1300);
+        if (level > oldLevel) setTimeout(function () { api.showBanner('Level ' + level + ' — the panes fall faster', 1500); }, 1300);
       }
       updateHud();
       spawn();
@@ -1032,6 +1109,34 @@
       else if (k === 'arrowup') rotateCur();
       else if (k === ' ') { e.preventDefault(); slam(); }
     }
+    // Direct touch on the window: drag sideways to slide the pane to the
+    // column under your finger, tap to turn it, swipe down to drop it.
+    // The buttons below still work exactly as before.
+    var stackTouch = null;
+    api.canvas.addEventListener('pointerdown', function (e) {
+      if (state !== 'playing' || paused || !cur) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      stackTouch = { x: pt.x, y: pt.y, t: performance.now() };
+    });
+    api.canvas.addEventListener('pointermove', function (e) {
+      if (!stackTouch || state !== 'playing' || paused || !cur) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      var col = Math.floor((pt.x - OX) / CELL);
+      var guard = 0;
+      while (cur.x < col && !collides(cur.shape, cur.x + 1, cur.y) && guard++ < 10) cur.x++;
+      while (cur.x > col && !collides(cur.shape, cur.x - 1, cur.y) && guard++ < 10) cur.x--;
+      if (pt.y - stackTouch.y > 44) { softDrop(); stackTouch.y = pt.y; }
+    });
+    api.canvas.addEventListener('pointerup', function (e) {
+      if (!stackTouch) return;
+      var dt = performance.now() - stackTouch.t;
+      var pt = canvasPoint(api.canvas, e);
+      if (dt < 250 && Math.hypot(pt.x - stackTouch.x, pt.y - stackTouch.y) < 12) rotateCur();
+      stackTouch = null;
+    });
+    api.canvas.addEventListener('pointercancel', function () { stackTouch = null; });
     // Touch controls: hold ← → ↓ to repeat, tap ↻ to turn, tap Slam to drop.
     var touchRow = makeTouchRow(api);
     touchRow.appendChild(makeTouchButton('←', moveLeft));
@@ -1039,7 +1144,7 @@
     touchRow.appendChild(makeTouchButton('→', moveRight));
     touchRow.appendChild(makeTouchButton('↓', softDrop));
     touchRow.appendChild(makeTouchButton('Slam', slam, { repeat: false, wide: true }));
-    api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down. On touch, use the buttons under the window.'));
+    api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.'));
     api.showOverlay('<h3>Stained-Glass Stack</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
       '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>');
     var s = document.getElementById('stack-start');
@@ -1061,6 +1166,7 @@
     var tower = [], moving = null, wind = 0, score = 0, best = readBest('steeple');
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
     var perfectT = 0; // seconds left to show the Perfect flash after a clean drop
+    var perfectStreak = 0; // consecutive perfect drops; the bonus grows with it
     var BASE_W = 120, BASE_Y = GAME_H - 20;
     function newStone() {
       var w = tower.length ? tower[tower.length - 1].w : BASE_W;
@@ -1080,7 +1186,10 @@
       var stone = { x: left, w: overlap, y: top.y - 18 };
       tower.push(stone);
       score += 1;
-      if (perfect) { score += 10; perfectT = 1.2; }
+      // A run of perfect drops is worth more than one alone: the streak
+      // grows the bonus, so a steady hand is rewarded for staying steady.
+      if (perfect) { perfectStreak += 1; score += 10 + 5 * (perfectStreak - 1); perfectT = 1.2; }
+      else perfectStreak = 0;
       if (tower.length % 10 === 0) score += 100;
       if (tower.length >= 15) wind = (Math.random() - 0.5) * 40;
       updateHud();
@@ -1133,8 +1242,24 @@
       if (perfectT > 0) {
         ctx.globalAlpha = Math.min(1, perfectT);
         ctx.fillStyle = '#b28a2e'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Perfect! +10', GAME_W / 2, 90); ctx.textAlign = 'left';
+        ctx.fillText(perfectStreak > 1 ? 'Perfect x' + perfectStreak + '!' : 'Perfect! +10', GAME_W / 2, 90); ctx.textAlign = 'left';
         ctx.globalAlpha = 1;
+      }
+      // Wind you can see: once the wind starts (stone fifteen), faint
+      // streaks drift across the top of the screen in the wind's direction,
+      // so the push on the stone is visible, not just a number in the HUD.
+      if (tower.length >= 15) {
+        var wNow = performance.now();
+        ctx.strokeStyle = 'rgba(178,138,46,0.5)'; ctx.lineWidth = 1.5;
+        for (var wi = 0; wi < 4; wi++) {
+          var wPhase = (wNow / 18 + wi * 137) % (GAME_W + 80);
+          var wx = wind >= 0 ? wPhase - 40 : (GAME_W + 40) - wPhase;
+          var wy = 64 + wi * 20;
+          ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx + (wind >= 0 ? 26 : -26), wy); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(wx + (wind >= 0 ? 26 : -26), wy);
+          ctx.lineTo(wx + (wind >= 0 ? 20 : -20), wy - 4); ctx.moveTo(wx + (wind >= 0 ? 26 : -26), wy);
+          ctx.lineTo(wx + (wind >= 0 ? 20 : -20), wy + 4); ctx.stroke();
+        }
       }
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
@@ -1183,6 +1308,7 @@
     var px = GAME_W / 2, hearts = 3, score = 0, best = readBest('holy');
     var boss = null, bossLevel = 1, shots = [], bolts = [], parts = [];
     var charge = 0, charging = false, state = 'ready', paused = false;
+    var hitT = 0; // seconds the boss flashes pale after taking a hit
     var invulnT = 0; // seconds of grace after a hit: one bolt spread cannot
     // strip all three hearts in a single frame, and the player can see it.
     var heartsGiven = { 800: false, 2000: false };
@@ -1243,7 +1369,17 @@
       ctx.fillStyle = '#2a211a'; ctx.fillRect(0, GAME_H - 24, GAME_W, 24);
       // Boss
       if (boss) {
-        ctx.fillStyle = '#b8452a';
+        // Telegraph: a gold ring closes in during the half-second before
+        // the devil attacks, so the player can see the hit coming and
+        // move, instead of the bolts simply arriving.
+        if (boss.atkT < 0.5) {
+          ctx.strokeStyle = 'rgba(178,138,46,' + (0.35 + 0.45 * (0.5 - boss.atkT)) + ')';
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(boss.x, boss.y, 26 + (0.5 - boss.atkT) * 22, 0, Math.PI * 2); ctx.stroke();
+        }
+        // Hit flash: the devil goes pale for a beat when holy water lands,
+        // so every hit reads instead of vanishing into the health bar.
+        ctx.fillStyle = hitT > 0 ? '#e8c9a8' : '#b8452a';
         ctx.beginPath(); ctx.arc(boss.x, boss.y, 26, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#fffdf7'; ctx.font = 'bold 12px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('😈', boss.x, boss.y + 4); ctx.textAlign = 'left';
@@ -1315,6 +1451,7 @@
       shots = shots.filter(function (s) {
         if (boss && Math.abs(s.x - boss.x) < 30 && Math.abs(s.y - boss.y) < 30) {
           boss.hp -= s.dmg;
+          hitT = 0.12;
           score += s.dmg * 2;
           if (boss.hp <= 0) {
             score += 500;
@@ -1328,6 +1465,7 @@
         return true;
       });
       if (invulnT > 0) invulnT -= dt;
+      if (hitT > 0) hitT -= dt;
       // Bolts vs player: a hit grants a short grace window, so one spread
       // cannot take more than one heart.
       for (var i = bolts.length - 1; i >= 0; i--) {
@@ -1349,12 +1487,35 @@
     function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
+    // Direct touch on the sanctuary: drag sideways and Father follows your
+    // finger; hold to charge the holy water, let go to fire. The buttons
+    // below still work exactly as before.
+    var holyTouch = null;
+    api.canvas.addEventListener('pointerdown', function (e) {
+      if (state !== 'playing' || paused) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      holyTouch = { x: pt.x };
+      touchCharging = true;
+      px = clamp(pt.x, 20, GAME_W - 20);
+    });
+    api.canvas.addEventListener('pointermove', function (e) {
+      if (!holyTouch || state !== 'playing' || paused) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      holyTouch.x = pt.x;
+      px = clamp(pt.x, 20, GAME_W - 20);
+    });
+    function endHolyTouch() { if (holyTouch) { holyTouch = null; touchCharging = false; } }
+    api.canvas.addEventListener('pointerup', endHolyTouch);
+    api.canvas.addEventListener('pointerleave', endHolyTouch);
+    api.canvas.addEventListener('pointercancel', endHolyTouch);
     // Touch controls: hold ◀ ▶ to move, hold FIRE to charge, release to shoot.
     var touchRow = makeTouchRow(api);
     touchRow.appendChild(makeHoldButton('◀', function () { leftHeld = true; }, function () { leftHeld = false; }));
     touchRow.appendChild(makeHoldButton('▶', function () { rightHeld = true; }, function () { rightHeld = false; }));
     touchRow.appendChild(makeHoldButton('FIRE', function () { touchCharging = true; }, function () { touchCharging = false; }, { cls: 'fire-btn' }));
-    api.actions.appendChild(el('p', 'game-note', 'Move with arrows. Hold Space to charge: droplet, bolt, then beam. Extra hearts at 800 and 2,000 points. On touch, hold the arrows to move and hold FIRE to charge, release to shoot.'));
+    api.actions.appendChild(el('p', 'game-note', 'Move with arrows. Hold Space to charge: droplet, bolt, then beam. Extra hearts at 800 and 2,000 points. On touch, drag on the sanctuary to move, hold to charge, release to shoot, or use the buttons below.'));
     api.showOverlay('<h3>Holy Water Havoc</h3><p>The devil is loose in the sanctuary. Drive him off with holy water. ' + gameMark('holy') + '</p>' +
       '<button type="button" class="big-btn press" id="holy-start">Start the fight</button>');
     var s = document.getElementById('holy-start');
@@ -1396,6 +1557,7 @@
     var api = createStage(parent, { title: 'Flee the Sins', onBack: onBack });
     var px = GAME_W / 2, py = GAME_H / 2, score = 0, best = readBest('flee');
     var sins = [], halos = [], dashT = 0, dashCd = 0, bellT = 60, elapsed = 0, warmupT = 0;
+    var rings = []; // halo pickup rings: gold circles that bloom and fade
     var prevPx = px, prevPy = py, pvx = 0, pvy = 0;
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
     var keys = makeKeys();
@@ -1445,10 +1607,23 @@
         ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.ellipse(h.x, h.y, 11, 5, 0, 0, Math.PI * 2); ctx.stroke();
       });
+      // Halo pickup rings bloom where a halo was taken, then fade.
+      rings.forEach(function (rg) {
+        ctx.globalAlpha = Math.max(0, 0.8 * (1 - rg.t / 0.4));
+        ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(rg.x, rg.y, 8 + rg.t * 45, (8 + rg.t * 45) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
       sins.forEach(function (s) {
         if (elapsed < s.releaseAt) return; // not yet in the hunt
         ctx.fillStyle = s.color;
         ctx.beginPath(); ctx.arc(s.x, s.y, 13, 0, Math.PI * 2); ctx.fill();
+        // Little horns, so the sins read as sins at a glance instead of
+        // plain coloured dots with initials.
+        ctx.beginPath();
+        ctx.moveTo(s.x - 8, s.y - 9); ctx.lineTo(s.x - 11, s.y - 18); ctx.lineTo(s.x - 3, s.y - 11);
+        ctx.moveTo(s.x + 8, s.y - 9); ctx.lineTo(s.x + 11, s.y - 18); ctx.lineTo(s.x + 3, s.y - 11);
+        ctx.fill();
         ctx.fillStyle = '#fff'; ctx.font = '8px Georgia'; ctx.textAlign = 'center';
         ctx.fillText(s.name.slice(0, 2).toUpperCase(), s.x, s.y + 3); ctx.textAlign = 'left';
       });
@@ -1489,6 +1664,12 @@
       if (dashCd > 0) dashCd -= dt;
       var ax = keys.axis();
       var dx = ax.x + dpadVec.x, dy = ax.y + dpadVec.y;
+      // Direct touch: run toward the finger while it is on the floor.
+      if (fleeTouch) {
+        var fdx = fleeTouch.x - px, fdy = fleeTouch.y - py;
+        var fl = Math.hypot(fdx, fdy);
+        if (fl > 12) { dx += fdx / fl; dy += fdy / fl; }
+      }
       var len = Math.hypot(dx, dy);
       if (len > 0) { dx /= len; dy /= len; }
       var speed = dashT > 0 ? 420 : 200;
@@ -1526,8 +1707,11 @@
         s.x += (ddx / l) * sp * dt;
         s.y += (ddy / l) * sp * dt;
       });
+      rings.forEach(function (rg) { rg.t += dt; });
+      rings = rings.filter(function (rg) { return rg.t < 0.4; });
       for (var i = halos.length - 1; i >= 0; i--) {
         if (Math.hypot(halos[i].x - px, halos[i].y - py) < 20) {
+          rings.push({ x: halos[i].x, y: halos[i].y, t: 0 });
           halos.splice(i, 1); score += 25; spawnHalo(); updateHud();
         }
       }
@@ -1554,6 +1738,33 @@
         e.preventDefault(); dashT = 0.45; dashCd = 2;
       }
     }
+    // Direct touch on the sanctuary floor: drag and Father follows your
+    // finger; a quick tap dashes with grace. The pad and dash button still
+    // work exactly as before.
+    var fleeTouch = null;
+    api.canvas.addEventListener('pointerdown', function (e) {
+      if (state !== 'playing' || paused) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      fleeTouch = { sx: pt.x, sy: pt.y, x: pt.x, y: pt.y, t: performance.now() };
+    });
+    api.canvas.addEventListener('pointermove', function (e) {
+      if (!fleeTouch || state !== 'playing' || paused) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      fleeTouch.x = pt.x; fleeTouch.y = pt.y;
+    });
+    function endFleeTouch(e) {
+      if (!fleeTouch) return;
+      var dt = performance.now() - fleeTouch.t;
+      var pt = e ? canvasPoint(api.canvas, e) : null;
+      var moved = pt ? Math.hypot(pt.x - fleeTouch.sx, pt.y - fleeTouch.sy) : 999;
+      if (dt < 250 && moved < 12 && state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
+      fleeTouch = null;
+    }
+    api.canvas.addEventListener('pointerup', endFleeTouch);
+    api.canvas.addEventListener('pointerleave', function () { fleeTouch = null; });
+    api.canvas.addEventListener('pointercancel', function () { fleeTouch = null; });
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
@@ -1562,7 +1773,7 @@
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings every 60 seconds.'));
+    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings every 60 seconds. On touch, drag on the floor to run, tap to dash.'));
     api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and listen for the bell. ' + gameMark('flee') + '</p>' +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>');
     var s = document.getElementById('flee-start');
@@ -1664,6 +1875,11 @@
         ctx.fillStyle = '#fffdf7'; ctx.font = '10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('' + (i + 1), x, 28); ctx.textAlign = 'left';
       });
+      // The moth's orbit, drawn as a faint gold ring around the right door,
+      // so the tell is readable at a glance without giving the answer away
+      // in the way a gold door used to.
+      ctx.strokeStyle = 'rgba(178,138,46,0.4)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(DOOR_X[mothDoor], 52, 26, 14, 0, 0, Math.PI * 2); ctx.stroke();
       // Moth circling the right door
       var mt = performance.now() / 300;
       var mx = DOOR_X[mothDoor] + Math.cos(mt) * 18, my = 52 + Math.sin(mt * 1.3) * 8;
@@ -1684,6 +1900,15 @@
       cars.forEach(function (c) {
         ctx.fillStyle = c.dir > 0 ? '#b8452a' : '#b28a2e';
         ctx.fillRect(c.x - c.w / 2, c.y - 9, c.w, 18);
+        // Headlights at the front, red tail lights at the back, so the
+        // traffic reads as cars with a direction instead of flat bars.
+        var fx = c.x + c.dir * (c.w / 2);
+        ctx.fillStyle = '#ffe9a8';
+        ctx.fillRect(fx - 2, c.y - 6, 4, 3);
+        ctx.fillRect(fx - 2, c.y + 3, 4, 3);
+        ctx.fillStyle = '#e05a2a';
+        ctx.fillRect(c.x - c.dir * (c.w / 2) - 2, c.y - 6, 4, 3);
+        ctx.fillRect(c.x - c.dir * (c.w / 2) - 2, c.y + 3, 4, 3);
       });
       // Player
       ctx.fillStyle = '#6e1a26';
@@ -1705,6 +1930,13 @@
       if (moveCd > 0) moveCd -= dt;
       var ax = keys.axis();
       var dx = ax.x + dpadVec.x, dy = ax.y + dpadVec.y;
+      // Direct touch: step toward the finger while it is held on the field.
+      if (crossTouch && dx === 0 && dy === 0) {
+        if (crossTouch.x - px > 12) dx = 1;
+        else if (crossTouch.x - px < -12) dx = -1;
+        if (crossTouch.y - py > 12) dy = 1;
+        else if (crossTouch.y - py < -12) dy = -1;
+      }
       if (moveCd <= 0 && (dx !== 0 || dy !== 0)) {
         moveCd = 0.16;
         px = clamp(px + dx * 24, 14, GAME_W - 14);
@@ -1759,10 +1991,30 @@
     function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
+    // Direct touch on the field: touch and hold, and Father steps toward
+    // your finger, one grid step at a time; lift to stop. The pad still
+    // works exactly as before.
+    var crossTouch = null;
+    api.canvas.addEventListener('pointerdown', function (e) {
+      if (state !== 'playing' || paused) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      crossTouch = { x: pt.x, y: pt.y };
+    });
+    api.canvas.addEventListener('pointermove', function (e) {
+      if (!crossTouch) return;
+      e.preventDefault();
+      var pt = canvasPoint(api.canvas, e);
+      crossTouch = { x: pt.x, y: pt.y };
+    });
+    function endCrossTouch() { crossTouch = null; }
+    api.canvas.addEventListener('pointerup', endCrossTouch);
+    api.canvas.addEventListener('pointerleave', endCrossTouch);
+    api.canvas.addEventListener('pointercancel', endCrossTouch);
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
-    api.actions.appendChild(el('p', 'game-note', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell.'));
+    api.actions.appendChild(el('p', 'game-note', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. On touch, hold the field to walk toward your finger.'));
     api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Follow the moth. ' + gameMark('cross') + '</p>' +
       '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>');
     var s = document.getElementById('cross-start');
@@ -1957,11 +2209,19 @@
       return text.replace(/St Mary'?s/g, name);
     }
     function money(n) { return (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString(); }
+    // The parish mood, in one line under the numbers: the season reads as
+    // a place with a feeling, not three dials.
+    function parishMood() {
+      var m = happy >= 80 ? 'The parish is joyful' : happy >= 60 ? 'The parish is steady' : happy >= 40 ? 'The parish is weary' : 'The parish is losing heart';
+      if (cong < 100) m += ', and the pews are thinning';
+      return m + '.';
+    }
     function renderStats() {
       stats.innerHTML = '<span>Week ' + Math.min(week + 1, PASTOR_WEEKS) + ' of ' + PASTOR_WEEKS + '</span>' +
         '<span>Congregation: <b>' + cong + '</b></span>' +
         '<span>Funds: <b>' + money(funds) + '</b></span>' +
         '<span>Happiness: <b>' + happy + '</b></span>' +
+        '<span>' + parishMood() + '</span>' +
         '<span>Best: ' + best + '</span>';
     }
     function ledgerEntry(html) {
@@ -1987,6 +2247,9 @@
       renderStats();
     }
     function showWeek() {
+      // Halfway through the season, the ledger notes the moment, so the
+      // season has an arc instead of sixteen identical weeks.
+      if (week === 8) ledgerEntry('<b>Halfway through the season.</b> Eight weeks shepherded, eight to go — congregation ' + cong + ', funds ' + money(funds) + ', happiness ' + happy + '.');
       var ev = deck[week];
       // Deck entries are [title, text, choice, choice, choice]: the choices
       // are ev[2..4], not ev[2] itself. (An earlier build iterated ev[2],
@@ -2312,6 +2575,10 @@
         ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#6e1a26'; ctx.font = 'bold 9px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('C', cx, cy + 3); ctx.textAlign = 'left';
+        // Countdown ring: the chalice only lasts nine seconds, and the
+        // shrinking gold arc says how long is left.
+        ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, 12, -Math.PI / 2, -Math.PI / 2 + (chaliceT / 9) * Math.PI * 2); ctx.stroke();
       }
       // Sins
       sins.forEach(function (s) {
@@ -2337,6 +2604,18 @@
         ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('F', player.x, player.y + 3); ctx.textAlign = 'left';
+        // Direction tick: a small gold triangle at the rim pointing where
+        // Father is heading, so the current direction reads at a glance.
+        if (player.dx || player.dy) {
+          var tx = player.x + player.dx * 12, ty = player.y + player.dy * 12;
+          var nx = -player.dy, ny = player.dx;
+          ctx.fillStyle = '#b28a2e';
+          ctx.beginPath();
+          ctx.moveTo(tx + player.dx * 5, ty + player.dy * 5);
+          ctx.lineTo(tx - nx * 4 - player.dx * 2, ty - ny * 4 - player.dy * 2);
+          ctx.lineTo(tx + nx * 4 - player.dx * 2, ty + ny * 4 - player.dy * 2);
+          ctx.closePath(); ctx.fill();
+        }
       }
       // Fright timer bar
       if (frightT > 0) {
@@ -2445,6 +2724,17 @@
     });
     var swipeStart = null;
     api.canvas.addEventListener('pointerdown', function (e) { swipeStart = { x: e.clientX, y: e.clientY }; });
+    // Direct touch: dragging across the field steers continuously, so the
+    // player can guide Father around the cloister with one finger instead
+    // of flicking swipe after swipe. A short swipe still works as before.
+    api.canvas.addEventListener('pointermove', function (e) {
+      if (!swipeStart) return;
+      var dx = e.clientX - swipeStart.x, dy = e.clientY - swipeStart.y;
+      if (Math.hypot(dx, dy) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? 1 : -1, 0);
+      else steer(0, dy > 0 ? 1 : -1);
+      swipeStart = { x: e.clientX, y: e.clientY };
+    });
     api.canvas.addEventListener('pointerup', function (e) {
       if (!swipeStart) return;
       var dx = e.clientX - swipeStart.x, dy = e.clientY - swipeStart.y;
@@ -2453,7 +2743,7 @@
       if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? 1 : -1, 0);
       else steer(0, dy > 0 ? 1 : -1);
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe on the field, or use the pad. Light every candle; the vials turn the sins edible. R restarts.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light every candle; the vials turn the sins edible. R restarts.'));
     api.showOverlay('<h3>Candle Maze</h3><p>Light every candle in the cloister while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
       '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>');
     var s = document.getElementById('maze-start');
@@ -2552,6 +2842,10 @@
       attempts = parseInt(localStorage.getItem('rmf-dash-attempts') || '0', 10) || 0;
     } catch (e) { /* storage unavailable */ }
     var checkpoint = null; // {dist, bonus, quarters}
+    var dust = []; // landing dust: small fading puffs where the cube lands
+    function spawnDust(x, y) {
+      for (var i = 0; i < 6; i++) dust.push({ x: x + (Math.random() - 0.5) * 18, y: y - 2, vx: (Math.random() - 0.5) * 60, vy: -20 - Math.random() * 30, t: 0 });
+    }
     var QUARTER_X = [2300, 4600, 6900, 8280];
     function score() { return Math.floor(dist / 10) + bonus; }
     function speedNow() { return Math.min(430, 250 + dist * 0.045) * gateMult; }
@@ -2650,6 +2944,15 @@
     function draw() {
       var ctx = api.ctx;
       ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      // Parallax nave: tall arches drifting past at a third of the run
+      // speed, so the nave has depth instead of a flat cream wall.
+      ctx.strokeStyle = 'rgba(138,109,59,0.28)'; ctx.lineWidth = 5;
+      var archOff = (dist * 0.35) % 340;
+      for (var ai = -1; ai < 3; ai++) {
+        var ax = 60 - archOff + ai * 340;
+        ctx.beginPath(); ctx.moveTo(ax, DASH_FLOOR); ctx.lineTo(ax, 90);
+        ctx.quadraticCurveTo(ax + 45, 30, ax + 90, 90); ctx.lineTo(ax + 90, DASH_FLOOR); ctx.stroke();
+      }
       // Nave: floor and ceiling
       ctx.fillStyle = '#33261a'; ctx.fillRect(0, DASH_FLOOR, GAME_W, GAME_H - DASH_FLOOR);
       ctx.fillStyle = '#6e1a26'; ctx.fillRect(0, 0, GAME_W, 14);
@@ -2749,6 +3052,13 @@
           ctx.beginPath(); ctx.arc(csx, DASH_FLOOR - 22, 4, 0, Math.PI * 2); ctx.fill();
         }
       }
+      // Landing dust
+      dust.forEach(function (pt) {
+        ctx.globalAlpha = Math.max(0, 0.55 * (1 - pt.t / 0.5));
+        ctx.fillStyle = '#8a6d3b';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 3 + pt.t * 8, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
       // Cube / dove
       var cx = 120, cy = y;
       ctx.save();
@@ -2779,6 +3089,8 @@
       if (paused || destroyed || state !== 'playing') return;
       runT += dt;
       if (mercyT > 0) mercyT -= dt;
+      dust.forEach(function (pt) { pt.t += dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; });
+      dust = dust.filter(function (pt) { return pt.t < 0.5; });
       if (coyoteT > 0) coyoteT -= dt;
       if (bufferT > 0) bufferT -= dt;
       var prevBottom = y + DASH_CUBE / 2;
@@ -2859,6 +3171,7 @@
             var top = DASH_FLOOR - p.h;
             if (dist + DASH_CUBE / 2 > p.x && dist - DASH_CUBE / 2 < p.x + p.w) {
               if (vy >= 0 && prevBottom <= top + 6 && y + DASH_CUBE / 2 >= top) {
+                if (!grounded) spawnDust(dist, top);
                 y = top - DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0; landed = true;
                 if (holding) { vy = -790; grounded = false; }
                 else if (bufferT > 0) { vy = -790; grounded = false; bufferT = 0; }
@@ -2882,7 +3195,7 @@
             // Floor
             if (y >= DASH_FLOOR - DASH_CUBE / 2 && vy >= 0) {
               y = DASH_FLOOR - DASH_CUBE / 2; vy = 0;
-              if (!grounded) { grounded = true; rot = 0; chain = 0; }
+              if (!grounded) { grounded = true; rot = 0; chain = 0; spawnDust(dist, DASH_FLOOR); }
               if (holding) { vy = -790; grounded = false; }
               else if (bufferT > 0) { vy = -790; grounded = false; bufferT = 0; }
             }
