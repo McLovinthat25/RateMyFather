@@ -132,6 +132,7 @@ main { padding:56px 0 72px; }
   text-transform:uppercase; letter-spacing:0.1em; padding:10px 14px; border-radius:999px;
   transition:color 160ms ease, background-color 160ms ease; }
 .topnav nav a:hover { color:var(--accent); background:var(--surface-alt); }
+.topnav nav a[aria-current="page"] { color:var(--accent); }
 
 /* ---------- Leaded-glass divider strips ---------- */
 .glass-strip { display:flex; gap:1px; padding:1px; background:var(--glass-lead);
@@ -613,21 +614,33 @@ h2 { font-size:26px; line-height:32px; }
 /* ---------- Header: compact mobile menu (progressive enhancement) ----------
    Without JavaScript the nav stays expanded, exactly as before. With
    JavaScript the header gains .js-nav and the links collapse behind a
-   Menu button on phones, so the header stops eating half the screen. */
+   Menu button on phones, so the header stops eating half the screen.
+   The panel is one full-width sheet, not a narrow side column: the nav
+   wraps onto its own row below the brand and button (flex-basis 100%),
+   the links are plain single-line rows divided by hairlines, never
+   separate boxes, and the panel fades and slides open and closed
+   instead of snapping. */
 .nav-toggle { display:none; }
 @media (max-width:639px) {
-  .nav-inner { flex-wrap:nowrap; padding:12px 0; }
+  .nav-inner { flex-wrap:wrap; padding:12px 0; }
   .brand { font-size:19px; }
-  .topnav.js-nav nav { display:none; width:100%; margin-left:0; flex-direction:column;
-    gap:0; border-top:1px solid var(--border); padding:6px 0 10px; }
-  .topnav.js-nav nav a { display:block; padding:13px 4px; font-size:14px;
-    border-radius:8px; }
+  .topnav.js-nav nav { flex-basis:100%; width:100%; margin-left:0; flex-direction:column;
+    gap:0; border-top:1px solid transparent; padding:0; background:var(--surface);
+    max-height:0; opacity:0; visibility:hidden; overflow:hidden; transform:translateY(-4px);
+    transition:max-height .26s ease, opacity .2s ease, transform .26s ease,
+      padding .26s ease, border-color .26s ease, visibility 0s linear .26s; }
+  .topnav.js-nav nav a { display:block; padding:13px 6px; font-size:14px; white-space:nowrap;
+    border-radius:0; }
   .topnav.js-nav nav a + a { border-top:1px solid color-mix(in srgb, var(--border) 55%, transparent); }
-  .topnav.js-nav.nav-open nav { display:flex; }
+  .topnav.js-nav.nav-open nav { max-height:420px; opacity:1; visibility:visible; transform:none;
+    padding:6px 0 10px; border-top-color:var(--border);
+    transition:max-height .28s ease, opacity .22s ease .04s, transform .28s ease,
+      padding .28s ease, border-color .28s ease, visibility 0s; }
   .topnav.js-nav .nav-toggle { display:inline-flex; align-items:center; gap:9px;
     margin-left:auto; padding:10px 14px; font-size:14px; background:var(--surface);
     color:var(--text); border:1px solid var(--border); box-shadow:var(--shadow-card); }
   .topnav.js-nav .nav-toggle:hover { filter:none; transform:none; }
+  .topnav.nav-open .nav-toggle { background:var(--accent); color:#fffdf7; border-color:var(--accent); }
   .nav-toggle-icon { position:relative; width:16px; height:2px; background:currentColor;
     border-radius:1px; transition:transform 180ms ease, background-color 180ms ease; }
   .nav-toggle-icon::before, .nav-toggle-icon::after { content:""; position:absolute; left:0;
