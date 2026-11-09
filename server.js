@@ -467,9 +467,12 @@ app.get('/', async (req, res) => {
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   res.send(page('Home', `
     <section class="hero">
-      <div class="sg-frame" aria-hidden="true">${HERO_ART}</div>
-      <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
-      <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
+      <div class="hero-photo">
+        <div class="hero-copy">
+          <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
+          <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
+        </div>
+      </div>
     </section>${GLASS}
     <form action="/browse" method="get" id="home-search">
       <div class="search">
@@ -1015,7 +1018,15 @@ app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2
   <p>The priest profiles come from the 2017 Official Catholic Directory Priests Index. Each directory profile says so on the page. Assignments shown as "Listed at ..." are historical listings from that directory, not a claim about where a priest serves today.</p>
   <p>We have also gone through the directory and attempted to verify and update the profiles against current diocese and parish sources, and that work is still going. In the verification sweep so far, about 37,793 profiles were checked and about 15,272 were resolved. But the underlying directory is still the 2017 one, so some listings may be out of date. Please treat parish assignments as a starting point, not a guarantee.</p>
   <h2>If something is wrong</h2>
-  <p>If a listing is wrong or out of date, you can report it. Every priest's profile has a correction form, and the owner reviews each correction. ${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p>`)));
+  <p>If a listing is wrong or out of date, you can report it. Every priest's profile has a correction form, and the owner reviews each correction. ${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p>
+  <section class="tip-box">
+    <h2>Buy the creator a coffee</h2>
+    <p>RateMyFather is a passion project, kept free and ad free. If it has helped you find a Mass you love, a small tip keeps it that way.</p>
+    <!-- Ko-fi tip link (PLACEHOLDER): Mikey must confirm or replace the handle
+         (currently "ratemyfather") once he creates his Ko-fi account. This URL
+         is NOT a verified live link yet. -->
+    <a class="tip-link" href="https://ko-fi.com/ratemyfather" target="_blank" rel="noopener">Buy the creator a coffee on Ko-fi</a>
+  </section>`)));
 app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p>Each rating is 1 to 5 in three categories:</p>
   <ul><li><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</li>
   <li><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</li>

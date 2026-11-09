@@ -89,7 +89,7 @@ main { padding:56px 0 72px; }
   .home-section { margin-top:44px; }
   .hero h1 { font-size:44px; line-height:1.02; }
   .hero .tagline { font-size:18px; line-height:28px; }
-  .sg-frame { height:150px; }
+  .hero-photo { min-height:340px; }
   /* Search stacks full-width: field, ZIP, then a full-width button. */
   .search { flex-direction:column; }
   .search-field, .search input, .search select, .search button { width:100%; min-width:0; }
@@ -142,12 +142,26 @@ main { padding:56px 0 72px; }
 .glass-strip span:nth-child(even) { background:var(--glass-amber); }
 .topnav .glass-strip { margin:0; }
 
-/* ---------- Hero: arched stained-glass frame, big serif headline ---------- */
-.sg-frame { border:3px solid var(--glass-lead); overflow:hidden; background:var(--surface);
-  border-radius:110px 110px var(--radius) var(--radius); box-shadow:var(--shadow-card);
-  height:176px; }
-@media (min-width:640px) { .sg-frame { height:240px; } }
-.sg-frame svg { display:block; width:100%; height:100%; }
+/* ---------- Hero: a real photographic stained-glass window ---------- */
+/* The photo is the cathedral window itself (public/mural.jpg, a real
+   photograph, already used as the faint site-wide mural). It fills the panel
+   edge to edge; the headline sits on it over a bottom scrim, in cream and
+   gold, so it reads cleanly. The arched top corners echo the window. */
+.hero-photo { position:relative; display:flex; align-items:flex-end;
+  min-height:360px; overflow:hidden; border:3px solid var(--glass-lead);
+  border-radius:clamp(72px, 24vw, 150px) clamp(72px, 24vw, 150px) var(--radius) var(--radius);
+  box-shadow:var(--shadow-card);
+  background:#1d1712 url("/mural.jpg") 30% 30%/cover no-repeat; }
+.hero-photo::after { content:""; position:absolute; inset:0;
+  background:linear-gradient(180deg, rgb(20 12 8 / 0.05) 25%, rgb(20 12 8 / 0.45) 55%, rgb(20 12 8 / 0.85)); }
+.hero-copy { position:relative; z-index:1; padding:24px 22px 26px; }
+.hero-copy h1 { margin:0; color:#fffdf7; text-shadow:0 2px 14px rgb(0 0 0 / 0.45); }
+/* Specificity note: these must beat the later .hero h1 .accent / .hero
+   .tagline rules (same weight, later in the file), so they carry the
+   .hero-photo ancestor as well. */
+.hero-photo .hero-copy h1 .accent { color:var(--gold-soft); }
+.hero-photo .hero-copy .tagline { margin:12px 0 0; color:rgb(255 253 247 / 0.94); text-shadow:0 1px 10px rgb(0 0 0 / 0.55); }
+@media (min-width:640px) { .hero-photo { min-height:470px; } .hero-copy { padding:36px 36px 40px; } }
 .hero h1 { font-size:56px; line-height:0.98; letter-spacing:-0.03em; margin:36px 0 0; }
 @media (min-width:640px) { .hero h1 { font-size:72px; } }
 .hero h1 .accent { color:var(--accent); }
@@ -269,6 +283,19 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
   border-radius:var(--radius); padding:20px; box-shadow:var(--shadow-card); }
 .breather h2 { margin-top:0; }
 .breather .btn { margin-top:12px; }
+
+/* ---------- Tip box (About page bottom) ---------- */
+/* Quiet and small by design: no banner, no popup, nothing loud. Only
+   someone who reads the whole About page finds it. The link is a real
+   pill button so it is a proper 44px tap target on a phone. */
+.tip-box { margin-top:48px; padding:18px 20px; border:1px solid var(--border);
+  border-radius:var(--radius); background:var(--surface-alt); }
+.tip-box h2 { margin:0; font-size:1.05rem; }
+.tip-box p { margin:8px 0 0; font-size:0.95rem; color:var(--dim); }
+.tip-link { display:inline-block; padding:11px 18px; margin-top:14px; border:1px solid var(--border);
+  border-radius:999px; background:var(--surface); color:var(--accent); font-weight:600;
+  font-size:1rem; text-decoration:none; box-shadow:var(--shadow-card); }
+.tip-link:hover { border-color:var(--gold); }
 
 /* ---------- Footer ---------- */
 footer.site-footer { margin-top:64px; padding-bottom:32px; }
