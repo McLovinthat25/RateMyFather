@@ -450,6 +450,7 @@
   var passRoute = null; // what kind of throw this is (depth + direction), for the HUD
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
+    var popYards = 0, popT = 0; // floating "+N yards" after a play, display only
     var coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
@@ -645,6 +646,10 @@
       var playYards = flags.touchdown ? playStartYards : gained;
       if (playYards > bestPlay) bestPlay = playYards;
       drivePlays += 1;
+      // Floating "+N yards" above the runner when the play ends, so the
+      // gain reads on the field as well as in the result slab. Display only:
+      // it does not touch the play, the pass, or the score.
+      if (playYards > 0) { popYards = playYards; popT = 1.4; }
       var note = '';
       if (flags.touchdown) {
         tds += 1;
@@ -717,7 +722,7 @@
     }
     function resetGame() {
       quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0; tds = 0; oppTds = 0;
-      bestPlay = 0; drivePlays = 0;
+      bestPlay = 0; drivePlays = 0; popYards = 0; popT = 0;
       px = GAME_W / 2; py = RUNGUN_START_Y; timeGoneShown = false;
       down = 1; seriesStart = 80; seriesGain = 0;
       coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
@@ -893,6 +898,7 @@
     }
     function tick(dt) {
       if (paused || destroyed) return;
+      if (popT > 0) popT -= dt;
       if (state === 'run' || state === 'pass' || state === 'result') {
         clock -= dt;
         if (clock <= 0) {
@@ -1126,6 +1132,15 @@
         ctx.fillText(resultSub, GAME_W / 2, GAME_H / 2 + 20);
         ctx.textAlign = 'left';
       }
+      // Floating gain: the yards from the play just ended, rising and
+      // fading above the runner. Drawn after the result slab, so it stays
+      // visible even when the runner is near the middle of the screen.
+      if (popT > 0) {
+        ctx.globalAlpha = Math.max(0, Math.min(1, popT / 1.4));
+        ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 16px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('+' + popYards, px, pyS - 26 - (1.4 - popT) * 28);
+        ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+      }
       // Paused veil
       if (paused) {
         ctx.fillStyle = 'rgba(82,18,25,0.88)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
@@ -1339,7 +1354,8 @@
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, cur.y + r, STACK_COLORS[cur.type]); }); });
       }
       // Next piece, drawn as a small preview so the player can plan around
-      // its shape, not just its letter.
+      // its shape, not just its letter. The piece after that sits below it,
+      // so a plan can stretch two panes ahead.
       ctx.fillStyle = '#fffdf7'; ctx.font = '13px Georgia';
       ctx.fillText('Next', 12, 30);
       var nextType = bag.length ? bag[bag.length - 1] : null;
@@ -1351,6 +1367,22 @@
             if (!v) return;
             ctx.fillStyle = STACK_COLORS[nextType];
             ctx.fillRect(14 + c * nc, 36 + r * nc, nc - 1, nc - 1);
+          });
+        });
+      }
+      var next2Type = bag.length > 1 ? bag[bag.length - 2] : null;
+      if (next2Type) {
+        ctx.fillStyle = '#fffdf7'; ctx.font = '13px Georgia';
+        ctx.fillText('Then', 12, 82);
+        var n2s = STACK_SHAPES[next2Type];
+        var n2c = 9;
+        n2s.forEach(function (row, r) {
+          row.forEach(function (v, c) {
+            if (!v) return;
+            ctx.fillStyle = STACK_COLORS[next2Type];
+            ctx.globalAlpha = 0.75;
+            ctx.fillRect(14 + c * n2c, 88 + r * n2c, n2c - 1, n2c - 1);
+            ctx.globalAlpha = 1;
           });
         });
       }
@@ -1583,10 +1615,16 @@
         // Landing guide: a faint dashed outline of the stone projected onto
         // the tower top, with a thin line joining it to the moving stone,
         // so the player can judge the drop instead of guessing across the
-        // gap between the top of the screen and the tower.
+        // gap between the top of the screen and the tower. It turns green
+        // when the stone is lined up for a perfect drop, so a steady hand
+        // gets its answer before committing.
         var topY = tower.length ? tower[tower.length - 1].y : BASE_Y;
         topY += camOff;
-        ctx.strokeStyle = 'rgba(178,138,46,0.55)'; ctx.lineWidth = 1.5;
+        var topX = tower.length ? tower[tower.length - 1].x : (GAME_W - BASE_W) / 2;
+        var topW = tower.length ? tower[tower.length - 1].w : BASE_W;
+        var gLeft = Math.max(moving.x, topX), gRight = Math.min(moving.x + moving.w, topX + topW);
+        var gPerfect = (gRight - gLeft) / topW > 0.9;
+        ctx.strokeStyle = gPerfect ? 'rgba(46,125,50,0.9)' : 'rgba(178,138,46,0.55)'; ctx.lineWidth = 1.5;
         ctx.setLineDash([5, 4]);
         ctx.strokeRect(moving.x, topY - 18, moving.w, 18);
         ctx.beginPath(); ctx.moveTo(moving.x + moving.w / 2, 48); ctx.lineTo(moving.x + moving.w / 2, topY - 18); ctx.stroke();
@@ -1741,8 +1779,10 @@
       updateHud();
     }
     function updateHud() {
+      // The bell is the reprieve, so its countdown turns gold in the last
+      // five seconds — the player can see the rescue coming and hold on.
       api.setHud('<span class="score">Score: ' + Math.floor(score) + '</span><span>Halos: +25 each</span>' +
-        '<span>Bell in: ' + Math.ceil(bellT) + 's</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
+        '<span' + (bellT <= 5 ? ' style="color:#e8b64c;font-weight:700;"' : '') + '>Bell in: ' + Math.ceil(bellT) + 's</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function draw() {
       var ctx = api.ctx;
@@ -2061,6 +2101,14 @@
       ctx.beginPath(); ctx.ellipse(mx, my, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
       // River
       ctx.fillStyle = '#3a6ea5'; ctx.fillRect(0, RIVER_TOP, GAME_W, RIVER_BOT - RIVER_TOP);
+      // Current: faint dashes drifting across the water, so the river reads
+      // as moving instead of a flat blue band. The rides sit on top of it.
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 2;
+      ctx.setLineDash([14, 26]); ctx.lineDashOffset = -(performance.now() / 40) % 40;
+      for (var fy = RIVER_TOP + 12; fy < RIVER_BOT; fy += 22) {
+        ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(GAME_W, fy); ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
       floats.forEach(function (f) {
         // A diving turtle shows as a faint ripple: it is under the water,
         // and the player can see the ride is about to vanish.
@@ -2436,10 +2484,18 @@
       return m + '.';
     }
     function renderStats() {
+      // Week-over-week deltas, from the history the trend chart is drawn
+      // from, so the player can see this week's change at a glance instead
+      // of only reading the totals.
+      var dCong = histCong.length > 1 ? cong - histCong[histCong.length - 2] : 0;
+      var dHappy = histHappy.length > 1 ? happy - histHappy[histHappy.length - 2] : 0;
+      var delta = function (d) {
+        return d === 0 ? '' : ' <small style="color:' + (d > 0 ? '#2e7d32' : '#b8452a') + '">(' + (d > 0 ? '+' : '') + d + ')</small>';
+      };
       stats.innerHTML = '<span>Week ' + Math.min(week + 1, PASTOR_WEEKS) + ' of ' + PASTOR_WEEKS + '</span>' +
-        '<span>Congregation: <b>' + cong + '</b></span>' +
+        '<span>Congregation: <b>' + cong + '</b>' + delta(dCong) + '</span>' +
         '<span>Funds: <b>' + money(funds) + '</b></span>' +
-        '<span>Happiness: <b>' + happy + '</b></span>' +
+        '<span>Happiness: <b>' + happy + '</b>' + delta(dHappy) + '</span>' +
         // The season score, live: congregation + happiness + funds / 10, so
         // the player can see the number they are playing for as it moves.
         '<span>Score: <b>' + Math.max(0, Math.round(cong + happy + Math.max(0, funds) / 10)) + '</b></span>' +
@@ -2872,7 +2928,11 @@
           ctx.beginPath(); ctx.arc(s.x + 3, s.y, 2, 0, Math.PI * 2); ctx.fill();
           return;
         }
-        ctx.fillStyle = frightT > 0 ? '#bcd8e8' : s.color;
+        // Frightened sins are pale blue; in their last two seconds they
+        // flash white, so the player can see the edible window closing
+        // instead of the sins snapping back without warning.
+        var frightFlash = frightT > 0 && frightT < 2 && Math.floor(performance.now() / 200) % 2 === 0;
+        ctx.fillStyle = frightT > 0 ? (frightFlash ? '#ffffff' : '#bcd8e8') : s.color;
         ctx.beginPath(); ctx.arc(s.x, s.y, 9, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = frightT > 0 ? '#33261a' : '#fff';
         ctx.font = 'bold 9px Georgia'; ctx.textAlign = 'center';
@@ -3383,7 +3443,9 @@
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.ellipse(0, 0, 16, 10, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#b28a2e';
-        ctx.beginPath(); ctx.ellipse(-8, -6, 10, 4, -0.5, 0, Math.PI * 2); ctx.fill();
+        // The wing flaps as the dove flies, so the dove reads as alive
+        // instead of a still white shape.
+        ctx.beginPath(); ctx.ellipse(-8, -6, 10, 4, -0.5 + Math.sin(runT * 12) * 0.35, 0, Math.PI * 2); ctx.fill();
       } else {
         ctx.rotate(rot);
         ctx.fillStyle = '#b28a2e';
