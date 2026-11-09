@@ -448,9 +448,11 @@ app.get('/', async (req, res) => {
        WHERE p.status='approved' GROUP BY p.id ORDER BY overall DESC, COUNT(r.id) DESC LIMIT 3`);
     if (rows.length) {
       topRated = `<section class="home-section">
+    <div class="section-head">
     <p class="eyebrow">From the pews</p>
     <h2>Highest rated</h2>
-    <p class="explainer">The best-reviewed priests in the directory, by overall average. Every score carries its review count.</p>
+    <p class="lede">The best-reviewed priests in the directory, by overall average. Every score carries its review count.</p>
+    </div>
     <div class="cards">${rows.map((p) => priestCard(p, { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability })).join('')}</div>
     </section>`;
     }
@@ -459,6 +461,7 @@ app.get('/', async (req, res) => {
     <section class="hero">
       <div class="hero-photo">
         <div class="hero-copy">
+          <p class="hero-kicker">From the pews</p>
           <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
           <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
           <form action="/browse" method="get" class="hero-search">
@@ -467,36 +470,48 @@ app.get('/', async (req, res) => {
               <button type="submit">Search</button>
             </div>
           </form>
+          <p class="hero-assurance"><span>Anonymous</span><span>No account needed</span><span>Free, always</span></p>
         </div>
       </div>
     </section>${GLASS}
-    <section class="home-section">
+    <section class="home-section band">
+    <div class="section-head">
     <p class="eyebrow">The directory</p>
-    <h2>Browse by region</h2><ul class="regions">${regionHtml}</ul>
+    <h2>Browse by region</h2>
+    <p class="lede">Pick a corner of the country to start, then narrow it down by state, city, or diocese.</p>
+    </div>
+    <ul class="regions">${regionHtml}</ul>
+    <p class="section-more"><a href="/browse">Search the whole directory &rsaquo;</a></p>
     </section>
     <section class="home-section">
+    <div class="section-head">
     <p class="eyebrow">What matters to you</p>
     <h2>Find priests by what matters to you</h2>
-    <p class="explainer">Category lists show rated priests only, sorted by that category average, highest first, with review counts always shown.</p>
+    <p class="lede">Category lists show rated priests only, sorted by that category average, highest first, with review counts always shown.</p>
+    </div>
     <div class="cat-grid">
-      <div class="cat-card card-lift"><h3>Quick Mass</h3><p>Priests whose Sunday Mass moves briskly, ranked by pace. Pace is speed only, never a quality grade.</p><a href="/browse?filter=quick">Browse Quick Mass &rsaquo;</a></div>
-      <div class="cat-card card-lift"><h3>Great homily</h3><p>Preaching worth sitting still for, ranked by homily, highest first.</p><a href="/browse?filter=homily">Browse great homilies &rsaquo;</a></div>
-      <div class="cat-card card-lift"><h3>Lovable priest</h3><p>Priests people would cross town to see, ranked by likability.</p><a href="/browse?filter=lovable">Browse lovable priests &rsaquo;</a></div>
+      <div class="cat-card card--ruled card-lift"><h3>Quick Mass</h3><p>Priests whose Sunday Mass moves briskly, ranked by pace. Pace is speed only, never a quality grade.</p><a href="/browse?filter=quick">Browse Quick Mass &rsaquo;</a></div>
+      <div class="cat-card card--ruled card-lift"><h3>Great homily</h3><p>Preaching worth sitting still for, ranked by homily, highest first.</p><a href="/browse?filter=homily">Browse great homilies &rsaquo;</a></div>
+      <div class="cat-card card--ruled card-lift"><h3>Lovable priest</h3><p>Priests people would cross town to see, ranked by likability.</p><a href="/browse?filter=lovable">Browse lovable priests &rsaquo;</a></div>
     </div>
     </section>
     ${topRated}
     <section class="home-section">
+    <div class="section-head">
     <p class="eyebrow">How it works</p>
     <h2>Three steps, from the pews</h2>
+    <p class="lede">No account, no name, no email. Just the Mass you went to.</p>
+    </div>
     <div class="steps">
       <div class="step"><span class="step-num">01</span><h3><a href="/browse">Find a priest</a></h3><p>Search by name, parish, or city, or browse by region.</p></div>
       <div class="step"><span class="step-num">02</span><h3><a href="/browse?filter=quick">Read the pews</a></h3><p>See what others thought, with review counts on every score.</p></div>
       <div class="step"><span class="step-num">03</span><h3><a href="/how">Rate your Mass</a></h3><p>Anonymous, 1 to 5, in under a minute. No name, no email.</p></div>
     </div>
     </section>
-    <section class="home-section">
+    <section class="home-section about-center">
     <p class="eyebrow">About</p>
     <h2>A passion project, from the pews</h2>
+    <div class="rule" aria-hidden="true"><span></span></div>
     <p class="explainer">RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Free and ad free, built to help you find a Mass you love.</p>
     <p><a href="/about">Read more about RateMyFather &rsaquo;</a></p>
     </section>
@@ -507,11 +522,13 @@ app.get('/', async (req, res) => {
         <p><a class="btn btn-pill press" href="/add-priest">Add a priest</a></p>
       </div>
     </section>
-    <section class="breather card-lift">
+    <section class="breather breather--feature card-lift">
+      <div class="breather-text">
       <p class="eyebrow">Take a breather</p>
       <h2>Need a breather?</h2>
       <p class="explainer">Take a break between Masses with eight little games in the arcade. Best scores live only in your browser.</p>
-      <p><a class="btn btn-pill press" href="/games">Play the arcade</a></p>
+      </div>
+      <a class="btn btn--gold btn-pill press" href="/games">Play the arcade</a>
     </section>`));
 });
 

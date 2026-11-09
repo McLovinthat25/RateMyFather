@@ -1,7 +1,9 @@
-/* RateMyFather: demo look. Warm parchment, burgundy + gold, Georgia serif headings,
-   leaded stained-glass frames. Ported from the demo's design system: a wide 1150px
-   centered column, 16px universal radius, soft two-layer shadows, arched hero,
-   leaded-glass divider strips, lead score boxes, gold stars and category bars. */
+/* RateMyFather: warm parchment, burgundy + gold, Georgia serif headings,
+   leaded stained-glass frames. A wide 1150px centered column, 16px universal
+   radius, soft two-layer shadows, arched hero, leaded-glass divider strips,
+   lead score boxes, gold stars and category bars. Phase 1 design system
+   (Nov 9, 2026): type scale, spacing rhythm, and reusable components in the
+   DESIGN SYSTEM layer at the end of the file. */
 :root {
   --bg:#faf6ec; --surface:#fffdf7; --surface-alt:#f1e8d8; --text:#2a211a; --dim:#6e5d4b;
   --border:#e0d3bc; --accent:#6e1a26; --accent-soft:#f5e6e2; --accent-hover:#521219;
@@ -780,4 +782,103 @@ a { transition:color 160ms ease; }
   .cta-card { background:#0d0805; }
   .hero-search .search input { background:#221809; }
   .empty-state { background:#221809; }
+}
+
+/* ==========================================================================
+   DESIGN SYSTEM — Phase 1 (Nov 9, 2026). Editorial system on top of the
+   brand: a real type scale, a spacing rhythm, and reusable components
+   (section heads, bands, rules, button variants, hero furniture). The
+   palette, the photographic hero, and every existing class stay exactly
+   as they were; this layer only adds tokens and components the homepage
+   (and later pages) are built from.
+   ========================================================================== */
+:root {
+  /* Type scale: display serif down to small caps and captions. */
+  --size-display:clamp(2.875rem, 11.5vw, 4.75rem);    /* hero headline: 46-76px */
+  --size-h1:clamp(2.25rem, 2rem + 1.2vw, 2.75rem);    /* page title: 36-44px */
+  --size-h2:clamp(1.625rem, 1.5rem + 0.6vw, 1.75rem); /* section head: 26-28px */
+  --size-h3:1.25rem;                                  /* card title: 20px */
+  --size-lede:clamp(1.125rem, 1rem + 0.4vw, 1.25rem); /* section intro: 18-20px */
+  --size-body:1rem;                                   /* 16px */
+  --size-small:0.875rem;                              /* 14px */
+  --size-caption:0.75rem;                             /* 12px, small caps */
+  --leading-display:1.0;
+  --leading-tight:1.2;
+  --leading-body:1.62;
+  /* Spacing rhythm: one section gap, one block gap, one card gap. */
+  --space-section:clamp(3.5rem, 8vw, 4.5rem);         /* 56-72px between sections */
+  --space-block:1.25rem;                              /* 20px inside a section */
+  --space-card:1rem;                                  /* 16px inside a card */
+  --measure:60ch;                                     /* comfortable reading width */
+}
+h1 { font-size:var(--size-h1); line-height:var(--leading-tight); }
+h2 { font-size:var(--size-h2); line-height:var(--leading-tight); }
+h3 { font-size:var(--size-h3); line-height:1.4; }
+.hero-copy h1 { font-size:var(--size-display); line-height:var(--leading-display); }
+.home-section { margin-top:var(--space-section); }
+
+/* ---------- Section heads: eyebrow, headline, lede ---------- */
+.section-head { margin-bottom:var(--space-block); }
+.section-head .lede { margin-top:8px; }
+.lede { font-size:var(--size-lede); line-height:1.5; color:var(--dim); max-width:var(--measure); }
+.section-more { margin-top:16px; font-weight:700; }
+.section-more a { text-decoration:none; }
+.section-more a:hover { text-decoration:underline; }
+
+/* ---------- Ornamental rule: a gold line, a diamond, a gold line ----------
+   The quiet divider for centered editorial blocks (the About section).
+   The diamond is the same gold as the stained-glass panes. */
+.rule { display:flex; align-items:center; justify-content:center; gap:12px;
+  margin:24px auto; max-width:240px; }
+.rule::before, .rule::after { content:""; flex:1; height:1px;
+  background:var(--gold); opacity:0.65; }
+.rule span { width:8px; height:8px; background:var(--gold); transform:rotate(45deg); flex:none; }
+
+/* ---------- Band: a tinted panel that breaks the flat stack ----------
+   One section sits on parchment-alt instead of plain ivory, so the eye
+   can tell where browsing ends and ratings begin. Contained, not
+   full-bleed, so it can never cause horizontal overflow. */
+.band { background:var(--surface-alt); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:clamp(24px, 5vw, 36px); }
+.band .section-head { margin-bottom:16px; }
+
+/* ---------- Cards: a gold top rule marks the rating categories ---------- */
+.card--ruled { border-top:3px solid var(--gold); }
+
+/* ---------- Button variants: gold for the primary action, ghost for the quiet one ---------- */
+.btn--gold { background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#2e2205;
+  box-shadow:0 2px 8px rgb(0 0 0 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.35); }
+.btn--gold:hover { filter:brightness(1.07); }
+.btn--ghost { background:transparent; color:var(--accent); border:1.5px solid var(--accent); box-shadow:none; }
+.btn--ghost:hover { background:var(--accent-soft); filter:none; }
+.btn--sm { padding:9px 16px; font-size:15px; }
+
+/* ---------- Hero furniture: kicker above the headline, assurances below the search ---------- */
+.hero-kicker { display:flex; align-items:center; gap:10px; margin:0 0 14px;
+  font-size:var(--size-caption); font-weight:700; text-transform:uppercase;
+  letter-spacing:0.22em; color:var(--gold-soft); text-shadow:0 1px 8px rgb(0 0 0 / 0.5); }
+.hero-kicker::before { content:""; width:28px; height:2px; background:var(--gold-bright);
+  border-radius:1px; flex:none; }
+.hero-assurance { display:flex; flex-wrap:wrap; gap:4px 0; margin:18px 0 0;
+  font-size:13px; font-weight:600; letter-spacing:0.04em;
+  color:rgb(255 253 247 / 0.88); text-shadow:0 1px 8px rgb(0 0 0 / 0.55); }
+.hero-assurance span { display:inline-flex; align-items:center; white-space:nowrap; }
+.hero-assurance span + span::before { content:""; width:5px; height:5px;
+  background:var(--gold-bright); transform:rotate(45deg); margin:0 12px; flex:none; }
+
+/* ---------- About: centered editorial block, measure-constrained ---------- */
+.about-center { text-align:center; }
+.about-center .explainer { margin-left:auto; margin-right:auto; max-width:56ch;
+  font-size:var(--size-lede); line-height:1.55; color:var(--dim); }
+.about-center .rule { margin:26px auto 20px; }
+
+/* ---------- Breather: the arcade invite, roomier, button-led on desktop ---------- */
+.breather--feature { padding:clamp(22px, 5vw, 32px); }
+@media (min-width:640px) {
+  .breather--feature { display:flex; align-items:center; gap:28px; }
+  .breather--feature .breather-text { flex:1; min-width:0; }
+  .breather--feature .btn { margin-top:0; flex:none; }
+}
+@media (prefers-color-scheme: dark) {
+  .btn--ghost:hover { background:var(--accent-soft); }
 }
