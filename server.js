@@ -113,7 +113,7 @@ function priestCard(p, st) {
   const scoreBox = avg == null
     ? `<span class="score-box unrated">Not yet rated</span>`
     : `<span class="score-box"><span class="num">${avg.toFixed(1)}</span><span class="lbl">out of 5</span></span>`;
-  return `<a class="card card-lift priest-card" href="/priest/${p.id}" title="${esc(p.name)} — ${esc(assignmentText(p))}">
+  return `<a class="card card--ruled card-lift priest-card" href="/priest/${p.id}" title="${esc(p.name)} — ${esc(assignmentText(p))}">
     ${scoreBox}
     <span class="priest-main">
       <span class="priest-name" title="${esc(p.name)}">${esc(p.name)}</span>
@@ -737,8 +737,47 @@ app.get('/browse', async (req, res) => {
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
     : emptyHtml;
-  const matchLine = cards.length && totalCount > 200
-    ? `<p class="match-count">Showing the first 200 priests</p>`
+  const matchLine = cards.length
+    ? (totalCount > 200
+      ? `<p class="match-count">Showing the first 200 of ${totalCount.toLocaleString()} priests</p>`
+      : `<p class="match-count">${totalCount.toLocaleString()} priest${totalCount === 1 ? '' : 's'}</p>`)
+    : '';
+  // The page lede: what this list is, in one line.
+  const browseLede = filter === 'quick'
+    ? 'Priests whose Sunday Mass moves briskly, ranked by pace, highest first. Pace is speed only, never a quality grade.'
+    : filter === 'homily'
+      ? 'Preaching worth sitting still for, ranked by homily, highest first.'
+      : filter === 'lovable'
+        ? 'Priests people would cross town to see, ranked by likability, highest first.'
+        : 'Search by name, parish, or city. A 5-digit ZIP in the box finds priests near that area.';
+  // Active filters, as removable chips: each chip links to the same search
+  // minus that one filter, so a visitor can see what is narrowing the list
+  // and drop one piece at a time. Place filters arrive by URL (home region
+  // links, Find by place); the single search box stays the only text input.
+  const qsWithout = (drop) => {
+    const parts = [];
+    if (q && drop !== 'q') parts.push(`q=${encodeURIComponent(q)}`);
+    if (state && drop !== 'state') parts.push(`state=${encodeURIComponent(state)}`);
+    if (city && drop !== 'city') parts.push(`city=${encodeURIComponent(city)}`);
+    if (diocese && drop !== 'diocese') parts.push(`diocese=${encodeURIComponent(diocese)}`);
+    if (region && drop !== 'region') parts.push(`region=${encodeURIComponent(region)}`);
+    if (FILTERS[filter] && drop !== 'filter') parts.push(`filter=${encodeURIComponent(filter)}`);
+    return parts.length ? '/browse?' + parts.join('&amp;') : '/browse';
+  };
+  const chipDefs = [];
+  if (state) chipDefs.push(['state', `State: ${esc(state.toUpperCase())}`]);
+  if (city) chipDefs.push(['city', `City: ${esc(city)}`]);
+  if (diocese) chipDefs.push(['diocese', `Diocese: ${esc(dioceseName(diocese.toUpperCase()))}`]);
+  if (region) chipDefs.push(['region', `Region: ${esc(region)}`]);
+  if (FILTERS[filter]) chipDefs.push(['filter', esc(FILTER_LABELS[filter])]);
+  const chipsHtml = chipDefs.length
+    ? `<p class="filter-chips"><span class="filter-chips-label">Filtered by</span> ${chipDefs.map(([key, label]) => `<a class="filter-chip" href="${qsWithout(key)}" title="Remove this filter">${label} <span aria-hidden="true">&times;</span></a>`).join(' ')} <a class="filter-clear" href="/browse">Clear all</a></p>`
+    : '';
+  // With no search and no filters, offer the regions as Find by place
+  // links, so the page still browses somewhere instead of listing 200
+  // priests alphabetically with no way in.
+  const regionLinks = (!q && !state && !city && !diocese && !region && !FILTERS[filter])
+    ? `<p class="region-links"><span class="filter-chips-label">Browse by region</span> ${['Northeast', 'Midwest', 'South', 'West', 'Other listings'].map((r) => `<a class="chip" href="/browse?region=${encodeURIComponent(r)}">${r}</a>`).join(' ')}</p>`
     : '';
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   // A place filter arrived with by URL (state/city/diocese) is kept as hidden
@@ -751,7 +790,11 @@ app.get('/browse', async (req, res) => {
   // box; an active filter is kept as a hidden input so refining the text
   // search does not silently drop it. Entry points are the home chips.
   const filterHidden = FILTERS[filter] ? `<input type="hidden" name="filter" value="${esc(filter)}">` : '';
-  res.send(page(heading, `<p class="eyebrow">The directory</p><h1>${esc(heading)}</h1>
+  res.send(page(heading, `<div class="section-head">
+    <p class="eyebrow">The directory</p>
+    <h1>${esc(heading)}</h1>
+    <p class="lede">${browseLede}</p>
+    </div>
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
         <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
@@ -759,7 +802,9 @@ app.get('/browse', async (req, res) => {
         <button type="submit">Search</button>
       </div>
     </form>
-    ${note}${matchLine}<div class="cards">${body}</div>`));
+    ${chipsHtml}${regionLinks}${note}${matchLine}
+    ${cards.length ? '<div class="rule" aria-hidden="true"><span></span></div>' : ''}
+    <div class="cards">${body}</div>`));
 });
 
 // Attendance-duration answers for the review form (required dropdown).
@@ -842,7 +887,7 @@ app.get('/priest/:id', async (req, res) => {
   const reviewHtml = revs.length ? revs.map((r) => {
     const ravg = (Number(r.pace) + Number(r.homily) + Number(r.likability)) / 3;
     const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-    return `<article class="review">
+    return `<article class="review card--ruled">
     <div class="review-head"><span class="review-score">${ravg.toFixed(1)} out of 5</span>${starsHtml(ravg)}<span class="review-date">${date}${r.mass_context ? ` &middot; ${esc(r.mass_context)}` : ''}</span></div>
     <p class="review-cats">Pace <strong>${r.pace}</strong> <span class="small">${esc(anchorLabel('pace', r.pace))}</span> &middot; Homily <strong>${r.homily}</strong> <span class="small">${esc(anchorLabel('homily', r.homily))}</span> &middot; Likability <strong>${r.likability}</strong> <span class="small">${esc(anchorLabel('likability', r.likability))}</span></p>
     ${r.church_beauty ? `<p class="review-church">Church beauty: <strong>${r.church_beauty} out of 5</strong> <span class="small">${esc(anchorLabel('church_beauty', r.church_beauty))} (the building, not the priest)</span></p>` : ''}
@@ -859,24 +904,42 @@ app.get('/priest/:id', async (req, res) => {
   const barsHtml = st && st.n
     ? bar('Pace', 'pace', st.pace) + bar('Homily', 'homily', st.homily) + bar('Likability', 'likability', st.likability)
     : '';
+  // Editorial facts for the profile header: diocese, ordination year as
+  // listed, and where the profile comes from. The parish and city stay in
+  // assignment(), worded exactly as before ("Listed at ..." is a historical
+  // listing from the directory, not a claim about today).
+  const factRows = [];
+  if (p.diocese_code) factRows.push(`<div><dt>Diocese</dt><dd>${esc(dioceseName(p.diocese_code))} (${esc(p.diocese_code)})</dd></div>`);
+  if (p.ordination_year) factRows.push(`<div><dt>Ordination year</dt><dd>${esc(p.ordination_year)} (as listed)</dd></div>`);
+  factRows.push(`<div><dt>Source</dt><dd>${p.user_added ? 'User-added profile' : '2017 Official Catholic Directory'}</dd></div>`);
   res.send(page(p.name, `<article class="profile-card">
     <div class="profile-banner" aria-hidden="true"></div>
     <div class="profile-body">
-      <h1 class="profile-name">${esc(p.name)}</h1>
-      <p class="profile-meta">${assignment(p)}</p>
-      ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : `<p class="profile-sub">Directory listing: this profile comes from the 2017 directory.</p>`}
-      ${p.diocese_code ? `<p class="profile-sub">Diocese: ${esc(dioceseName(p.diocese_code))} (${esc(p.diocese_code)})</p>` : ''}
-      ${p.ordination_year ? `<p class="profile-sub">Ordination year (as listed): ${esc(p.ordination_year)}</p>` : ''}
-      <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
-      ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : ''}
-      ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
-      ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
-      ${church && church.n ? `<div class="church-box"><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box"><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
+      <header class="profile-head">
+        <p class="eyebrow">Priest profile</p>
+        <h1 class="profile-name">${esc(p.name)}</h1>
+        <p class="profile-meta">${assignment(p)}</p>
+        ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : ''}
+      </header>
+      <dl class="profile-facts">${factRows.join('')}</dl>
+      <div class="rule" aria-hidden="true"><span></span></div>
+      <section class="rating-summary band" aria-label="Rating summary">
+        <p class="eyebrow">From the pews</p>
+        <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
+        ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : '<p class="profile-count">No published reviews yet. Be the first to rate this priest.</p>'}
+        ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
+        ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
+      </section>
+      ${church && church.n ? `<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
       <p class="profile-note">${DISCLAIMER}</p>
     </div>
   </article>
-    <h2>Rate this priest</h2>
-    <p class="small">Each star has a meaning, so pick the one that matches what you actually experienced. Pace is speed only, not a quality grade: a slow Mass is not a bad Mass.</p>
+  <section class="rate-section">
+    <div class="section-head">
+      <p class="eyebrow">Your turn</p>
+      <h2>Rate this priest</h2>
+      <p class="lede">Each star has a meaning, so pick the one that matches what you actually experienced. Pace is speed only, not a quality grade: a slow Mass is not a bad Mass.</p>
+    </div>
     <form action="/priest/${p.id}/review" method="post" class="rate-form rate-card">
       <p><label>Pace of play (speed only, not a quality grade): <select name="pace" required>
         <option value="">Choose</option><option value="1">1: very slow, over 90 min</option><option value="2">2: slow, 75 to 90 min</option>
@@ -904,10 +967,18 @@ app.get('/priest/:id', async (req, res) => {
       <p class="small">Reviews are anonymous. No name or email is collected.</p>
       <p><label><input type="checkbox" name="attest_age" required> I confirm I am 18 or older.</label></p>
       <p><label><input type="checkbox" name="attest_honest" required> I confirm this review is my own honest opinion.</label></p>
-      <button type="submit">Submit review</button>
+      <button type="submit" class="btn btn--gold">Submit review</button>
     </form>
-    <h2>Published reviews</h2>${reviewHtml}
-    <p><a class="btn" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>`, '<script>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS) + ';</script><script src="/review.js"></script>'));
+  </section>
+  <section class="reviews-section">
+    <div class="section-head">
+      <p class="eyebrow">From the pews</p>
+      <h2>Published reviews</h2>
+      ${revs.length ? `<p class="lede">${revs.length} published review${revs.length === 1 ? '' : 's'}, most recent first. Approved reviews only.</p>` : ''}
+    </div>
+    ${reviewHtml}
+    <p class="correction-row"><a class="btn btn--ghost btn--sm" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>
+  </section>`, '<script>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS) + ';</script><script src="/review.js"></script>'));
 });
 
 app.post('/priest/:id/review', async (req, res) => {
@@ -1036,21 +1107,30 @@ app.post('/legal', async (req, res) => {
 
 // ---------- informational pages ----------
 function infoPage(title, inner) { return page(title, `<div class="prose"><h1>${esc(title)}</h1>${inner}</div>`); }
-app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2>
-  <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p>
-  <h2>How the ratings work</h2>
+app.get('/about', (req, res) => res.send(page('About', `<div class="prose about-page">
+  <div class="section-head">
+    <p class="eyebrow">About RateMyFather</p>
+    <h1>About</h1>
+    <p class="lede">Anonymous ratings of pace, homily, and likability, from the pews.</p>
+  </div>
+  <section class="about-section"><h2>What this is</h2>
+  <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p></section>
+  <div class="rule" aria-hidden="true"><span></span></div>
+  <section class="about-section band"><h2>How the ratings work</h2>
   <p>Reviews are anonymous. No name or email is collected, and every rating is 1 to 5 on pace, homily, and likability only. Pace measures speed alone, not quality: a slow Mass is not a bad Mass. Every average is shown with its review count, so you can see how many people stand behind a score.</p>
-  <p>You can also rate the church building itself, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It lives in its own box on the profile, and it never affects the priest's score, averages, or rankings. A priest is never punished because their church is not beautiful.</p>
-  <h2>Where the profiles come from</h2>
+  <p>You can also rate the church building itself, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It lives in its own box on the profile, and it never affects the priest's score, averages, or rankings. A priest is never punished because their church is not beautiful.</p></section>
+  <div class="rule" aria-hidden="true"><span></span></div>
+  <section class="about-section"><h2>Where the profiles come from</h2>
   <p>The priest profiles come from the 2017 Official Catholic Directory Priests Index. Each directory profile says so on the page. Assignments shown as "Listed at ..." are historical listings from that directory, not a claim about where a priest serves today.</p>
-  <p>We have also gone through the directory and attempted to verify and update the profiles against current diocese and parish sources, and that work is still going. In the verification sweep so far, about 37,793 profiles were checked and about 15,272 were resolved. But the underlying directory is still the 2017 one, so some listings may be out of date. Please treat parish assignments as a starting point, not a guarantee.</p>
-  <h2>If something is wrong</h2>
-  <p>If a listing is wrong or out of date, you can report it. Every priest's profile has a correction form, and the owner reviews each correction. ${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p>
+  <p>We have also gone through the directory and attempted to verify and update the profiles against current diocese and parish sources, and that work is still going. In the verification sweep so far, about 37,793 profiles were checked and about 15,272 were resolved. But the underlying directory is still the 2017 one, so some listings may be out of date. Please treat parish assignments as a starting point, not a guarantee.</p></section>
+  <div class="rule" aria-hidden="true"><span></span></div>
+  <section class="about-section"><h2>If something is wrong</h2>
+  <p>If a listing is wrong or out of date, you can report it. Every priest's profile has a correction form, and the owner reviews each correction. ${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p></section>
   <section class="tip-box">
     <h2>Buy the creator a coffee</h2>
     <p>RateMyFather is a passion project, kept free and ad free. If it has helped you find a Mass you love, a small tip keeps it that way.</p>
     <a class="tip-link" href="https://ko-fi.com/ratemyfather" target="_blank" rel="noopener">Buy the creator a coffee on Ko-fi</a>
-  </section>`)));
+  </section></div>`)));
 // Star tables for the How page, built from ANCHORS itself so the page can
 // never drift from what the review form shows. 5 first, 1 last.
 // Pace rows drop the repeated "on a Sunday" (stripSunday): the Sunday basis
@@ -1063,11 +1143,16 @@ function anchorRows(key, stripSunday) {
     return `<li>${starsHtml(n)}<span>${esc(text)}</span></li>`;
   }).join('');
 }
-app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p class="how-lede">Each rating is 1 to 5 in three categories:</p>
+app.get('/how', (req, res) => res.send(page('How ratings work', `<div class="prose how-page">
+  <div class="section-head">
+    <p class="eyebrow">How ratings work</p>
+    <h1>How ratings work</h1>
+    <p class="lede">Each rating is 1 to 5 in three categories.</p>
+  </div>
   <div class="how-cats">
-    <div class="how-cat-card"><h3>Pace of play</h3><p><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</p></div>
-    <div class="how-cat-card"><h3>Homily</h3><p><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</p></div>
-    <div class="how-cat-card"><h3>Likability</h3><p><strong>Likability:</strong> 1 is not likable, 5 is very likable.</p></div>
+    <div class="how-cat-card card--ruled"><h3>Pace of play</h3><p><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</p></div>
+    <div class="how-cat-card card--ruled"><h3>Homily</h3><p><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</p></div>
+    <div class="how-cat-card card--ruled"><h3>Likability</h3><p><strong>Likability:</strong> 1 is not likable, 5 is very likable.</p></div>
   </div>
   <section class="how-section"><h2>What the stars mean</h2>
   <p>Each star has a plain description, the same one shown in the review form, so a reviewer picks from a real basis instead of guessing.</p>
@@ -1095,12 +1180,12 @@ app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p class="h
     <li>After 5 reviews in an hour from one source, further reviews are refused.</li>
     <li>If 10 or more reviews of one priest arrive in 24 hours, further reviews of that priest are force-held.</li>
   </ul></section>
-  <section class="how-section"><h2>Church beauty is separate</h2>
+  <section class="how-section band"><h2>Church beauty is separate</h2>
   <p><strong>Church beauty is separate from the priest's score.</strong> When you review, you can optionally rate how beautiful the church building is, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It is shown on the profile in its own box with its own review count, and it never affects the priest's score, averages, rankings, or category lists. A priest is never punished because their church is not beautiful.</p></section>
   <section class="how-section"><h2>Anonymous reviews</h2>
   <p>Reviews are anonymous. No name or email is collected. For abuse prevention only, the site stores a hashed token derived from request data (see Privacy Policy).</p></section>
   <section class="how-section"><h2>Opinions, not verified facts</h2>
-  <p>Reviews are user opinions, not verified facts. The site does not verify or endorse them. If you believe a review is unlawful or about you, use the <a href="/legal">Legal notices</a> page or the correction form on the priest's profile.</p></section>`)));
+  <p>Reviews are user opinions, not verified facts. The site does not verify or endorse them. If you believe a review is unlawful or about you, use the <a href="/legal">Legal notices</a> page or the correction form on the priest's profile.</p></section></div>`)));
 app.get('/terms', (req, res) => res.send(infoPage('Terms of Use', `<p>Reviews are user-generated opinions. They are the individual reviewer's own opinion, not statements of fact, not verified by RateMyFather, and not endorsed by RateMyFather. A rating reflects one person's experience, not a finding about a priest.</p>
   <p>By submitting a review, you confirm you are 18 or older and that the review is your own honest opinion. You are responsible for what you submit. You must not submit private contact details, unverified factual allegations about identifiable people, or content you do not have the right to post.</p>
   <p>RateMyFather is not liable for user-submitted content. The site hosts reviews as a platform for user opinions; it does not adopt, verify, or stand behind them.</p>

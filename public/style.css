@@ -882,3 +882,103 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 @media (prefers-color-scheme: dark) {
   .btn--ghost:hover { background:var(--accent-soft); }
 }
+
+/* ==========================================================================
+   PHASE 2 — Nov 9, 2026. The remaining pages, on the Phase 1 design
+   system: the same tokens (--size-*, --space-*, --measure) and the same
+   components (.section-head, .band, .rule, .card--ruled, .btn--gold /
+   .btn--ghost / .btn--sm). No second visual language. Browse, profile,
+   About, How, and the arcade shelf. Every route, form field, filter,
+   and behaviour the server renders is unchanged; this layer only
+   presents it.
+   ========================================================================== */
+
+/* ---------- Section heads outside the homepage ----------
+   Home sections already reset their h2 margin; a section head on any
+   other page needs the same reset, or the heading drops 48px. */
+.section-head h2 { margin-top:0; }
+.section-head h1 { margin-bottom:0; }
+
+/* ---------- Browse: active-filter chips and region links ----------
+   The single search box is untouched. Place and category filters that
+   arrived by URL surface as removable chips (each chip is the same
+   search minus that one filter), and an unfiltered browse offers the
+   regions as Find by place links. */
+.filter-chips { display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  margin-top:16px; font-size:var(--size-small); }
+.filter-chips-label { font-size:var(--size-caption); font-weight:700;
+  text-transform:uppercase; letter-spacing:0.14em; color:var(--gold-ink);
+  margin-right:2px; }
+.filter-chip { display:inline-flex; align-items:center; gap:6px;
+  background:var(--surface); border:1px solid var(--border); border-radius:999px;
+  padding:7px 12px; font-size:var(--size-small); font-weight:600; color:var(--text);
+  text-decoration:none; box-shadow:var(--shadow-soft);
+  transition:border-color 160ms ease, color 160ms ease; }
+.filter-chip:hover { border-color:var(--gold); color:var(--accent); }
+.filter-chip span { font-size:16px; line-height:1; color:var(--dim); }
+.filter-clear { font-weight:700; text-decoration:none; white-space:nowrap; }
+.filter-clear:hover { text-decoration:underline; }
+.region-links { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:16px; }
+.region-links .chip { padding:9px 15px; font-size:15px; }
+
+/* ---------- Profile: editorial header, facts, rating summary ----------
+   Name, parish, and city stay exactly as rendered before; diocese,
+   ordination year, and source move into a labelled facts list, and the
+   score box and bars sit in a tinted rating-summary panel. The church
+   box keeps its own panel, visibly separate from the priest's score. */
+.profile-head .eyebrow { margin-bottom:8px; }
+.profile-name { font-size:var(--size-h1); line-height:var(--leading-tight); }
+.profile-facts { display:flex; flex-direction:column; gap:6px; margin:18px 0 0; padding:0; }
+.profile-facts > div { display:flex; gap:12px; flex-wrap:wrap; font-size:var(--size-small); }
+.profile-facts dt { flex:none; width:150px; white-space:nowrap; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.1em; font-size:var(--size-caption); color:var(--gold-ink); padding-top:2px; }
+.profile-facts dd { margin:0; flex:1; min-width:0; color:var(--dim); }
+.profile-body .rule { margin:22px auto; }
+.rating-summary { margin-top:4px; }
+.rating-summary .eyebrow { margin-bottom:14px; }
+.rating-summary .score-row { margin-top:0; }
+.church-box .eyebrow { margin-bottom:8px; }
+.rate-section, .reviews-section { margin-top:var(--space-section); }
+.rate-section .section-head, .reviews-section .section-head { margin-bottom:var(--space-block); }
+.correction-row { margin-top:24px; }
+/* On a phone the lead score box sits above the bars inside the tinted
+   panel, so the bars keep a usable width instead of squeezing beside it. */
+@media (max-width:639px) {
+  .rating-summary .score-row { flex-direction:column; }
+  .rating-summary .bars { width:100%; }
+}
+
+/* ---------- About: one idea per section, rules between them ---------- */
+.about-section { margin-top:var(--space-block); }
+.about-section h2 { margin-top:0; }
+.about-page .rule { margin:28px auto; }
+.about-page .band h2 { margin-top:0; }
+
+/* ---------- How: section head, banded separation statement ---------- */
+.how-page .section-head { margin-bottom:var(--space-block); }
+.how-page .how-cats { margin-top:0; }
+.how-section.band h2 { margin-top:0; }
+
+/* ---------- Arcade: editorial intro, four-across shelf ----------
+   The shelf is one column on a phone, two on a tablet, and four across
+   on desktop, so the eight games sit in two rows of four. The cards
+   keep their gold top rule, and Play is a gold pill. The intro is the
+   arcade's own heading, dressed as a section head; the "Take a
+   breather" kicker matches the homepage arcade invite. */
+.arcade-head { display:block; margin-bottom:var(--space-block); }
+.arcade-head::before { content:"Take a breather"; display:block;
+  font-size:var(--size-caption); font-weight:700; text-transform:uppercase;
+  letter-spacing:0.16em; color:var(--gold-ink); margin-bottom:10px; }
+.arcade-head h2 { font-size:var(--size-h2); line-height:var(--leading-tight); margin:0; }
+.arcade-head p { font-size:var(--size-lede); line-height:1.5; color:var(--dim);
+  max-width:var(--measure); margin:8px 0 0; }
+.arcade-tools { margin:16px 0 20px; }
+.arcade-tools button:first-child { background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+  color:#2e2205; box-shadow:0 2px 8px rgb(0 0 0 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.35); }
+.arcade-shelf { grid-template-columns:minmax(0, 1fr); }
+@media (min-width:640px) { .arcade-shelf { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media (min-width:1024px) { .arcade-shelf { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+.game-card { border-top:3px solid var(--gold); }
+.game-card .play-row button { background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+  color:#2e2205; box-shadow:0 2px 8px rgb(0 0 0 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.35); }
+.game-stage { border-top:3px solid var(--gold); }
