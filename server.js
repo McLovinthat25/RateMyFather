@@ -377,9 +377,9 @@ function notFoundPage() {
   return errorPage({
     title: 'Not found',
     heading: 'We could not find that page',
-    message: 'The link may be mistyped, or the priest may not be listed. Try searching by name, parish, or city — or play a quick round while you are here.',
+    message: 'The link may be mistyped, or the priest may not be listed. Try searching by name, parish, city, or ZIP — or play a quick round while you are here.',
     actions: `<form action="/browse" method="get"><div class="search">
-      <input name="q" placeholder="Search by name, parish, or city" aria-label="Search">
+      <input name="q" placeholder="Search by name, parish, city, or ZIP" aria-label="Search">
       <button class="btn" type="submit">Search</button>
     </div></form>
     <div class="btnrow"><a class="btn" href="/browse">Browse all priests</a> <a class="btn btn-secondary" href="/games">Play the arcade</a></div>
@@ -476,21 +476,11 @@ app.get('/', async (req, res) => {
     </section>${GLASS}
     <form action="/browse" method="get" id="home-search">
       <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search"></span>
-        <input name="zip" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" title="5-digit ZIP" inputmode="numeric" maxlength="5">
+        <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, city, or ZIP" aria-label="Search by name, parish, city, or ZIP"></span>
         <button type="submit">Search</button>
       </div>
-      <div class="place-section">
-        <h2>Find by place</h2>
-        <p class="explainer">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
-        <div class="place-filters" data-state="" data-city="" data-diocese="">
-          <select id="place-state" name="state" aria-label="State"><option value="">Choose a state</option></select>
-          <select id="place-city" name="city" disabled aria-label="City"><option value="">Choose a city</option></select>
-          <select id="place-diocese" name="diocese" disabled aria-label="Diocese"><option value="">Choose a diocese</option></select>
-        </div>
-      </div>
     </form>
-    <p class="small">ZIP search is area-level only: it finds the city and state area for a ZIP prefix, never an exact address.</p>
+    <p class="small">One search box for name, parish, city, or ZIP. A ZIP finds the city and state area, never an exact address.</p>
     <section class="home-section">
     <h2>Browse by region</h2><ul class="regions">${regionHtml}</ul>
     </section>
@@ -630,7 +620,7 @@ function qualifyPriestFragment(w) {
 const FILTER_LABELS = { quick: 'Quick Mass (pace)', homily: 'Great homily', lovable: 'Lovable priest (likability)' };
 
 app.get('/browse', async (req, res) => {
-  const { q = '', state = '', city = '', diocese = '', region = '', zip = '', filter = '' } = req.query;
+  const { q = '', state = '', city = '', diocese = '', region = '', zip: legacyZip = '', filter = '' } = req.query;
   const where = [`status='approved'`];
   const params = [];
   let note = '';
@@ -650,7 +640,13 @@ app.get('/browse', async (req, res) => {
   // (see the relevance score below). "Erie Saint George" therefore finds the
   // St. George priests in Erie, even though "Erie" is the city and
   // "St. George" is the parish, in different fields.
-  const words = q.trim().split(/\s+/).filter(Boolean).slice(0, 10).map(searchNormWord);
+  // Unified search: a 5-digit ZIP may appear anywhere in the single box
+  // (alone or beside words). It is pulled out and resolved area-level;
+  // the remaining words match name, parish, or city as before. A legacy
+  // ?zip= parameter is folded in the same way, so old links keep working.
+  const zipMatch = q.match(/\b\d{5}\b/);
+  const zip = zipMatch ? zipMatch[0] : legacyZip;
+  const words = q.trim().split(/\s+/).filter(Boolean).filter((t) => !/^\d{5}$/.test(t)).slice(0, 10).map(searchNormWord);
   let relevance = null;
   if (words.length) {
     const matchParts = [];
@@ -671,6 +667,8 @@ app.get('/browse', async (req, res) => {
       note = `<p class="notice">ZIP ${esc(zip)} resolves to the ${esc(area.city)}, ${esc(area.state)} area. Results below are area-level, not exact-ZIP matches (except user-added profiles carrying that exact ZIP).</p>`;
       params.push(area.city, area.state, zip);
       where.push(`((city ILIKE $${params.length - 2} AND state = $${params.length - 1}) OR (user_added = true AND zip = $${params.length}))`);
+    } else if (words.length) {
+      note = `<p class="notice">We could not map ZIP ${esc(zip)} to a known area, so it was ignored. Results below are from the rest of your search.</p>`;
     } else {
       note = `<p class="notice">We could not map ZIP ${esc(zip)} to a known area, so no area results are shown. Try a name, parish, or city search instead.</p>`;
       where.push('false');
@@ -711,28 +709,24 @@ app.get('/browse', async (req, res) => {
     ? `<p class="match-count">Showing the first 200 priests</p>`
     : '';
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
+  // A place filter arrived with by URL (state/city/diocese) is kept as hidden
+  // inputs so refining the text search does not silently drop it. The Find
+  // by place dropdowns were retired; the unified box covers name, parish,
+  // city, and ZIP.
+  const placeHidden = `${state ? `<input type="hidden" name="state" value="${esc(state)}">` : ''}${city ? `<input type="hidden" name="city" value="${esc(city)}">` : ''}${diocese ? `<input type="hidden" name="diocese" value="${esc(diocese)}">` : ''}`;
   res.send(page(heading, `<h1>${esc(heading)}</h1>
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Name, parish, or city" aria-label="Search by name, parish, or city"></span>
-        <input name="zip" value="${esc(zip)}" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" inputmode="numeric" maxlength="5">
+        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Name, parish, city, or ZIP" aria-label="Search by name, parish, city, or ZIP"></span>
+        ${placeHidden}
         <select name="filter" aria-label="Filter by category"><option value="">All priests</option>
           <option value="quick" ${filter === 'quick' ? 'selected' : ''}>Quick Mass</option>
           <option value="homily" ${filter === 'homily' ? 'selected' : ''}>Great homily</option>
           <option value="lovable" ${filter === 'lovable' ? 'selected' : ''}>Lovable priest</option></select>
         <button type="submit">Search</button>
       </div>
-      <div class="place-section">
-        <h2>Find by place</h2>
-        <p class="explainer">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
-        <div class="place-filters stacked" data-state="${esc(state)}" data-city="${esc(city)}" data-diocese="${esc(diocese)}">
-          <select id="place-state" name="state" aria-label="State"><option value="">Choose a state</option></select>
-          <select id="place-city" name="city" disabled aria-label="City"><option value="">Choose a city</option></select>
-          <select id="place-diocese" name="diocese" disabled aria-label="Diocese"><option value="">Choose a diocese</option></select>
-        </div>
-      </div>
     </form>
-    <p class="small">Nationwide search works within your chosen state when one is given. ZIP results are area-level only.</p>
+    <p class="small">One search box for name, parish, city, or ZIP. A ZIP finds the city and state area, never an exact address.</p>
     ${note}${matchLine}<div class="cards">${body}</div>`));
 });
 
@@ -1022,9 +1016,6 @@ app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2
   <section class="tip-box">
     <h2>Buy the creator a coffee</h2>
     <p>RateMyFather is a passion project, kept free and ad free. If it has helped you find a Mass you love, a small tip keeps it that way.</p>
-    <!-- Ko-fi tip link (PLACEHOLDER): Mikey must confirm or replace the handle
-         (currently "ratemyfather") once he creates his Ko-fi account. This URL
-         is NOT a verified live link yet. -->
     <a class="tip-link" href="https://ko-fi.com/ratemyfather" target="_blank" rel="noopener">Buy the creator a coffee on Ko-fi</a>
   </section>`)));
 app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p>Each rating is 1 to 5 in three categories:</p>
