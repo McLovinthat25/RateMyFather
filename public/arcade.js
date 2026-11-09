@@ -216,13 +216,24 @@
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 21; // demo tackle radius
   var BOWL_PLAY_MAX_SECONDS = 9; // whistle: no play runs forever, no stall at 0:00
-  var BOWL_WAVE_SECONDS = 2.4;
-  var BOWL_DEFENDER_CAP = 10;
-  var BOWL_TURN_RATE = 6; // rad/s: defenders steer, so a cut beats a chase
-  var BOWL_BURGUNDY = '#7a1f2b', BOWL_BURGUNDY_DEEP = '#571420', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
-  var BOWL_GOLD = '#c49a3c', BOWL_GOLD_BRIGHT = '#e8bd55', BOWL_GOLD_PALE = '#f0d48a';
+  // Human-first defence tuning (Nov 9): Mikey played the live Bowl and the
+  // defence was still far too fast. The bots scored easily, but a human
+  // reacts in 600-800ms and plays on a dpad, so the defence must be clearly
+  // slower than the runner (208, 280 after a catch) in a way a human feels:
+  // defenders at roughly half the runner's pace, a slow turn so a sharp cut
+  // genuinely leaves them wrong-footed, slow pre-catch coverage, and wide
+  // gaps between reinforcement waves. Fair, not trivial.
+  // Final numbers (verified with a 720ms-reaction driver): defender speed
+  // 110-135 (was 140-168), turn 3.0 rad/s (was 6), pre-catch chase 0.12
+  // (was 0.22), waves every 4.5s (was 2.4) or 18 yards (was 12), cap 7
+  // (was 10), opening line 3 + quarter (was 4 + quarter). Slow driver:
+  // 5 TDs/game, 48% of plays end in a tackle, 1 turnover in 3 games.
+  var BOWL_WAVE_SECONDS = 4.5; // was 2.4: waves spaced out, the runner gets room
+  var BOWL_DEFENDER_CAP = 7; // was 10: fewer defenders on the field at once
+  var BOWL_TURN_RATE = 3.0; // rad/s, was 6: a cut beats the chase; a 180 takes ~1.4s
+  var BOWL_BURGUNDY = '#6e1a26', BOWL_BURGUNDY_DEEP = '#521219', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
+  var BOWL_GOLD = '#b28a2e', BOWL_GOLD_BRIGHT = '#d9b45a', BOWL_GOLD_PALE = '#f0d48a';
   var BOWL_PARCHMENT = '#f7ecd4', BOWL_INK = '#2b1d12';
-  var BOWL_FIELD = '#1e4d33', BOWL_FIELD_STRIPE = '#27603f';
 
   function mountBowl(parent, onBack) {
     var api = createStage(parent, { title: 'The Parish Bowl', onBack: onBack });
@@ -252,7 +263,7 @@
     function downWord() { return down === 1 ? '1ST' : down === 2 ? '2ND' : down === 3 ? '3RD' : '4TH'; }
     function toGoLabel() { return seriesStart <= 10 ? 'GOAL' : String(10 - seriesGain); }
     function downLabel() { return downWord() + ' & ' + toGoLabel(); }
-    function defenderCount() { return 4 + quarter; }
+    function defenderCount() { return 3 + quarter; } // was 4 + quarter: a thinner opening line
     // The defence lines up ahead of the runner in the scrolling world, so
     // the play is about reading the field as it scrolls and cutting past
     // defenders in sequence — not about one wall across a squeezed field.
@@ -269,21 +280,21 @@
             cand = {
               x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(140, 168),
+              speed: rand(110, 135),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
               x: clamp(px + rand(-140, 140), 40, GAME_W - 40),
               y: clamp(py - rand(150, 240), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(140, 168),
+              speed: rand(110, 135),
               heading: 0,
             };
           } else {
             cand = {
               x: rand(40, GAME_W - 40),
               y: rand(RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(140, 168),
+              speed: rand(110, 135),
               heading: 0,
             };
           }
@@ -513,7 +524,7 @@
       // After the catch (or on a run) it hunts at full pace,
       // but every defender steers with a limited turn rate, so a sharp cut
       // leaves them wrong-footed instead of glued to the runner.
-      var chase = (state === 'pass' && !caught) ? 0.22 : 1;
+      var chase = (state === 'pass' && !caught) ? 0.12 : 1;
       defenders.forEach(function (d) {
         var want = Math.atan2(py - d.y, px - d.x);
         var diff = want - d.heading;
@@ -550,7 +561,7 @@
         // once the runner has the ball — no reinforcements dropping on the
         // receiver while a pass is in the air.
         waveT += dt;
-        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 12)) {
+        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 18)) {
           waveT = 0; yardsAtWave = yardsToGo();
           if (defenders.length < BOWL_DEFENDER_CAP) spawnDefenders(1, true);
         }
@@ -609,20 +620,28 @@
     function draw() {
       var ctx = api.ctx;
       updateCam();
-      // Field: the camera shows a 320px window into the 940px world, so
-      // mown stripes, yard lines and the end zone are all drawn in world
-      // coordinates shifted by the camera.
-      ctx.fillStyle = BOWL_FIELD; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      // Field: a soft vertical gradient over the mown stripes, so the pitch
+      // reads as a lit surface, not a flat green board. Stripes stay subtle.
+      var fieldGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+      fieldGrad.addColorStop(0, '#21543a');
+      fieldGrad.addColorStop(1, '#1a4230');
+      ctx.fillStyle = fieldGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
       for (var band = 0; band < 10; band++) {
-        ctx.fillStyle = band % 2 ? BOWL_FIELD_STRIPE : BOWL_FIELD;
+        ctx.fillStyle = band % 2 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.05)';
         ctx.fillRect(0, screenY(RUNGUN_END_Y + band * 78.4), GAME_W, 79.4);
       }
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
-      ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = 'bold 12px Georgia';
+      // A soft light from above, fading toward the goal, for depth.
+      var light = ctx.createLinearGradient(0, 0, 0, GAME_H);
+      light.addColorStop(0, 'rgba(255,246,220,0.10)');
+      light.addColorStop(0.5, 'rgba(255,246,220,0.0)');
+      light.addColorStop(1, 'rgba(0,0,0,0.10)');
+      ctx.fillStyle = light; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.38)'; ctx.lineWidth = 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = '11px Georgia';
       for (var y = 10; y <= 80; y += 10) {
         var fy = screenY(RUNGUN_END_Y + y * PX_PER_YARD);
         ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(GAME_W, fy); ctx.stroke();
-        ctx.fillText(String(80 - y), 6, fy - 4);
+        ctx.fillText(String(80 - y), 8, fy - 5);
       }
       // First-down line: gold, dashed, so the target is visible on the field.
       var lineToGain = seriesStart - 10;
@@ -633,45 +652,64 @@
         ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(GAME_W, ly); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 10px Georgia';
-        ctx.fillText('1ST DOWN', 6, ly - 4);
+        ctx.fillText('1ST DOWN', 8, ly - 5);
       }
-      // End zone: burgundy, gold goal line, parish name in gold caps.
-      ctx.fillStyle = BOWL_BURGUNDY; ctx.fillRect(0, screenY(0), GAME_W, RUNGUN_END_Y);
+      // End zone: a deep burgundy gradient, gold goal line, parish name in gold caps.
+      var ez = ctx.createLinearGradient(0, screenY(0), 0, screenY(RUNGUN_END_Y));
+      ez.addColorStop(0, '#7d2430');
+      ez.addColorStop(1, BOWL_BURGUNDY);
+      ctx.fillStyle = ez; ctx.fillRect(0, screenY(0), GAME_W, RUNGUN_END_Y);
       ctx.fillStyle = BOWL_GOLD; ctx.fillRect(0, screenY(RUNGUN_END_Y) - 2, GAME_W, 3);
       ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 15px Georgia'; ctx.textAlign = 'center';
       ctx.fillText(parishName.toUpperCase(), GAME_W / 2, screenY(52));
       ctx.textAlign = 'left';
-      // Gold X (pass target)
+      // Gold X (pass target): a soft halo, a rounded X, a refined label.
       if (state === 'pass' && passTarget && !caught) {
         var tx = passTarget.x, ty = screenY(passTarget.y);
-        ctx.fillStyle = 'rgba(196,154,60,0.25)';
+        var halo = ctx.createRadialGradient(tx, ty, 4, tx, ty, BOWL_CATCH_RADIUS + 14);
+        halo.addColorStop(0, 'rgba(178,138,46,0.34)');
+        halo.addColorStop(1, 'rgba(178,138,46,0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS + 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(178,138,46,0.22)';
         ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 4;
+        ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 4; ctx.lineCap = 'round';
         var s = 10;
         ctx.beginPath();
         ctx.moveTo(tx - s, ty - s); ctx.lineTo(tx + s, ty + s);
         ctx.moveTo(tx + s, ty - s); ctx.lineTo(tx - s, ty + s);
         ctx.stroke();
         ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('CATCH HERE', tx, ty - 20);
+        ctx.fillText('CATCH HERE', tx, ty - 22);
         ctx.textAlign = 'left';
         if (catchT > 0) {
-          ctx.fillStyle = 'rgba(232,189,85,0.55)';
+          ctx.fillStyle = 'rgba(217,180,90,0.55)';
           ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS * (catchT / BOWL_CATCH_DWELL), 0, Math.PI * 2); ctx.fill();
         }
       }
-      // Defenders
+      // Defenders: soft shadow, a radial umber disc, a fine parchment ring.
       defenders.forEach(function (d) {
         var dy = screenY(d.y);
-        ctx.fillStyle = '#33241a';
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.beginPath(); ctx.ellipse(d.x, dy + 9, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+        var dg = ctx.createRadialGradient(d.x - 3, dy - 4, 2, d.x, dy, 12);
+        dg.addColorStop(0, '#4a3826');
+        dg.addColorStop(1, '#241a10');
+        ctx.fillStyle = dg;
         ctx.beginPath(); ctx.arc(d.x, dy, 11, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = freezeT > 0 ? '#8a8a8a' : BOWL_PARCHMENT; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('S', d.x, dy + 3); ctx.textAlign = 'left';
       });
-      // Player (Father): burgundy disc, gold ring, ball only when carrying.
+      // Player (Father): soft shadow, a radial burgundy disc, a gold ring,
+      // and the ball only when carrying.
       var pyS = screenY(py);
-      ctx.fillStyle = BOWL_BURGUNDY;
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.beginPath(); ctx.ellipse(px, pyS + 10, 11, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+      var pg = ctx.createRadialGradient(px - 4, pyS - 5, 2, px, pyS, 13);
+      pg.addColorStop(0, '#8a2a38');
+      pg.addColorStop(1, BOWL_BURGUNDY);
+      ctx.fillStyle = pg;
       ctx.beginPath(); ctx.arc(px, pyS, 12, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 3; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
@@ -679,10 +717,17 @@
       if (hasBall) {
         ctx.fillStyle = BOWL_GOLD;
         ctx.beginPath(); ctx.arc(px + 10, pyS - 6, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(46,34,5,0.6)'; ctx.lineWidth = 1; ctx.stroke();
       }
-      // Result slab: burgundy band, gold rules, what the play earned and why.
+      // Result slab: burgundy band with a soft shadow, gold rules, what the
+      // play earned and why.
       if (state === 'result') {
-        ctx.fillStyle = BOWL_BURGUNDY; ctx.fillRect(0, GAME_H / 2 - 32, GAME_W, 64);
+        ctx.fillStyle = 'rgba(0,0,0,0.30)';
+        ctx.fillRect(0, GAME_H / 2 - 28, GAME_W, 64);
+        var rg = ctx.createLinearGradient(0, GAME_H / 2 - 32, 0, GAME_H / 2 + 32);
+        rg.addColorStop(0, '#7d2430');
+        rg.addColorStop(1, BOWL_BURGUNDY);
+        ctx.fillStyle = rg; ctx.fillRect(0, GAME_H / 2 - 32, GAME_W, 64);
         ctx.fillStyle = BOWL_GOLD; ctx.fillRect(0, GAME_H / 2 - 32, GAME_W, 3);
         ctx.fillRect(0, GAME_H / 2 + 29, GAME_W, 3);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
@@ -693,9 +738,9 @@
       }
       // Paused veil
       if (paused) {
-        ctx.fillStyle = 'rgba(87,20,32,0.85)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        ctx.fillStyle = 'rgba(82,18,25,0.88)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = BOWL_PARCHMENT; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText('Paused \u2014 press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function loop(t) {
@@ -732,7 +777,7 @@
     S: [[0, 1, 1], [1, 1, 0]], Z: [[1, 1, 0], [0, 1, 1]],
     J: [[1, 0, 0], [1, 1, 1]], L: [[0, 0, 1], [1, 1, 1]],
   };
-  var STACK_COLORS = { I: '#3a6ea5', O: '#c49a3c', T: '#5b2a4a', S: '#2e5e4e', Z: '#b8452a', J: '#3a6ea5', L: '#8a6d3b' };
+  var STACK_COLORS = { I: '#3a6ea5', O: '#b28a2e', T: '#5b2a4a', S: '#2e5e4e', Z: '#b8452a', J: '#3a6ea5', L: '#8a6d3b' };
   var STACK_POINTS = [0, 100, 300, 500, 800];
   function mountStack(parent, onBack) {
     var api = createStage(parent, { title: 'Stained-Glass Stack', onBack: onBack });
@@ -815,8 +860,8 @@
     function draw() {
       var ctx = api.ctx;
       ctx.fillStyle = '#1d1712'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      ctx.fillStyle = '#fbf7ef'; ctx.fillRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
-      ctx.strokeStyle = '#38291a'; ctx.lineWidth = 2;
+      ctx.fillStyle = '#fffdf7'; ctx.fillRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
+      ctx.strokeStyle = '#33261a'; ctx.lineWidth = 2;
       ctx.strokeRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
       for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
         if (grid[y][x]) drawCell(x, y, STACK_COLORS[grid[y][x]]);
@@ -826,7 +871,7 @@
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, gy + r, STACK_COLORS[cur.type], true); }); });
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, cur.y + r, STACK_COLORS[cur.type]); }); });
       }
-      ctx.fillStyle = '#fbf7ef'; ctx.font = '13px Georgia';
+      ctx.fillStyle = '#fffdf7'; ctx.font = '13px Georgia';
       ctx.fillText('Next: ' + (bag.length ? bag[bag.length - 1] : '—'), 12, 30);
       ctx.fillText('Drop: Down  •  Turn: Up', 12, GAME_H - 12);
       if (paused) {
@@ -928,19 +973,19 @@
     }
     function draw() {
       var ctx = api.ctx;
-      ctx.fillStyle = '#fbf7ef'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, GAME_W, GAME_H);
       ctx.fillStyle = '#2e5e4e'; ctx.fillRect(0, GAME_H - 14, GAME_W, 14);
-      ctx.fillStyle = '#7a1f2b';
+      ctx.fillStyle = '#6e1a26';
       ctx.fillRect((GAME_W - BASE_W) / 2, BASE_Y, BASE_W, 14);
       tower.forEach(function (s, i) {
-        ctx.fillStyle = ['#7a1f2b', '#c49a3c', '#2e5e4e', '#3a6ea5', '#8a6d3b'][i % 5];
+        ctx.fillStyle = ['#6e1a26', '#b28a2e', '#2e5e4e', '#3a6ea5', '#8a6d3b'][i % 5];
         ctx.fillRect(s.x, s.y, s.w, 18);
-        ctx.strokeStyle = '#38291a'; ctx.strokeRect(s.x, s.y, s.w, 18);
+        ctx.strokeStyle = '#33261a'; ctx.strokeRect(s.x, s.y, s.w, 18);
       });
       if (moving && state === 'playing') {
-        ctx.fillStyle = '#c49a3c';
+        ctx.fillStyle = '#b28a2e';
         ctx.fillRect(moving.x, 30, moving.w, 18);
-        ctx.strokeStyle = '#38291a'; ctx.strokeRect(moving.x, 30, moving.w, 18);
+        ctx.strokeStyle = '#33261a'; ctx.strokeRect(moving.x, 30, moving.w, 18);
         ctx.fillStyle = '#6f6259'; ctx.font = '12px Georgia';
         ctx.fillText('Tap or press Space to drop', 12, 20);
       }
@@ -1048,14 +1093,14 @@
       if (boss) {
         ctx.fillStyle = '#b8452a';
         ctx.beginPath(); ctx.arc(boss.x, boss.y, 26, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#fbf7ef'; ctx.font = 'bold 12px Georgia'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#fffdf7'; ctx.font = 'bold 12px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('😈', boss.x, boss.y + 4); ctx.textAlign = 'left';
-        ctx.fillStyle = '#38291a'; ctx.fillRect(boss.x - 30, boss.y - 40, 60, 6);
+        ctx.fillStyle = '#33261a'; ctx.fillRect(boss.x - 30, boss.y - 40, 60, 6);
         ctx.fillStyle = '#b8452a'; ctx.fillRect(boss.x - 30, boss.y - 40, 60 * Math.max(0, boss.hp / boss.maxHp), 6);
       }
       // Shots
       shots.forEach(function (s) {
-        ctx.fillStyle = s.kind === 'beam' ? '#c49a3c' : s.kind === 'bolt' ? '#7fb3d5' : '#bcd8e8';
+        ctx.fillStyle = s.kind === 'beam' ? '#b28a2e' : s.kind === 'bolt' ? '#7fb3d5' : '#bcd8e8';
         if (s.kind === 'beam') { ctx.fillRect(s.x - 3, s.y - 26, 6, 26); }
         else { ctx.beginPath(); ctx.arc(s.x, s.y, s.kind === 'bolt' ? 6 : 4, 0, Math.PI * 2); ctx.fill(); }
       });
@@ -1064,17 +1109,17 @@
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
       });
       // Player priest
-      ctx.fillStyle = '#7a1f2b';
+      ctx.fillStyle = '#6e1a26';
       ctx.beginPath(); ctx.arc(px, GAME_H - 34, 13, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, GAME_H - 30); ctx.textAlign = 'left';
       // Charge meter
       if (charging) {
-        ctx.fillStyle = '#38291a'; ctx.fillRect(px - 25, GAME_H - 62, 50, 7);
-        ctx.fillStyle = charge > 1 ? '#c49a3c' : charge > 0.4 ? '#7fb3d5' : '#bcd8e8';
+        ctx.fillStyle = '#33261a'; ctx.fillRect(px - 25, GAME_H - 62, 50, 7);
+        ctx.fillStyle = charge > 1 ? '#b28a2e' : charge > 0.4 ? '#7fb3d5' : '#bcd8e8';
         ctx.fillRect(px - 25, GAME_H - 62, 50 * clamp(charge / 1.2, 0, 1), 7);
-        ctx.fillStyle = '#fbf7ef'; ctx.font = '11px Georgia'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#fffdf7'; ctx.font = '11px Georgia'; ctx.textAlign = 'center';
         ctx.fillText(charge > 1 ? 'BEAM' : charge > 0.4 ? 'BOLT' : 'droplet', px, GAME_H - 68); ctx.textAlign = 'left';
       }
       if (paused) {
@@ -1178,9 +1223,9 @@
   // never stack on each other.
   var FLEE_PATROL = [[40, 40], [440, 40], [440, 280], [40, 280]];
   var FLEE_SINS = [
-    { name: 'Pride', speed: 50, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#c49a3c', hunt: 'patrol' },
+    { name: 'Pride', speed: 50, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
     { name: 'Lust', speed: 52, color: '#b8452a', hunt: 'chase' }, { name: 'Envy', speed: 44, color: '#2e5e4e', hunt: 'flank' },
-    { name: 'Gluttony', speed: 44, color: '#8a6d3b', hunt: 'patrol' }, { name: 'Wrath', speed: 55, color: '#7a1f2b', hunt: 'chase' },
+    { name: 'Gluttony', speed: 44, color: '#8a6d3b', hunt: 'patrol' }, { name: 'Wrath', speed: 55, color: '#6e1a26', hunt: 'chase' },
     { name: 'Sloth', speed: 32, color: '#6f6259', hunt: 'chase' },
   ];
   function mountFlee(parent, onBack) {
@@ -1229,7 +1274,7 @@
       for (var gx = 40; gx < GAME_W; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, GAME_H); ctx.stroke(); }
       for (var gy = 40; gy < GAME_H; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(GAME_W, gy); ctx.stroke(); }
       halos.forEach(function (h) {
-        ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 3;
+        ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.ellipse(h.x, h.y, 11, 5, 0, 0, Math.PI * 2); ctx.stroke();
       });
       sins.forEach(function (s) {
@@ -1238,13 +1283,13 @@
         ctx.fillStyle = '#fff'; ctx.font = '8px Georgia'; ctx.textAlign = 'center';
         ctx.fillText(s.name.slice(0, 2).toUpperCase(), s.x, s.y + 3); ctx.textAlign = 'left';
       });
-      ctx.fillStyle = dashT > 0 ? '#c49a3c' : '#7a1f2b';
+      ctx.fillStyle = dashT > 0 ? '#b28a2e' : '#6e1a26';
       ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, py + 4); ctx.textAlign = 'left';
       if (dashCd > 0) {
-        ctx.fillStyle = '#fbf7ef'; ctx.font = '11px Georgia';
+        ctx.fillStyle = '#fffdf7'; ctx.font = '11px Georgia';
         ctx.fillText('Dash ready in ' + Math.ceil(dashCd) + 's', 12, 20);
       }
       if (paused) {
@@ -1427,38 +1472,38 @@
       var ctx = api.ctx;
       ctx.fillStyle = '#2e5e4e'; ctx.fillRect(0, 0, GAME_W, GAME_H);
       // Church (top)
-      ctx.fillStyle = '#7a1f2b'; ctx.fillRect(0, 0, GAME_W, RIVER_TOP - 8);
+      ctx.fillStyle = '#6e1a26'; ctx.fillRect(0, 0, GAME_W, RIVER_TOP - 8);
       DOOR_X.forEach(function (x, i) {
-        ctx.fillStyle = i === mothDoor ? '#c49a3c' : '#38291a';
+        ctx.fillStyle = i === mothDoor ? '#b28a2e' : '#33261a';
         ctx.fillRect(x - 16, 10, 32, 26);
-        ctx.fillStyle = '#fbf7ef'; ctx.font = '10px Georgia'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#fffdf7'; ctx.font = '10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('' + (i + 1), x, 28); ctx.textAlign = 'left';
       });
       // Moth circling the right door
       var mt = performance.now() / 300;
       var mx = DOOR_X[mothDoor] + Math.cos(mt) * 18, my = 52 + Math.sin(mt * 1.3) * 8;
-      ctx.fillStyle = '#fbf7ef';
+      ctx.fillStyle = '#fffdf7';
       ctx.beginPath(); ctx.ellipse(mx, my, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
       // River
       ctx.fillStyle = '#3a6ea5'; ctx.fillRect(0, RIVER_TOP, GAME_W, RIVER_BOT - RIVER_TOP);
       floats.forEach(function (f) {
         ctx.fillStyle = f.kind === 'turtle' ? '#2e5e4e' : '#8a6d3b';
         ctx.fillRect(f.x - f.w / 2, f.y - 8, f.w, 16);
-        if (f.kind === 'turtle') { ctx.fillStyle = '#fbf7ef'; ctx.font = '10px Georgia'; ctx.fillText('~', f.x - 3, f.y + 3); }
+        if (f.kind === 'turtle') { ctx.fillStyle = '#fffdf7'; ctx.font = '10px Georgia'; ctx.fillText('~', f.x - 3, f.y + 3); }
       });
       // Road lanes
-      ctx.fillStyle = '#38291a'; ctx.fillRect(0, LANE_Y[4] - 14, GAME_W, LANE_Y[0] - LANE_Y[4] + 28);
+      ctx.fillStyle = '#33261a'; ctx.fillRect(0, LANE_Y[4] - 14, GAME_W, LANE_Y[0] - LANE_Y[4] + 28);
       ctx.strokeStyle = 'rgba(251,247,239,0.5)'; ctx.setLineDash([10, 10]);
       LANE_Y.forEach(function (y) { ctx.beginPath(); ctx.moveTo(0, y + 14); ctx.lineTo(GAME_W, y + 14); ctx.stroke(); });
       ctx.setLineDash([]);
       cars.forEach(function (c) {
-        ctx.fillStyle = c.dir > 0 ? '#b8452a' : '#c49a3c';
+        ctx.fillStyle = c.dir > 0 ? '#b8452a' : '#b28a2e';
         ctx.fillRect(c.x - c.w / 2, c.y - 9, c.w, 18);
       });
       // Player
-      ctx.fillStyle = '#7a1f2b';
+      ctx.fillStyle = '#6e1a26';
       ctx.beginPath(); ctx.arc(px, py, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, py + 4); ctx.textAlign = 'left';
       if (paused) {
@@ -2048,7 +2093,7 @@
         var ch = MAZE_MAP[r][c];
         var px = MAZE_OX + c * MAZE_CELL, py = MAZE_OY + r * MAZE_CELL;
         if (ch === '#') {
-          ctx.fillStyle = '#38291a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
+          ctx.fillStyle = '#33261a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
           ctx.fillStyle = '#4a3a28'; ctx.fillRect(px + 1, py + 1, MAZE_CELL - 2, MAZE_CELL - 2);
         } else if (ch === 'H') {
           ctx.fillStyle = '#2a211a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
@@ -2056,7 +2101,7 @@
       }
       var pulse = Object.keys(candles).length <= 10 ? (0.5 + 0.5 * Math.sin(performance.now() / 200)) : 1;
       ctx.globalAlpha = pulse;
-      ctx.fillStyle = '#c49a3c';
+      ctx.fillStyle = '#b28a2e';
       Object.keys(candles).forEach(function (k) {
         var parts = k.split(',');
         ctx.beginPath(); ctx.arc(tileX(+parts[0]), tileY(+parts[1]), 3, 0, Math.PI * 2); ctx.fill();
@@ -2071,9 +2116,9 @@
       });
       if (chaliceActive) {
         var cx = tileX(9), cy = tileY(10);
-        ctx.fillStyle = '#c49a3c';
+        ctx.fillStyle = '#b28a2e';
         ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#7a1f2b'; ctx.font = 'bold 9px Georgia'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#6e1a26'; ctx.font = 'bold 9px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('C', cx, cy + 3); ctx.textAlign = 'left';
       }
       // Sins
@@ -2082,28 +2127,28 @@
         if (s.state === 'eyes') {
           ctx.fillStyle = '#fff';
           ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#38291a';
+          ctx.fillStyle = '#33261a';
           ctx.beginPath(); ctx.arc(s.x - 3, s.y, 2, 0, Math.PI * 2); ctx.fill();
           ctx.beginPath(); ctx.arc(s.x + 3, s.y, 2, 0, Math.PI * 2); ctx.fill();
           return;
         }
         ctx.fillStyle = frightT > 0 ? '#bcd8e8' : s.color;
         ctx.beginPath(); ctx.arc(s.x, s.y, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = frightT > 0 ? '#38291a' : '#fff';
+        ctx.fillStyle = frightT > 0 ? '#33261a' : '#fff';
         ctx.font = 'bold 9px Georgia'; ctx.textAlign = 'center';
         ctx.fillText(s.name[0], s.x, s.y + 3); ctx.textAlign = 'left';
       });
       // Player
       if (player) {
-        ctx.fillStyle = '#7a1f2b';
+        ctx.fillStyle = '#6e1a26';
         ctx.beginPath(); ctx.arc(player.x, player.y, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('F', player.x, player.y + 3); ctx.textAlign = 'left';
       }
       // Fright timer bar
       if (frightT > 0) {
-        ctx.fillStyle = '#38291a'; ctx.fillRect(MAZE_OX, GAME_H - 10, MAZE_COLS * MAZE_CELL, 6);
+        ctx.fillStyle = '#33261a'; ctx.fillRect(MAZE_OX, GAME_H - 10, MAZE_COLS * MAZE_CELL, 6);
         ctx.fillStyle = '#7fb3d5'; ctx.fillRect(MAZE_OX, GAME_H - 10, MAZE_COLS * MAZE_CELL * (frightT / frightMax), 6);
       }
       if (paused) {
@@ -2412,25 +2457,25 @@
     }
     function draw() {
       var ctx = api.ctx;
-      ctx.fillStyle = '#fbf7ef'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, GAME_W, GAME_H);
       // Nave: floor and ceiling
-      ctx.fillStyle = '#38291a'; ctx.fillRect(0, DASH_FLOOR, GAME_W, GAME_H - DASH_FLOOR);
-      ctx.fillStyle = '#7a1f2b'; ctx.fillRect(0, 0, GAME_W, 14);
+      ctx.fillStyle = '#33261a'; ctx.fillRect(0, DASH_FLOOR, GAME_W, GAME_H - DASH_FLOOR);
+      ctx.fillStyle = '#6e1a26'; ctx.fillRect(0, 0, GAME_W, 14);
       // Best-depth gold line
       if (!practice && bestDepth > 0) {
         var bx = screenX((bestDepth / 100) * DASH_COURSE);
         if (bx > 0 && bx < GAME_W) {
-          ctx.strokeStyle = '#c49a3c'; ctx.setLineDash([6, 6]); ctx.lineWidth = 2;
+          ctx.strokeStyle = '#b28a2e'; ctx.setLineDash([6, 6]); ctx.lineWidth = 2;
           ctx.beginPath(); ctx.moveTo(bx, 14); ctx.lineTo(bx, DASH_FLOOR); ctx.stroke();
           ctx.setLineDash([]);
-          ctx.fillStyle = '#c49a3c'; ctx.font = '10px Georgia'; ctx.fillText('best', bx + 4, 26);
+          ctx.fillStyle = '#b28a2e'; ctx.font = '10px Georgia'; ctx.fillText('best', bx + 4, 26);
         }
       }
       // Portals
       [2100, 2950, 3950, 4700, 5650, 6500].forEach(function (px) {
         var sx = screenX(px);
         if (sx > -20 && sx < GAME_W + 20) {
-          ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 4;
+          ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 4;
           ctx.beginPath(); ctx.arc(sx, DASH_FLOOR, 46, Math.PI, 0); ctx.stroke();
         }
       });
@@ -2438,12 +2483,12 @@
       layout.gates.forEach(function (g) {
         var sx = screenX(g.x);
         if (sx > -20 && sx < GAME_W + 20) {
-          ctx.fillStyle = '#c49a3c'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
+          ctx.fillStyle = '#b28a2e'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
           ctx.fillText('x' + g.m, sx, 60); ctx.textAlign = 'left';
         }
       });
       // Spikes
-      ctx.fillStyle = '#7a1f2b';
+      ctx.fillStyle = '#6e1a26';
       layout.spikes.forEach(function (s) {
         var sx = screenX(s.x);
         if (sx < -30 || sx > GAME_W + 30) return;
@@ -2461,7 +2506,7 @@
         if (sx < -100 || sx > GAME_W + 100) return;
         ctx.fillStyle = '#8a6d3b';
         ctx.fillRect(sx, DASH_FLOOR - p.h, p.w, p.h);
-        ctx.fillStyle = '#38291a'; ctx.fillRect(sx, DASH_FLOOR - p.h, p.w, 6);
+        ctx.fillStyle = '#33261a'; ctx.fillRect(sx, DASH_FLOOR - p.h, p.w, 6);
       });
       // Cloud pads
       layout.clouds.forEach(function (c) {
@@ -2469,7 +2514,7 @@
         if (sx < -60 || sx > GAME_W + 60) return;
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.ellipse(sx + c.w / 2, DASH_FLOOR - 6, c.w / 2, 10, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#c49a3c'; ctx.stroke();
+        ctx.strokeStyle = '#b28a2e'; ctx.stroke();
       });
       // Censers
       layout.censers.forEach(function (c) {
@@ -2477,19 +2522,19 @@
         if (sx < -80 || sx > GAME_W + 80) return;
         var ang = Math.sin(runT * 1.5 + c.phase) * 0.5;
         var bx = sx + Math.sin(ang) * 70, by = 120 + Math.cos(ang) * 70;
-        ctx.strokeStyle = '#38291a'; ctx.lineWidth = 2;
+        ctx.strokeStyle = '#33261a'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(sx, 120); ctx.lineTo(bx, by); ctx.stroke();
-        ctx.fillStyle = '#c49a3c';
+        ctx.fillStyle = '#b28a2e';
         ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill();
       });
       // Dove columns
       layout.doveCols.forEach(function (col) {
         var sx = screenX(col.x);
         if (sx < -30 || sx > GAME_W + 30) return;
-        ctx.fillStyle = '#38291a';
+        ctx.fillStyle = '#33261a';
         ctx.fillRect(sx, 14, col.w, col.gapTop - 14);
         ctx.fillRect(sx, col.gapBottom, col.w, DASH_FLOOR - col.gapBottom);
-        ctx.fillStyle = '#c49a3c';
+        ctx.fillStyle = '#b28a2e';
         ctx.fillRect(sx, col.gapTop - 4, col.w, 4);
         ctx.fillRect(sx, col.gapBottom, col.w, 4);
       });
@@ -2499,14 +2544,14 @@
         var sx = screenX(o.x);
         if (sx < -20 || sx > GAME_W + 20) return;
         var pr = 8 + 2 * Math.sin(runT * 4 + o.x);
-        ctx.strokeStyle = '#c49a3c'; ctx.lineWidth = 3;
+        ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.ellipse(sx, o.y, pr, pr * 0.5, 0, 0, Math.PI * 2); ctx.stroke();
       });
       // Practice candles
       if (practice && checkpoint) {
         var csx = screenX(checkpoint.dist);
         if (csx > -20 && csx < GAME_W + 20) {
-          ctx.fillStyle = '#c49a3c';
+          ctx.fillStyle = '#b28a2e';
           ctx.fillRect(csx - 2, DASH_FLOOR - 18, 4, 18);
           ctx.fillStyle = '#e8b64c';
           ctx.beginPath(); ctx.arc(csx, DASH_FLOOR - 22, 4, 0, Math.PI * 2); ctx.fill();
@@ -2519,19 +2564,19 @@
       if (mode === 'dove') {
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.ellipse(0, 0, 16, 10, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#c49a3c';
+        ctx.fillStyle = '#b28a2e';
         ctx.beginPath(); ctx.ellipse(-8, -6, 10, 4, -0.5, 0, Math.PI * 2); ctx.fill();
       } else {
         ctx.rotate(rot);
-        ctx.fillStyle = '#c49a3c';
+        ctx.fillStyle = '#b28a2e';
         ctx.fillRect(-DASH_CUBE / 2, -DASH_CUBE / 2, DASH_CUBE, DASH_CUBE);
-        ctx.strokeStyle = '#7a1f2b'; ctx.lineWidth = 2;
+        ctx.strokeStyle = '#6e1a26'; ctx.lineWidth = 2;
         ctx.strokeRect(-DASH_CUBE / 2, -DASH_CUBE / 2, DASH_CUBE, DASH_CUBE);
       }
       ctx.restore();
       // Progress bar
-      ctx.fillStyle = '#38291a'; ctx.fillRect(0, GAME_H - 8, GAME_W, 8);
-      ctx.fillStyle = '#c49a3c'; ctx.fillRect(0, GAME_H - 8, GAME_W * (dist / DASH_COURSE), 8);
+      ctx.fillStyle = '#33261a'; ctx.fillRect(0, GAME_H - 8, GAME_W, 8);
+      ctx.fillStyle = '#b28a2e'; ctx.fillRect(0, GAME_H - 8, GAME_W * (dist / DASH_COURSE), 8);
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';

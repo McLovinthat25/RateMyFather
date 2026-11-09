@@ -123,7 +123,7 @@ function glassStrip(cls = '') {
 const GLASS = glassStrip();
 
 function layout(title, body, extraHead = '') {
-  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from people in the pews. Thousands of directory profiles, searchable by name, parish, city, state, or diocese.';
+  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from people in the pews. Searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="${description}">
@@ -247,7 +247,6 @@ app.get('/', async (req, res) => {
       <div class="sg-frame" aria-hidden="true">${HERO_ART}</div>
       <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
       <p class="tagline">Anonymous ratings of pace, homily, and likability, from people in the pews.</p>
-      <p class="stats">Thousands of profiles</p>
     </section>${GLASS}
     <form action="/browse" method="get" id="home-search">
       <div class="search">
@@ -377,6 +376,31 @@ app.get('/games', (req, res) => res.send(page('Games', `
   })();</script>`)));
 
 const FILTERS = { quick: 'pace', homily: 'homily', lovable: 'likability' };
+// Multi-word search helpers. A query like "Erie Saint George" is split into
+// words; each word is matched against name, parish, or city, and rows are
+// ranked by how many words they match, so a row matching all words outranks
+// a row matching only one. "Saint" and "St." are the same word: the field is
+// normalised so a whole-word St. or St becomes Saint, and the search word is
+// normalised the same way, so "Saint George" finds "St. George" and vice versa.
+function searchNormField(col) {
+  return `regexp_replace(${col}, '\\ySt\\.?\\y', 'Saint', 'gi')`;
+}
+function searchNormWord(w) {
+  const t = w.replace(/\./g, '').toLowerCase();
+  return t === 'st' ? 'saint' : t;
+}
+function searchLikeEscape(s) {
+  return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+// Qualify bare priest column names for the FILTERS join (p.name, p.parish...).
+function qualifyPriestFragment(w) {
+  return w
+    .replace(/\bstatus\b/g, 'p.status').replace(/\bstate\b/g, 'p.state')
+    .replace(/\bname\b/g, 'p.name').replace(/\bparish\b/g, 'p.parish')
+    .replace(/\bcity\b/g, 'p.city').replace(/\bdiocese_code\b/g, 'p.diocese_code')
+    .replace(/\buser_added\b/g, 'p.user_added')
+    .replace(/\bzip\b/g, 'p.zip');
+}
 const FILTER_LABELS = { quick: 'Quick Mass (pace)', homily: 'Great homily', lovable: 'Lovable priest (likability)' };
 
 app.get('/browse', async (req, res) => {
@@ -395,7 +419,26 @@ app.get('/browse', async (req, res) => {
       params.push(all); where.push(`NOT (state = ANY($${params.length}))`);
     }
   }
-  if (q) { params.push(`%${q}%`); where.push(`(name ILIKE $${params.length} OR parish ILIKE $${params.length} OR city ILIKE $${params.length})`); }
+  // Multi-word search: each word is matched against name, parish, or city.
+  // A row matching any word is returned; rows matching more words rank first
+  // (see the relevance score below). "Erie Saint George" therefore finds the
+  // St. George priests in Erie, even though "Erie" is the city and
+  // "St. George" is the parish, in different fields.
+  const words = q.trim().split(/\s+/).filter(Boolean).slice(0, 10).map(searchNormWord);
+  let relevance = null;
+  if (words.length) {
+    const matchParts = [];
+    const relParts = [];
+    for (const w of words) {
+      params.push(`%${searchLikeEscape(w)}%`);
+      const ph = `$${params.length}`;
+      const m = `(${searchNormField('name')} ILIKE ${ph} OR ${searchNormField('parish')} ILIKE ${ph} OR ${searchNormField('city')} ILIKE ${ph})`;
+      matchParts.push(m);
+      relParts.push(`(CASE WHEN ${m} THEN 1 ELSE 0 END)`);
+    }
+    where.push(`(${matchParts.join(' OR ')})`);
+    relevance = `(${relParts.join(' + ')})`;
+  }
   if (/^\d{5}$/.test(zip)) {
     const area = areaForZip(zip);
     if (area) {
@@ -415,13 +458,9 @@ app.get('/browse', async (req, res) => {
     // average, then review count. Bare column names in the where fragments
     // are qualified to the priests table for the join.
     const col = FILTERS[filter];
-    const whereP = where.map((w) => w
-      .replace(/\bstatus\b/g, 'p.status').replace(/\bstate\b/g, 'p.state')
-      .replace(/\bname\b/g, 'p.name').replace(/\bparish\b/g, 'p.parish')
-      .replace(/\bcity\b/g, 'p.city').replace(/\bdiocese_code\b/g, 'p.diocese_code')
-      .replace(/\buser_added\b/g, 'p.user_added')
-      .replace(/\bzip\b/g, 'p.zip'));
-    const fsql = `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE ${whereP.join(' AND ')} GROUP BY p.id ORDER BY AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT 200`;
+    const whereP = where.map(qualifyPriestFragment);
+    const relP = relevance ? qualifyPriestFragment(relevance) : null;
+    const fsql = `SELECT p.*, ${relP ? `${relP} AS relevance, ` : ''}COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE ${whereP.join(' AND ')} GROUP BY p.id ORDER BY ${relP ? 'relevance DESC, ' : ''}AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT 200`;
     try {
       const frows = (await pool.query(fsql, params)).rows;
       cards = frows.map((p) => ({ p, st: { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability } }));
@@ -429,7 +468,9 @@ app.get('/browse', async (req, res) => {
       totalCount = (await pool.query(csql, params)).rows[0].n;
     } catch (e) { console.error(e.message); }
   } else {
-    let sql = `SELECT * FROM priests WHERE ${where.join(' AND ')} ORDER BY name LIMIT 200`;
+    let sql = relevance
+      ? `SELECT *, ${relevance} AS relevance FROM priests WHERE ${where.join(' AND ')} ORDER BY relevance DESC, name LIMIT 200`
+      : `SELECT * FROM priests WHERE ${where.join(' AND ')} ORDER BY name LIMIT 200`;
     let rows = [];
     try { rows = (await pool.query(sql, params)).rows; } catch (e) { console.error(e.message); }
     const stats = await statsFor(rows.map((r) => r.id));
