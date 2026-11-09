@@ -210,7 +210,7 @@
 
   // ---- game registry ----
   var ARCADE_GAMES = [
-    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch.', mount: mountBowl },
+    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
     { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
@@ -294,8 +294,10 @@
 
   // ================= The Parish Bowl =================
   // St Mary's vs St Swithin's. Four downs to gain ten yards, four quarters
-  // of 45 seconds. Run it or pass it: reach the gold X and hold still to
-  // catch, then run it in. A touchdown is the yards gained plus a bonus.
+  // of 45 seconds. Run it or pass it: on a pass, reach the gold X and hold
+  // still to catch, then run it in — but you have 2 seconds to get to the
+  // spot, and the defence holds you up on the way, so the catch is a fight,
+  // not a free run. A touchdown is the yards gained plus a bonus.
   //
   // ---- The Parish Bowl: demo-matched geometry and rules ----
   // The demo plays on a scrolling 940px world (RUNGUN_WORLD_H 940,
@@ -311,11 +313,19 @@
   var RUNGUN_PASS_BONUS_YARDS = 0; // No free yards for a catch: the catch is
   // worth the position it puts you in, and the yards after it are earned by
   // running, exactly like a run play. A completed pass is no windfall.
-  var RUNGUN_PASS_STUN_SECONDS = 0.3; // A heartbeat to take a step after the
-  // catch, not a free run while the defence stands still.
+  var RUNGUN_PASS_STUN_SECONDS = 0; // No free step after the catch: the
+  // defence is already closing, so the catch is immediately contested.
+  var BOWL_PASS_TIME_LIMIT = 2.0; // Seconds to reach the gold X once the
+  // pass is thrown: get to the spot before the clock runs out, or the pass
+  // fails. The countdown is on the scoreboard and the X. Once the receiver
+  // reaches the X, the clock stops and the catch itself is the fight.
+  var BOWL_IMPEDE_RADIUS = 36; // A defender this close holds the runner up
+  // on a pass: the route to the X is a fight through bodies, not a free run.
+  var BOWL_IMPEDE_SLOW = 0.4; // Runner's pace while held up.
   var PX_PER_YARD = (RUNGUN_START_Y - RUNGUN_END_Y) / 80; // 9.8
-  var BOWL_CATCH_DWELL = 0.85; // Hold still the better part of a second to
-  // catch: the defence has a real chance to close, so a completion is earned.
+  var BOWL_CATCH_DWELL = 0.7; // Hold still most of a second to catch:
+  // long enough that the defence has a real chance to close, short enough
+  // that a clean, fast route to the spot completes the catch.
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
@@ -365,6 +375,7 @@
     var defenders = [];
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
     var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
+  var passTimeLeft = 0, impeded = false, reachedX = false; // countdown to the catch spot; held-up flag; reached the X
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
     var coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
@@ -443,6 +454,25 @@
       });
       return bestSpot;
     }
+    // Two men on the receiver: one on the route, one on the catch spot.
+    // They break on the runner from the snap, so reaching the gold X is a
+    // fight through bodies, not a free run. They are placed near the route,
+    // never on top of the runner or the X itself.
+    function spawnCoverage() {
+      var mx = (px + passTarget.x) / 2, my = (py + passTarget.y) / 2;
+      var side = Math.random() < 0.5 ? -1 : 1;
+      var spots = [
+        { x: mx + side * rand(70, 100), y: my + rand(-20, 20) },
+        { x: passTarget.x + (Math.random() < 0.5 ? -1 : 1) * rand(30, 50), y: passTarget.y - rand(110, 150) },
+      ];
+      spots.forEach(function (s) {
+        var x = clamp(s.x, 40, GAME_W - 40);
+        var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
+        if (Math.hypot(x - px, y - py) < 60) return;
+        if (Math.hypot(x - passTarget.x, y - passTarget.y) < 45) return;
+        defenders.push({ x: x, y: y, speed: rand(105, 125), heading: Math.atan2(py - y, px - x), cover: true });
+      });
+    }
     function startPlay(kind) {
       if (paused) doResume();
       playStartYards = yardsToGo();
@@ -450,14 +480,17 @@
       playT = 0;
       caught = false; catchT = 0; freezeT = 0;
       defenders = [];
-      // On a pass the defence drops deep, beyond the catch spot, so the
-      // route to the gold X is open and the catch is about beating coverage
-      // to the spot — the run after the catch is where the defence bites.
-      // On a run the line sits just ahead of the runner, as usual.
+      // On a pass the deep line drops beyond the catch spot, and two men
+      // cover the receiver, so reaching the gold X is a fight through
+      // bodies under a countdown, not a free run. On a run the line sits
+      // just ahead of the runner, as usual.
       spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [380, 460] : null);
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
         passTarget = pickPassTarget();
+        spawnCoverage();
+        passTimeLeft = BOWL_PASS_TIME_LIMIT;
+        impeded = false; reachedX = false;
         hasBall = false;
         state = 'pass';
       } else {
@@ -604,7 +637,7 @@
         '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
         '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>',
         bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
-        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: reach the gold X and hold still to catch, then run it in. A tackle before the catch is incomplete — no gain, next down. Keys: R runs, T throws.</p>'));
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have 2 seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch, or the clock running out, is incomplete — no gain, next down. Keys: R runs, T throws.</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
@@ -618,6 +651,7 @@
         '<span style="font-size:20px;font-weight:700;line-height:1;color:#fff">' + Math.ceil(clock) + '<span style="font-size:11px;color:' + BOWL_GOLD_PALE + '">s</span></span>' +
         '<span style="font-size:14px;font-weight:700;letter-spacing:.1em;color:' + BOWL_GOLD_BRIGHT + '">' + esc(downLabel()) + '</span>' +
         '<span style="font-size:12px;letter-spacing:.14em;text-transform:uppercase">' + yardsToGo() + ' to go</span>' +
+        (state === 'pass' && !caught && !reachedX ? '<span style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:' + (passTimeLeft <= 1 ? '#ff8a7a' : BOWL_GOLD_BRIGHT) + '">Catch ' + Math.max(0, passTimeLeft).toFixed(1) + 's</span>' : '') +
         '<span style="margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase">' + esc(parishName) + ' <b style="font-size:22px;color:' + BOWL_GOLD_BRIGHT + '">' + score + '</b></span>' +
         '<span style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">Match ' + (tds * 7) + '–' + (oppTds * 7) + '</span>' +
         '<span style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">Best ' + best + '</span>' +
@@ -636,7 +670,16 @@
       }
       var len = Math.hypot(dx, dy);
       if (len > 0) { dx /= len; dy /= len; }
-      var speed = 208; // Same pace with or without the ball: a caught pass
+      // Held up: on a pass, a defender in your face slows you down, so the
+      // route to the X is a fight through bodies. After the catch, and on
+      // a run, the runner is never held up, only tackled.
+      impeded = false;
+      if (state === 'pass' && !caught) {
+        for (var i = 0; i < defenders.length; i++) {
+          if (Math.hypot(defenders[i].x - px, defenders[i].y - py) < BOWL_IMPEDE_RADIUS) { impeded = true; break; }
+        }
+      }
+      var speed = 208 * (impeded ? BOWL_IMPEDE_SLOW : 1); // Same pace with or without the ball: a caught pass
       // gives no speed edge. The catch buys field position, not a faster run.
       px = clamp(px + dx * speed * dt, 16, GAME_W - 16);
       // The goal line is the floor: reaching it scores. The start line is
@@ -646,18 +689,20 @@
     }
     function moveDefenders(dt) {
       if (freezeT > 0) return;
-      // Before the catch the defence is in coverage: slow, closing on
-      // the receiver, so reaching the catch spot is about beating coverage
-      // to the spot — it closes slowly and does not instantly converge.
-      // After the catch (or on a run) it hunts at full pace,
-      // but every defender steers with a limited turn rate, so a sharp cut
-      // leaves them wrong-footed instead of glued to the runner.
-      var chase = (state === 'pass' && !caught) ? 0.15 : 1;
+      // Before the catch the men on the receiver close on the runner at
+      // three-fifths pace, and the deep line at half pace, so the defence
+      // is converging on the ball while the clock runs, but the runner is
+      // still the faster man in open space: the coverage has to hold him
+      // up, not run him down. After the catch (or on a run) everyone hunts
+      // at full pace, but every defender steers with a limited turn rate,
+      // so a sharp cut leaves them wrong-footed instead of glued to the
+      // runner.
       // Goal-line stand: inside twenty yards the defence digs in and moves
       // a little faster, so breaking the line is the easy part and scoring
       // is the hard part. The tension rises as the end zone gets closer.
       var goalBoost = yardsToGo() <= 20 ? 1.15 : 1;
       defenders.forEach(function (d) {
+        var chase = (state === 'pass' && !caught) ? (d.cover ? 0.65 : 0.5) : 1;
         // Lead pursuit: aim at where the runner will be in a third of a
         // second, not where he is, so the defence cuts off the run instead
         // of trailing a faster man. A sharp cut still beats it, because
@@ -711,6 +756,7 @@
         if (state === 'pass' && passTarget && !caught) {
           var dist = Math.hypot(passTarget.x - px, passTarget.y - py);
           if (dist <= BOWL_CATCH_RADIUS) {
+            reachedX = true; // made the spot: the clock stops, the catch is the fight now
             catchT += dt;
             if (catchT >= BOWL_CATCH_DWELL) {
               caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
@@ -721,6 +767,18 @@
             // Demo catch: standing off the mark lets the catch slip away
             // gradually instead of resetting it to zero in one frame.
             catchT = Math.max(0, catchT - dt);
+          }
+        }
+        // The clock on the catch spot: once the pass is thrown, the receiver
+        // has a few seconds to reach the X. If the defence holds him up
+        // until the clock runs out, the pass fails. Once he reaches the X,
+        // the clock stops and the catch itself is the fight.
+        if (state === 'pass' && !caught && !reachedX) {
+          passTimeLeft -= dt;
+          if (passTimeLeft <= 0) {
+            passTimeLeft = 0;
+            endPlay(0, 'Incomplete.', 'Out of time — the defence held you up. No gain, next down.', { incomplete: true });
+            return;
           }
         }
         if (state === 'run' && yardsToGo() <= 0) {
@@ -829,6 +887,22 @@
           ctx.fillStyle = 'rgba(217,180,90,0.55)';
           ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS * (catchT / BOWL_CATCH_DWELL), 0, Math.PI * 2); ctx.fill();
         }
+        // Countdown ring: the time left to reach the X, shrinking as it
+        // runs out, red in the last second. The seconds sit under it. Once
+        // the receiver reaches the X the ring is gone and the catch fill
+        // shows the hold instead.
+        if (!reachedX) {
+          var frac = Math.max(0, passTimeLeft / BOWL_PASS_TIME_LIMIT);
+          ctx.strokeStyle = passTimeLeft <= 1 ? '#ff6b5e' : BOWL_GOLD_BRIGHT;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(tx, ty, BOWL_CATCH_RADIUS + 8, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = passTimeLeft <= 1 ? '#ff6b5e' : BOWL_GOLD_BRIGHT;
+          ctx.font = 'bold 13px Georgia'; ctx.textAlign = 'center';
+          ctx.fillText(passTimeLeft.toFixed(1) + 's', tx, ty + BOWL_CATCH_RADIUS + 20);
+          ctx.textAlign = 'left';
+        }
       }
       // Defenders: soft shadow, a radial umber disc, a fine parchment ring.
       defenders.forEach(function (d) {
@@ -861,6 +935,12 @@
         ctx.fillStyle = BOWL_GOLD;
         ctx.beginPath(); ctx.arc(px + 10, pyS - 6, 4, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = 'rgba(46,34,5,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      // Held up: a defender in your face, so the player can see why the
+      // run to the X has gone slow.
+      if (impeded) {
+        ctx.fillStyle = '#ff8a5c'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('HELD UP!', px, pyS - 22); ctx.textAlign = 'left';
       }
       // Result slab: burgundy band with a soft shadow, gold rules, what the
       // play earned and why.
@@ -931,7 +1011,7 @@
       else if (k === 't') startPlay('pass');
     }
     document.addEventListener('keydown', onChooseKey);
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass you have 2 seconds to reach the gold X, and defenders in your face slow you down, so beat them to the spot and hold still to catch. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
     showStart();
     updateHud();
     last = performance.now();
