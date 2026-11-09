@@ -42,13 +42,13 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
   background-repeat:no-repeat, no-repeat;
   background-position:center 0, center 18%;
   background-size:100% 46%, cover;
-  opacity:0.22; }
+  opacity:0.15; }
 /* Parchment veil: the mural burns bright at the page edges and softens
    behind the reading column, so secondary text keeps a 5.2:1 contrast
    even over the brightest pane. */
 body::after { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
-  background:linear-gradient(90deg, rgb(251 247 239 / 0.10) 0%, rgb(251 247 239 / 0.60) 18%,
-    rgb(251 247 239 / 0.60) 82%, rgb(251 247 239 / 0.10) 100%); }
+  background:linear-gradient(90deg, rgb(251 247 239 / 0.10) 0%, rgb(251 247 239 / 0.70) 18%,
+    rgb(251 247 239 / 0.70) 82%, rgb(251 247 239 / 0.10) 100%); }
 main, footer.site-footer { position:relative; z-index:1; }
 @media (prefers-color-scheme: dark) {
   body::before { opacity:0.14; }
@@ -220,10 +220,10 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
   transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
 .priest-card:hover { border-color:var(--gold); transform:translateY(-2px); box-shadow:var(--shadow-lift); }
 .priest-card:hover .priest-name { color:var(--accent); }
-.priest-main { flex:1; min-width:0; }
+.priest-main { flex:1; min-width:0; overflow:hidden; }
 .priest-name { font-family:Georgia, "Times New Roman", Times, serif; font-size:18px; font-weight:700;
   color:var(--text); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.assign { font-size:14px; color:var(--dim); margin:2px 0 0;
+.assign { display:block; font-size:14px; color:var(--dim); margin:2px 0 0;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .stars { color:var(--gold); font-size:16px; letter-spacing:2px; line-height:1; margin-top:4px; display:block; }
 .stars .empty { color:var(--border); }

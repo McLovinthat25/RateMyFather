@@ -697,9 +697,14 @@ app.get('/browse', async (req, res) => {
     try { totalCount = (await pool.query(`SELECT COUNT(*)::int AS n FROM priests WHERE ${where.join(' AND ')}`, params)).rows[0].n; } catch (e) { console.error(e.message); }
   }
   const heading = filter ? FILTER_LABELS[filter] : 'Search & Browse';
+  // A category filter with no results means nobody has been rated yet
+  // (production has no reviews), not a broken search: say so plainly.
+  const emptyHtml = FILTERS[filter]
+    ? `<div class="empty-state"><p>No priests have been rated yet.</p><p class="small">This list only shows rated priests, and nobody has rated one yet. Be the first to rate a priest you know.</p><div class="btnrow"><a class="btn" href="/browse">Browse all priests</a></div></div>`
+    : `<div class="empty-state"><p>No priests matched that search.</p><p class="small">If the priest is not listed, you can submit them for moderation review.</p><div class="btnrow"><a class="btn" href="/add-priest">Add this priest</a> <a class="btn btn-secondary" href="/browse">Clear search and filters</a></div></div>`;
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
-    : `<div class="empty-state"><p>No priests matched that search.</p><p class="small">If the priest is not listed, you can submit them for moderation review.</p><div class="btnrow"><a class="btn" href="/add-priest">Add this priest</a> <a class="btn btn-secondary" href="/browse">Clear search and filters</a></div></div>`;
+    : emptyHtml;
   const matchLine = cards.length && totalCount > 200
     ? `<p class="match-count">Showing the first 200 priests</p>`
     : '';
@@ -821,7 +826,7 @@ app.get('/priest/:id', async (req, res) => {
   const bar = (label, key, v) => `<div class="bar-row"><span class="bar-label">${label}</span><span class="bar-track"><span class="bar-fill" style="width:${(Number(v) / 5 * 100).toFixed(0)}%"></span></span><span class="bar-value">${fmtAvg(v)}</span><span class="small">${esc(anchorLabelForAvg(key, v))}</span></div>`;
   const barsHtml = st && st.n
     ? bar('Pace', 'pace', st.pace) + bar('Homily', 'homily', st.homily) + bar('Likability', 'likability', st.likability)
-    : '<p class="unrated">Not rated yet</p>';
+    : '';
   res.send(page(p.name, `<article class="profile-card">
     <div class="profile-banner" aria-hidden="true"></div>
     <div class="profile-body">
@@ -830,7 +835,7 @@ app.get('/priest/:id', async (req, res) => {
       ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : `<p class="profile-sub">Directory listing: this profile comes from the 2017 directory.</p>`}
       ${p.diocese_code ? `<p class="profile-sub">Diocese: ${esc(dioceseName(p.diocese_code))} (${esc(p.diocese_code)})</p>` : ''}
       ${p.ordination_year ? `<p class="profile-sub">Ordination year (as listed): ${esc(p.ordination_year)}</p>` : ''}
-      <div class="score-row">${scoreBoxLg}<div class="bars">${barsHtml}</div></div>
+      <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
       ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : ''}
       ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
       ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
@@ -998,7 +1003,7 @@ app.post('/legal', async (req, res) => {
 });
 
 // ---------- informational pages ----------
-function infoPage(title, inner) { return page(title, `<div class="prose"><h1>${esc(title)}</h1>${GLASS}${inner}</div>`); }
+function infoPage(title, inner) { return page(title, `<div class="prose"><h1>${esc(title)}</h1>${inner}</div>`); }
 app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2>
   <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p>
   <h2>How the ratings work</h2>
