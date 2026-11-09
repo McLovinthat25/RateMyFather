@@ -1,0 +1,19 @@
+# Render blueprint for RateMyFather.
+# This file creates the free web service only.
+# Neon Postgres is created separately in Neon. Render's blueprint cannot
+# provision Neon, so create the Neon database first, then paste its
+# connection string into DATABASE_URL in the Render dashboard.
+# No real secret or connection string is stored in this file.
+
+services:
+  - type: web
+    name: ratemyfather
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: OWNER_SECRET
+        sync: false

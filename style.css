@@ -1,0 +1,60 @@
+/* RateMyFather: burgundy + amber/gold over warm neutrals. Georgia serif headings,
+   quiet sans body. ONE stained-glass pane strip, used only as a divider. */
+:root { --burgundy:#6b1f2a; --burgundy-dark:#4d141d; --gold:#c9a227; --gold-soft:#e8d9a0;
+  --cream:#faf6ef; --paper:#fffdf8; --ink:#2b2320; --muted:#6f6259; --line:#e3d9c8; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--cream); color:var(--ink);
+  font-family:"Helvetica Neue", Arial, system-ui, sans-serif; line-height:1.55; }
+h1, h2, h3, .brand { font-family:Georgia, "Times New Roman", serif; color:var(--burgundy); }
+.wrap { max-width:860px; margin:0 auto; padding:0 20px; }
+.topnav { background:var(--burgundy); position:sticky; top:0; z-index:10; }
+.nav-inner { display:flex; align-items:center; gap:20px; flex-wrap:wrap; padding:10px 20px; }
+.brand { color:#fff; text-decoration:none; font-size:1.4rem; }
+.topnav nav { display:flex; gap:14px; flex-wrap:wrap; }
+.topnav nav a { color:var(--gold-soft); text-decoration:none; font-size:0.92rem; }
+.topnav nav a:hover { color:#fff; text-decoration:underline; }
+main { padding:28px 20px 60px; }
+.hero-frame { border:3px solid var(--burgundy); outline:2px solid var(--gold); outline-offset:4px;
+  background:var(--paper); padding:32px 28px; text-align:center; }
+.hero h1 { font-size:2.6rem; margin:0 0 8px; }
+.search { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:16px 0; }
+.search input, .search select, form input[type="text"], form input:not([type]), form select, form textarea, #chat-input {
+  padding:9px 11px; border:1px solid var(--line); border-radius:4px; font-size:1rem; background:#fff; }
+button, .btn { background:var(--burgundy); color:#fff; border:0; border-radius:4px;
+  padding:9px 16px; font-size:1rem; cursor:pointer; text-decoration:none; display:inline-block; }
+button:hover, .btn:hover { background:var(--burgundy-dark); }
+/* The single stained-glass pane strip: divider only, never a background or hero image. */
+.glass-strip { display:flex; gap:3px; margin:28px 0; height:26px; }
+.glass-strip span { flex:1; border:2px solid #3a2c1c; }
+.glass-strip span:nth-child(1) { background:#7a1f2b; } .glass-strip span:nth-child(2) { background:#c9a227; }
+.glass-strip span:nth-child(3) { background:#2e5e4e; } .glass-strip span:nth-child(4) { background:#8a6d3b; }
+.glass-strip span:nth-child(5) { background:#b8452a; } .glass-strip span:nth-child(6) { background:#3a6ea5; }
+.glass-strip span:nth-child(7) { background:#c9a227; } .glass-strip span:nth-child(8) { background:#5b2a4a; }
+.cards { display:grid; gap:16px; }
+.card, .review { background:var(--paper); border:1px solid var(--line); border-left:5px solid var(--burgundy);
+  padding:16px 18px; border-radius:4px; }
+.card h3 { margin:0 0 4px; } .card h3 a { color:var(--burgundy); text-decoration:none; }
+.assign { margin:4px 0; } .scores { font-weight:600; }
+.unrated { font-style:italic; color:var(--muted); }
+.count { color:var(--muted); font-weight:400; }
+.caveat { color:var(--muted); font-size:0.9rem; }
+.badge { display:inline-block; background:var(--gold-soft); color:#5a4300; padding:2px 8px; border-radius:12px; font-size:0.85rem; }
+.small, .discreet { color:var(--muted); font-size:0.9rem; }
+.discreet { font-style:italic; }
+.notice { background:#fdf3d7; border:1px solid var(--gold); padding:10px 14px; border-radius:4px; }
+.regions { list-style:none; padding:0; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+.regions li { background:var(--paper); border:1px solid var(--line); padding:10px 14px; border-radius:4px; }
+footer { border-top:2px solid var(--burgundy); padding:20px; color:var(--muted); font-size:0.9rem; }
+footer a { color:var(--burgundy); }
+.rate-form label { display:block; margin:8px 0; }
+.rate-form textarea { width:100%; }
+#chat-widget { position:fixed; right:16px; bottom:16px; z-index:20; }
+#chat-toggle { background:var(--gold); color:#3a2c00; font-weight:700; }
+#chat-panel { width:330px; max-width:90vw; background:var(--paper); border:2px solid var(--burgundy);
+  border-radius:8px; padding:12px; margin-top:8px; box-shadow:0 6px 24px rgba(0,0,0,0.2); }
+#chat-log { max-height:320px; overflow:auto; }
+#chat-log .msg { margin:8px 0; }
+#chat-log .chat-card { border:1px solid var(--line); border-radius:4px; padding:8px; margin:6px 0; }
+#chat-log .chat-card a { color:var(--burgundy); font-weight:700; }
+#chat-form { display:flex; gap:6px; margin-top:8px; }
+#chat-input { flex:1; min-width:0; }
