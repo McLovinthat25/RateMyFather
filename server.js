@@ -256,7 +256,7 @@ app.get('/', async (req, res) => {
       </div>
       <div class="place-section">
         <h2>Find by place</h2>
-        <p class="explainer">Pick a state, then a city, then a diocese.</p>
+        <p class="explainer">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
         <div class="place-filters" data-state="" data-city="" data-diocese="">
           <select id="place-state" name="state" aria-label="State"><option value="">Choose a state</option></select>
           <select id="place-city" name="city" disabled aria-label="City"><option value="">Choose a city</option></select>
@@ -498,7 +498,7 @@ app.get('/browse', async (req, res) => {
       </div>
       <div class="place-section">
         <h2>Find by place</h2>
-        <p class="explainer">Pick a state, then a city, then a diocese.</p>
+        <p class="explainer">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
         <div class="place-filters stacked" data-state="${esc(state)}" data-city="${esc(city)}" data-diocese="${esc(diocese)}">
           <select id="place-state" name="state" aria-label="State"><option value="">Choose a state</option></select>
           <select id="place-city" name="city" disabled aria-label="City"><option value="">Choose a city</option></select>

@@ -403,3 +403,40 @@ form .guidance { background:var(--surface-alt); border-radius:var(--radius);
 #chat-form { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); margin:0; }
 #chat-input { flex:1; min-width:0; }
 #chat-panel .small { padding:0 16px 12px; margin:0; }
+
+/* ---------- Searchable combobox (Find by place) ----------
+   The native <select> stays in the form as the submitted value (and as the
+   no-JavaScript fallback); JavaScript hides it and builds a type-to-filter
+   combobox around it. Parchment surface, burgundy focus, gold accent, so
+   the control reads as part of the site rather than a bare browser select. */
+.place-filters .combo { position:relative; flex:1 1 200px; min-width:180px; }
+.place-filters.stacked .combo { flex:none; width:100%; min-width:0; }
+.combo .combo-source { display:none; }
+.combo .combo-input { width:100%; padding:12px 76px 12px 14px; font-size:16px; line-height:1.4;
+  border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);
+  color:var(--text); box-shadow:var(--shadow-card); }
+.combo .combo-input:focus { outline:none; border-color:var(--gold);
+  box-shadow:0 0 0 3px rgb(178 138 46 / 0.28), var(--shadow-card); }
+.combo .combo-input:disabled { background:var(--surface-alt); color:var(--dim);
+  cursor:not-allowed; box-shadow:none; }
+.combo .combo-input::placeholder { color:var(--dim); }
+.combo .combo-btn { position:absolute; top:50%; transform:translateY(-50%);
+  display:flex; align-items:center; justify-content:center; width:34px; height:34px;
+  padding:0; border:0; border-radius:10px; background:none; box-shadow:none;
+  color:var(--dim); cursor:pointer; font-size:20px; font-weight:400; line-height:1; }
+.combo .combo-btn:hover { background:var(--surface-alt); color:var(--accent);
+  transform:translateY(-50%); filter:none; box-shadow:none; }
+.combo .combo-chevron { right:6px; }
+.combo .combo-chevron svg { width:18px; height:18px; display:block; transition:transform 160ms ease; }
+.combo.open .combo-chevron svg { transform:rotate(180deg); }
+.combo .combo-clear { right:44px; }
+.combo .combo-panel { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
+  max-height:288px; max-height:min(288px, 55vh); overflow-y:auto; overscroll-behavior:contain;
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow-lift); padding:6px; }
+.combo .combo-option { display:flex; align-items:center; min-height:44px; padding:12px 14px;
+  font-size:16px; border-radius:10px; color:var(--text); cursor:pointer; }
+.combo .combo-option:hover { background:var(--surface-alt); }
+.combo .combo-option.active { background:var(--accent-soft); color:var(--accent);
+  box-shadow:inset 3px 0 0 var(--gold); }
+.combo .combo-empty { padding:12px 14px; font-size:14px; color:var(--dim); }
