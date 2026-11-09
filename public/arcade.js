@@ -212,7 +212,7 @@
   var ARCADE_GAMES = [
     { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch.', mount: mountBowl },
     { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
-    { id: 'maze', title: 'Candle Maze', blurb: 'Light every candle in the cloister while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
+    { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
     { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', mount: mountFlee },
@@ -366,7 +366,7 @@
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
     var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
-    var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false;
+    var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
     var coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
@@ -398,21 +398,21 @@
             cand = {
               x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(95, 120),
+              speed: rand(100, 125),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
               x: clamp(bracket ? px + (i === 0 ? -70 : 70) + rand(-15, 15) : px + rand(-140, 140), 40, GAME_W - 40),
               y: clamp(py - rand(120, 180), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(95, 120),
+              speed: rand(100, 125),
               heading: 0,
             };
           } else {
             cand = {
               x: rand(40, GAME_W - 40),
               y: rand(RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(95, 120),
+              speed: rand(100, 125),
               heading: 0,
             };
           }
@@ -688,6 +688,10 @@
           if (!timeGoneShown) { timeGoneShown = true; api.showBanner('Time — finish the play!', 2000); }
         }
       }
+      // Live scoreboard: the clock and the yards update while the play is
+      // happening, not only when it ends, so the HUD never looks frozen.
+      hudT -= dt;
+      if ((state === 'run' || state === 'pass') && hudT <= 0) { hudT = 0.25; updateHud(); }
       if (freezeT > 0) freezeT -= dt;
       if (state === 'run' || state === 'pass') {
         playT += dt;
@@ -953,7 +957,7 @@
   function mountStack(parent, onBack) {
     var api = createStage(parent, { title: 'Stained-Glass Stack', onBack: onBack });
     var COLS = 10, ROWS = 20, CELL = 15, OX = (GAME_W - COLS * CELL) / 2, OY = 10;
-    var grid = [], bag = [], cur = null, score = 0, lines = 0, level = 1;
+    var grid = [], bag = [], cur = null, score = 0, lines = 0, level = 1, combo = 0;
     var best = readBest('stack');
     var state = 'ready', paused = false, dropT = 0, raf = 0, last = 0, destroyed = false;
     function resetGrid() { grid = []; for (var y = 0; y < ROWS; y++) { grid.push(new Array(COLS).fill(null)); } }
@@ -993,16 +997,18 @@
       }
       if (cleared) {
         var oldLevel = level;
+        combo += 1;
         score += STACK_POINTS[cleared] * level;
+        if (combo > 1) score += (combo - 1) * 50 * level;
         lines += cleared;
         level = 1 + Math.floor(lines / 10);
         // Say what happened: a clear used to vanish silently. The banner
         // names the clear and its points, and a level rise gets its own
         // callout so the quickening pace is never a surprise.
         var clearName = ['', 'Single', 'Double', 'Triple', 'Tetris'][cleared];
-        api.showBanner(clearName + '! +' + (STACK_POINTS[cleared] * oldLevel), 1300);
+        api.showBanner(clearName + '! +' + (STACK_POINTS[cleared] * oldLevel + (combo > 1 ? (combo - 1) * 50 * oldLevel : 0)) + (combo > 1 ? ' \u00b7 Combo x' + combo : ''), 1300);
         if (level > oldLevel) setTimeout(function () { api.showBanner('Level ' + level + ' — the panes fall faster', 1500); }, 1300);
-      }
+      } else combo = 0;
       updateHud();
       spawn();
     }
@@ -1020,7 +1026,7 @@
       updateHud();
     }
     function startGame() {
-      resetGrid(); bag = []; score = 0; lines = 0; level = 1; dropT = 0;
+      resetGrid(); bag = []; score = 0; lines = 0; level = 1; combo = 0; dropT = 0;
       state = 'playing'; api.hideOverlay(); spawn(); updateHud();
     }
     function updateHud() {
@@ -1032,6 +1038,13 @@
       api.ctx.globalAlpha = ghost ? 0.25 : 1;
       api.ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
       api.ctx.globalAlpha = 1;
+      if (!ghost) {
+        // Leaded-glass bevel: a pale inner highlight so the panes read as
+        // stained glass instead of flat coloured squares.
+        api.ctx.fillStyle = 'rgba(255,253,247,0.28)';
+        api.ctx.fillRect(px + 3, py + 3, CELL - 6, 4);
+        api.ctx.fillRect(px + 3, py + 3, 4, CELL - 6);
+      }
       api.ctx.strokeStyle = 'rgba(56,41,26,0.6)';
       api.ctx.strokeRect(px + 1, py + 1, CELL - 2, CELL - 2);
     }
@@ -1169,7 +1182,7 @@
     var BASE_W = 120, BASE_Y = GAME_H - 20;
     function newStone() {
       var w = tower.length ? tower[tower.length - 1].w : BASE_W;
-      moving = { x: -w / 2, w: w, dir: 1, speed: 130 + tower.length * 6 };
+      moving = { x: -w / 2, w: w, dir: 1, speed: 115 + tower.length * 6 };
     }
     function startGame() {
       tower = []; score = 0; wind = 0; state = 'playing';
@@ -1180,7 +1193,13 @@
       var top = tower.length ? tower[tower.length - 1] : { x: (GAME_W - BASE_W) / 2, w: BASE_W, y: BASE_Y };
       var left = Math.max(moving.x, top.x), right = Math.min(moving.x + moving.w, top.x + top.w);
       var overlap = right - left;
-      if (overlap <= 0) { gameOver(); return; }
+      if (overlap <= 0) {
+        // Early grace: the first three stones are for learning the swing.
+        // A clean miss that early just drops the stone and lets the player
+        // try again instead of ending the run before it has begun.
+        if (tower.length < 3) { api.showBanner('Missed \u2014 try again', 1400); newStone(); return; }
+        gameOver(); return;
+      }
       var perfect = overlap / top.w > 0.9;
       var stone = { x: left, w: overlap, y: top.y - 18 };
       tower.push(stone);
@@ -1197,7 +1216,7 @@
     function gameOver() {
       state = 'over';
       var fb = writeBest('steeple', score); best = fb;
-      api.showOverlay('<h3>The steeple toppled</h3><p>Height: ' + tower.length + ' stones &middot; Score: ' + score + '<br>Best: ' + fb + '</p>' +
+      api.showOverlay('<h3>The steeple toppled</h3><p>Height: ' + tower.length + (tower.length === 1 ? ' stone' : ' stones') + ' &middot; Score: ' + score + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="steeple-again">Build again</button>' +
         '<button type="button" class="linklike" id="steeple-back">Back to arcade</button>');
       var a = document.getElementById('steeple-again');
@@ -1346,7 +1365,7 @@
           // the arena before all seven are closing in at once.
           releaseAt: [0, 0, 0, 12, 20, 30, 40][i] || 0, announced: false };
       });
-      spawnHalo(); spawnHalo(); spawnHalo();
+      halos.push({ x: px + 70, y: py - 50 }); spawnHalo(); spawnHalo();
       state = 'playing'; api.hideOverlay(); updateHud();
     }
     function spawnHalo() { halos.push({ x: rand(30, GAME_W - 30), y: rand(30, GAME_H - 30) }); }
@@ -1543,8 +1562,8 @@
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings every 60 seconds. On touch, drag on the floor to run, tap to dash.'));
-    api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and listen for the bell. ' + gameMark('flee') + '</p>' +
+    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings every 60 seconds and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
+    api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. ' + gameMark('flee') + '</p>' +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>');
     var s = document.getElementById('flee-start');
     if (s) s.addEventListener('click', startGame);
@@ -1566,7 +1585,7 @@
     var LANE_Y = [258, 226, 194, 162, 130];
     var RIVER_TOP = 44, RIVER_BOT = 118;
     var DOOR_X = [48, 144, 240, 336, 432];
-    var px = GAME_W / 2, py = GAME_H - 18, lives = 3, score = 0, level = 1, best = readBest('cross');
+    var px = GAME_W / 2, py = GAME_H - 18, lives = 3, score = 0, level = 1, best = readBest('cross'), bestPy = GAME_H - 18;
     var cars = [], floats = [], mothDoor = 0, bellT = 60;
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
     var keys = makeKeys();
@@ -1600,7 +1619,7 @@
       px = GAME_W / 2; py = GAME_H - 18; lives = 3; score = 0; level = 1; bellT = 60;
       buildLevel(); state = 'playing'; api.hideOverlay(); updateHud();
     }
-    function resetSpot() { px = GAME_W / 2; py = GAME_H - 18; }
+    function resetSpot() { px = GAME_W / 2; py = GAME_H - 18; bestPy = GAME_H - 18; }
     function loseLife(why) {
       lives -= 1; updateHud();
       if (lives <= 0) { gameOver(why); return; }
@@ -1648,13 +1667,13 @@
       // The moth's orbit, drawn as a faint gold ring around the right door,
       // so the tell is readable at a glance without giving the answer away
       // in the way a gold door used to.
-      ctx.strokeStyle = 'rgba(178,138,46,0.4)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(178,138,46,0.85)'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.ellipse(DOOR_X[mothDoor], 52, 26, 14, 0, 0, Math.PI * 2); ctx.stroke();
       // Moth circling the right door
       var mt = performance.now() / 300;
       var mx = DOOR_X[mothDoor] + Math.cos(mt) * 18, my = 52 + Math.sin(mt * 1.3) * 8;
       ctx.fillStyle = '#fffdf7';
-      ctx.beginPath(); ctx.ellipse(mx, my, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(mx, my, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
       // River
       ctx.fillStyle = '#3a6ea5'; ctx.fillRect(0, RIVER_TOP, GAME_W, RIVER_BOT - RIVER_TOP);
       floats.forEach(function (f) {
@@ -1712,6 +1731,9 @@
         px = clamp(px + dx * 24, 14, GAME_W - 14);
         py = clamp(py + dy * 24, 18, GAME_H - 14);
       }
+      // Forward progress pays: every new highest row is +10, so effort
+      // reads on the scoreboard long before the first door is reached.
+      if (py < bestPy) { bestPy = py; score += 10; }
       cars.forEach(function (c) {
         c.x += c.dir * c.speed * dt;
         if (c.x - c.w / 2 > GAME_W) c.x = -c.w / 2;
@@ -1785,7 +1807,7 @@
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
     api.actions.appendChild(el('p', 'game-note', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. On touch, hold the field to walk toward your finger.'));
-    api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Follow the moth. ' + gameMark('cross') + '</p>' +
+    api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Every step forward is +10. Follow the moth to the right door. ' + gameMark('cross') + '</p>' +
       '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>');
     var s = document.getElementById('cross-start');
     if (s) s.addEventListener('click', startGame);
@@ -2028,8 +2050,7 @@
       var choices = ev.slice(2);
       var html = '<h3>Week ' + (week + 1) + ' — ' + esc(ev[0]) + '</h3><p>' + esc(personalise(ev[1])) + '</p><div class="pastor-choices">';
       choices.forEach(function (ch, i) {
-        html += '<button type="button" class="pastor-choice press" data-i="' + i + '">' + esc(ch[0]) +
-          '<span class="pastor-delta">' + (ch[2] >= 0 ? '+' : '') + ch[2] + ' people &middot; ' + (ch[3] >= 0 ? '+' : '') + money(ch[3]) + ' &middot; ' + (ch[4] >= 0 ? '+' : '') + ch[4] + ' happy</span></button>';
+        html += '<button type="button" class="pastor-choice press" data-i="' + i + '">' + esc(ch[0]) + '</button>';
       });
       html += '</div>';
       card.innerHTML = html;
@@ -2239,10 +2260,13 @@
       if (candles[key]) {
         delete candles[key]; candlesEaten += 1; addScore(10);
         var left = Object.keys(candles).length + Object.keys(vials).length;
-        if (left === 25 && !called25) { called25 = true; api.showBanner('25 candles still dark', 1500); }
-        if (left === 10 && !called10) { called10 = true; api.showBanner('10 candles still dark', 1500); }
+        if (candlesEaten === 85 && !called25) { called25 = true; api.showBanner('25 candles to the vigil', 1500); }
+        if (candlesEaten === 100 && !called10) { called10 = true; api.showBanner('10 candles to the vigil', 1500); }
         if (chaliceSpawned === 0 && candlesEaten >= 70) { chaliceSpawned = 1; chaliceActive = true; chaliceT = 9; api.showBanner('A golden chalice appears!', 1600); }
-        else if (chaliceSpawned === 1 && candlesEaten >= 120 && !chaliceActive) { chaliceSpawned = 2; chaliceActive = true; chaliceT = 9; api.showBanner('Another golden chalice appears!', 1600); }
+        else if (chaliceSpawned === 1 && candlesEaten >= 90 && !chaliceActive) { chaliceSpawned = 2; chaliceActive = true; chaliceT = 9; api.showBanner('Another golden chalice appears!', 1600); }
+        // A vigil completes at 110 candles lit, not all 150: a good run
+        // finishes the vigil instead of the goal sitting out of reach.
+        if (candlesEaten >= 110) { nextLevel(); return; }
         if (left === 0) { nextLevel(); return; }
         updateHud();
       } else if (vials[key]) {
@@ -2513,8 +2537,8 @@
       if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? 1 : -1, 0);
       else steer(0, dy > 0 ? 1 : -1);
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light every candle; the vials turn the sins edible. R restarts.'));
-    api.showOverlay('<h3>Candle Maze</h3><p>Light every candle in the cloister while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light 110 candles to complete the vigil; the vials turn the sins edible. R restarts.'));
+    api.showOverlay('<h3>Candle Maze</h3><p>Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
       '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>');
     var s = document.getElementById('maze-start');
     if (s) s.addEventListener('click', startGame);
@@ -2557,7 +2581,9 @@
     function inSpecial(x) {
       return (x > 1980 && x < 3070) || (x > 3830 && x < 4820) || (x > 5530 && x < 6620);
     }
-    var x = 620;
+    // Clear opening runway: the first thorn waits until 1000px, so a
+    // new player gets a few jumps in before the first thing to clear.
+    var x = 1000;
     while (x < 9000) {
       if (!inSpecial(x)) {
         var n = 1 + Math.floor(rnd() * 3);
@@ -2618,7 +2644,7 @@
     }
     var QUARTER_X = [2300, 4600, 6900, 8280];
     function score() { return Math.floor(dist / 10) + bonus; }
-    function speedNow() { return Math.min(430, 250 + dist * 0.045) * gateMult; }
+    function speedNow() { return Math.min(430, 235 + dist * 0.045) * gateMult; }
     function screenX(wx) { return wx - dist + 120; }
     function startRun(newSeed) {
       if (typeof newSeed === 'number') { seed = newSeed; layout = genDashLayout(seed); }

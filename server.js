@@ -585,7 +585,7 @@ app.get('/games', (req, res) => res.send(page('Games', `
     // and offer a retry instead of leaving "Loading games…" up forever.
     setTimeout(function () {
       var root = document.getElementById('arcade-root');
-      if (!root || root.querySelector('.arcade-shelf, .game-stage')) return;
+      if (!root || root.querySelector('.arcade-shelf, .game-stage, .pastor-wrap')) return;
       root.innerHTML = '<p class="notice">The games did not load. Check your connection and try again.</p><p><button type="button" onclick="location.reload()">Try again</button></p>';
     }, 6000);
   })();</script>`)));
