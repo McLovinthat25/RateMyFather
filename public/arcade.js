@@ -211,7 +211,7 @@
   // ---- game registry ----
   var ARCADE_GAMES = [
     { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
-    { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
+    { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
@@ -323,13 +323,33 @@
   // on a pass: the route to the X is a fight through bodies, not a free run.
   var BOWL_IMPEDE_SLOW = 0.4; // Runner's pace while held up.
   var PX_PER_YARD = (RUNGUN_START_Y - RUNGUN_END_Y) / 80; // 9.8
-  var BOWL_CATCH_DWELL = 0.7; // Hold still most of a second to catch:
-  // long enough that the defence has a real chance to close, short enough
-  // that a clean, fast route to the spot completes the catch.
+  var BOWL_CATCH_DWELL = 0.38; // Hold still briefly to catch: the catch
+  // itself is quick, because the defence is right there — a clean, fast
+  // route to the spot completes the catch, and the man on the receiver is
+  // on him the instant after, so the catch buys position and then the
+  // runner has to beat the tackle. The hold is long enough that a man
+  // closing from a step away can break the catch up, so reaching the spot
+  // is not enough on its own: the receiver has to arrive with the
+  // defender still a step off him.
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
   var BOWL_PLAY_MAX_SECONDS = 9; // whistle: no play runs forever, no stall at 0:00
+  // Pass-defence convergence (Nov 9, third pass): Mikey played the live
+  // Bowl again and the defence was still nowhere near the receiver on a
+  // pass. Measured on the previous build, the nearest man was 61-74px
+  // from the runner when he reached the X, and the catch mostly failed
+  // during a long 0.7s hold while the defence closed from a distance —
+  // it read as the catch being stolen, not contested. So the coverage
+  // now holds its ground ON the receiver (a man on the spot 43-54px from
+  // the X, a shadow 60-75px off the route) and breaks on him at full
+  // pace the instant he reaches the X, and the hold is 0.38s. Measured
+  // with a straight-line driver over 16 pass plays: the nearest man is
+  // 49-63px away when the receiver reaches the X (median 54) and 22-24px
+  // away at the catch (median 24), the simple run-to-the-X strategy
+  // catches 4 of 16 and scores 0 touchdowns, and the run play is
+  // untouched (about 10 yards a carry). The pass is a gamble now, not a
+  // free score, and a defender is right there on it.
   // Human-first defence tuning (Nov 9, second pass): Mikey played the live
   // Bowl again and the defence was still far too fast. The bots scored
   // easily, but a human reacts in 600-800ms and plays on a dpad, so the
@@ -454,23 +474,27 @@
       });
       return bestSpot;
     }
-    // Two men on the receiver: one on the route, one on the catch spot.
-    // They break on the runner from the snap, so reaching the gold X is a
-    // fight through bodies, not a free run. They are placed near the route,
-    // never on top of the runner or the X itself.
+    // Two men on the receiver, and they are ON the receiver: one shadows
+    // the route, one sits on the catch spot. They hold their ground near
+    // the route and the X instead of running the receiver down on the way,
+    // so the receiver can reach the spot — and the contest happens there,
+    // with a man right on him, instead of the defence tackling him before
+    // he arrives. Once he reaches the X they break on him at full pace,
+    // so the hold to catch is a real fight. The shadow sits wide of the
+    // route, the man on the spot sits beside the X, never on it.
     function spawnCoverage() {
       var mx = (px + passTarget.x) / 2, my = (py + passTarget.y) / 2;
       var side = Math.random() < 0.5 ? -1 : 1;
       var spots = [
-        { x: mx + side * rand(70, 100), y: my + rand(-20, 20) },
-        { x: passTarget.x + (Math.random() < 0.5 ? -1 : 1) * rand(30, 50), y: passTarget.y - rand(110, 150) },
+        { x: mx + side * rand(60, 75), y: my + rand(-15, 15) },
+        { x: passTarget.x + side * rand(42, 52), y: passTarget.y - rand(8, 15) },
       ];
       spots.forEach(function (s) {
         var x = clamp(s.x, 40, GAME_W - 40);
         var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
-        if (Math.hypot(x - px, y - py) < 60) return;
-        if (Math.hypot(x - passTarget.x, y - passTarget.y) < 45) return;
-        defenders.push({ x: x, y: y, speed: rand(105, 125), heading: Math.atan2(py - y, px - x), cover: true });
+        if (Math.hypot(x - px, y - py) < 45) return;
+        if (Math.hypot(x - passTarget.x, y - passTarget.y) < 35) return;
+        defenders.push({ x: x, y: y, speed: rand(110, 130), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y });
       });
     }
     function startPlay(kind) {
@@ -695,25 +719,39 @@
     }
     function moveDefenders(dt) {
       if (freezeT > 0) return;
-      // Before the catch the men on the receiver close on the runner at
-      // three-fifths pace, and the deep line at half pace, so the defence
-      // is converging on the ball while the clock runs, but the runner is
-      // still the faster man in open space: the coverage has to hold him
-      // up, not run him down. After the catch (or on a run) everyone hunts
-      // at full pace, but every defender steers with a limited turn rate,
-      // so a sharp cut leaves them wrong-footed instead of glued to the
-      // runner.
+      // Before the catch the men on the receiver hold their ground near
+      // the route and the spot, and the deep line closes at three-fifths
+      // pace, so the defence is set around the ball while the clock runs
+      // and a man is right there when the receiver reaches the spot. Once
+      // he reaches the X the coverage breaks on him at full pace, so the
+      // hold to catch is a fight. The runner is still the faster man in
+      // open space, so the coverage has to hold him up and arrive with
+      // him, not run him down from behind. After the catch (or on a run)
+      // everyone hunts at full pace, but every defender steers with a
+      // limited turn rate, so a sharp cut leaves them wrong-footed instead
+      // of glued to the runner.
       // Goal-line stand: inside twenty yards the defence digs in and moves
       // a little faster, so breaking the line is the easy part and scoring
       // is the hard part. The tension rises as the end zone gets closer.
       var goalBoost = yardsToGo() <= 20 ? 1.15 : 1;
       defenders.forEach(function (d) {
-        var chase = (state === 'pass' && !caught) ? (d.cover ? 0.65 : 0.5) : 1;
+        // Coverage men on a pass hold their ground until the receiver
+        // reaches the X, then break on him at full pace. Holding means the
+        // receiver can actually reach the spot instead of being run down
+        // on the way, and breaking means a man is right on him for the
+        // catch itself — the contest is at the X, not on the route.
+        if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) {
+          if (Math.hypot(d.hx - d.x, d.hy - d.y) < 12) return; // holding: stay put
+        }
+        var chase = (state === 'pass' && !caught) ? (d.cover ? (reachedX ? 1 : 0.75) : 0.6) : 1;
         // Lead pursuit: aim at where the runner will be in a third of a
         // second, not where he is, so the defence cuts off the run instead
         // of trailing a faster man. A sharp cut still beats it, because
         // the defender commits to the lead point and turns slowly.
-        var want = Math.atan2((py + pvy * 0.3) - d.y, (px + pvx * 0.3) - d.x);
+        // A holding coverage man drifts back to his spot instead.
+        var tx = px + pvx * 0.3, ty = py + pvy * 0.3;
+        if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) { tx = d.hx; ty = d.hy; }
+        var want = Math.atan2(ty - d.y, tx - d.x);
         var diff = want - d.heading;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
@@ -1031,7 +1069,7 @@
     };
   }
 
-  // ================= Stained-Glass Stack =================
+  // ================= Stained-Glass Blocks =================
   // Falling panes, 7-piece bag, ghost pane, guideline scoring.
   var STACK_SHAPES = {
     I: [[1, 1, 1, 1]], O: [[1, 1], [1, 1]], T: [[0, 1, 0], [1, 1, 1]],
@@ -1041,7 +1079,7 @@
   var STACK_COLORS = { I: '#3a6ea5', O: '#b28a2e', T: '#5b2a4a', S: '#2e5e4e', Z: '#b8452a', J: '#3a6ea5', L: '#8a6d3b' };
   var STACK_POINTS = [0, 100, 300, 500, 800];
   function mountStack(parent, onBack) {
-    var api = createStage(parent, { title: 'Stained-Glass Stack', onBack: onBack });
+    var api = createStage(parent, { title: 'Stained-Glass Blocks', onBack: onBack });
     var COLS = 10, ROWS = 20, CELL = 15, OX = (GAME_W - COLS * CELL) / 2, OY = 10;
     var grid = [], bag = [], cur = null, score = 0, lines = 0, level = 1, combo = 0;
     var best = readBest('stack');
@@ -1247,7 +1285,7 @@
     touchRow.appendChild(makeTouchButton('↓', softDrop));
     touchRow.appendChild(makeTouchButton('Slam', slam, { repeat: false, wide: true }));
     api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.'));
-    api.showOverlay('<h3>Stained-Glass Stack</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
+    api.showOverlay('<h3>Stained-Glass Blocks</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
       '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>');
     var s = document.getElementById('stack-start');
     if (s) s.addEventListener('click', startGame);

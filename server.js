@@ -23,6 +23,16 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1);
 
+// Cache-busting for the arcade bundle: the games page loads /arcade.js
+// with a short content hash, so a phone that kept an old copy in a
+// background tab fetches the new file after a deploy instead of playing
+// a stale build. The hash is computed once at boot from the file on disk,
+// so no one has to remember to bump a version number.
+var ARCADE_VERSION = '1';
+try {
+  ARCADE_VERSION = crypto.createHash('md5').update(fs.readFileSync(path.join(__dirname, 'public', 'arcade.js'))).digest('hex').slice(0, 8);
+} catch (e) { /* fall back to the plain path if the file cannot be read */ }
+
 // Numeric :id params only. Express 4 does not catch async route rejections,
 // so a non-numeric id (e.g. /priest/abc) used in a Postgres integer query
 // would throw as an unhandled promise rejection and hang or crash the
@@ -579,7 +589,7 @@ app.get('/api/places/dioceses', async (req, res) => {
 app.get('/games', (req, res) => res.send(page('Games', `
   <div id="arcade-root"><p class="small">Loading games&hellip;</p></div>
   <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>
-  <script src="/arcade.js"></script>
+  <script src="/arcade.js?v=${ARCADE_VERSION}"></script>
   <script>(function () {
     // If the games shelf never renders (script blocked or failed), say so
     // and offer a retry instead of leaving "Loading games…" up forever.
