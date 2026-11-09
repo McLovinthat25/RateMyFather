@@ -19,6 +19,45 @@
   function readBest(id) { try { var v = parseInt(localStorage.getItem(bestKey(id)) || '0', 10); return isNaN(v) ? 0 : v; } catch (e) { return 0; } }
   function writeBest(id, score) { try { var b = readBest(id); if (score > b) { localStorage.setItem(bestKey(id), String(score)); return score; } return b; } catch (e) { return score; } }
   function gameMark(id) { var b = readBest(id); return b > 0 ? '<span class="trophy">★</span> Best: ' + b : 'Not yet played'; }
+
+  // ---- difficulty: Easy / Medium / Hard ----
+  // One picker, shared by every game that offers it. Medium is the
+  // tuned default: the game exactly as it plays today. Easy forgives
+  // a new player, Hard is a real challenge. The choice is remembered
+  // per game in the browser, so a player who picks Hard keeps Hard.
+  var DIFFS = ['easy', 'medium', 'hard'];
+  var DIFF_LABEL = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+  function readDiff(id) { var v = storeGet('rmf-arcade-diff-' + id); return v === 'easy' || v === 'hard' ? v : 'medium'; }
+  function writeDiff(id, v) { storeSet('rmf-arcade-diff-' + id, v); }
+  // Three buttons for the start screen. The current one reads burgundy.
+  function diffPickerHtml(id, cur) {
+    return '<div class="diff-row" data-diff-for="' + id + '" style="margin:0 0 14px;">' +
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#6b5636;margin-bottom:6px;">Difficulty</div>' +
+      DIFFS.map(function (d) {
+        var on = d === cur;
+        return '<button type="button" class="press diff-btn" data-diff="' + d + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="margin:0 4px;padding:8px 16px;' + (on ? 'background:#6e1a26;color:#f7ecd4;' : '') + '">' + DIFF_LABEL[d] + '</button>';
+      }).join('') + '</div>';
+  }
+  // Wire the picker inside a container (a stage overlay, or the Pastor
+  // card). get() reads the current choice, set(d) stores it and retunes.
+  function wireDiffButtons(root, id, get, set) {
+    if (!root) return;
+    var btns = root.querySelectorAll('.diff-btn');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        set(b.getAttribute('data-diff'));
+        btns.forEach(function (x) {
+          var on = x.getAttribute('data-diff') === get();
+          x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          x.style.background = on ? '#6e1a26' : '';
+          x.style.color = on ? '#f7ecd4' : '';
+        });
+      });
+    });
+  }
+  // The difficulty tag for a HUD or stats line. Medium shows nothing:
+  // it is the default game, so only Easy and Hard need saying.
+  function diffTag(d) { return d === 'medium' ? '' : '<span>' + DIFF_LABEL[d] + '</span>'; }
   function storeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
   function storeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
   function storeDel(key) { try { localStorage.removeItem(key); } catch (e) {} }
@@ -381,6 +420,17 @@
     var api = createStage(parent, { title: 'The Parish Bowl', onBack: onBack });
     api.overlay.style.overflowY = 'auto';
     var priestName = storeGet('rmf-parish-bowl-priest') || 'Father Murphy';
+    var diff = readDiff('rungun'); // Easy / Medium / Hard; Medium is the tuned default
+    var defLo = 100, defHi = 125, covLo = 110, covHi = 130, defBase = 3;
+    var passLimit = BOWL_PASS_TIME_LIMIT, catchDwell = BOWL_CATCH_DWELL, oppChance = 0.5, waveSecs = BOWL_WAVE_SECONDS;
+    function applyBowlDiff() {
+      // Easy: slower defence, more time on the catch, a kinder opponent.
+      // Hard: faster defence, less time on the catch, a sharper opponent.
+      if (diff === 'easy') { defLo = 80; defHi = 100; covLo = 90; covHi = 105; defBase = 2; passLimit = 2.6; catchDwell = 0.5; oppChance = 0.35; waveSecs = 5; }
+      else if (diff === 'hard') { defLo = 120; defHi = 150; covLo = 130; covHi = 155; defBase = 4; passLimit = 1.6; catchDwell = 0.3; oppChance = 0.65; waveSecs = 3; }
+      else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; catchDwell = BOWL_CATCH_DWELL; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; }
+    }
+    applyBowlDiff();
     var parishName = storeGet('rmf-parish-bowl-parish') || 'St Mary\u2019s';
     var opponent = 'St Swithin\u2019s';
     var state = 'ready'; // ready | choose | run | pass | result | over
@@ -397,6 +447,7 @@
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
     var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
   var passTimeLeft = 0, impeded = false, reachedX = false; // countdown to the catch spot; held-up flag; reached the X
+  var passRoute = null; // what kind of throw this is (depth + direction), for the HUD
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
     var coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
@@ -408,7 +459,7 @@
     function downWord() { return down === 1 ? '1ST' : down === 2 ? '2ND' : down === 3 ? '3RD' : '4TH'; }
     function toGoLabel() { return seriesStart <= 10 ? 'GOAL' : String(10 - seriesGain); }
     function downLabel() { return downWord() + ' & ' + toGoLabel(); }
-    function defenderCount() { return 3 + quarter; } // opening line: four in Q1, one more each quarter
+    function defenderCount() { return defBase + quarter; } // opening line: four in Q1 on Medium, one more each quarter
     // The defence lines up ahead of the runner in the scrolling world, so
     // the play is about reading the field as it scrolls and cutting past
     // defenders in sequence — not about one wall across a squeezed field.
@@ -430,21 +481,21 @@
             cand = {
               x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(100, 125),
+              speed: rand(defLo, defHi),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
               x: clamp(bracket ? px + (i === 0 ? -70 : 70) + rand(-15, 15) : px + rand(-140, 140), 40, GAME_W - 40),
               y: clamp(py - rand(120, 180), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(100, 125),
+              speed: rand(defLo, defHi),
               heading: 0,
             };
           } else {
             cand = {
               x: rand(40, GAME_W - 40),
               y: rand(RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(100, 125),
+              speed: rand(defLo, defHi),
               heading: 0,
             };
           }
@@ -459,12 +510,30 @@
       }
     }
     function pickPassTarget() {
-      // Routes are short: a catch puts you a few yards upfield, and the rest
-      // is earned by running, like any other play.
-      var depth = clamp(playStartYards * 0.25, 5, 14);
-      var baseX = px, baseY = Math.max(RUNGUN_END_Y + 14, py - depth * PX_PER_YARD);
+      // Throws vary from play to play: short, medium and deep routes,
+      // landing left, centre or right, so the receiver reads the gold X
+      // each time instead of running the same line every pass. (Nov 9,
+      // Mikey: mix up the distance of the throw and where it lands.)
+      // Depth classes in yards: short 5-9, medium 10-17, deep 18-27.
+      // Deep only when there is room: the route cannot run past the end
+      // zone, so the depth is capped by the yards still to go.
+      var roll = Math.random();
+      var lo, hi;
+      if (roll < 0.35) { lo = 5; hi = 9; }
+      else if (roll < 0.75) { lo = 10; hi = 17; }
+      else { lo = 18; hi = 27; }
+      var room = Math.max(3, playStartYards - 2);
+      var depth = Math.max(3, Math.min(rand(lo, hi), room));
+      // Lateral lane: spread the landing spot across the width of the
+      // field instead of always straight upfield from the snap.
+      var lanes = [-170, -120, -75, -35, 0, 35, 75, 120, 170];
+      var lat = lanes[Math.floor(Math.random() * lanes.length)];
+      var baseX = clamp(px + lat, 36, GAME_W - 36);
+      var baseY = Math.max(RUNGUN_END_Y + 14, py - depth * PX_PER_YARD);
+      // Then pick the most open nearby spot, as before, so the X lands
+      // in space rather than on a defender.
       var bestSpot = null, bestScore = -1e9;
-      var offsets = [[0, 0], [-45, 0], [45, 0], [-80, 0], [80, 0], [0, -20], [-45, -20], [45, -20], [0, 20]];
+      var offsets = [[0, 0], [-25, 0], [25, 0], [0, -15], [0, 15], [-25, -15], [25, -15]];
       offsets.forEach(function (o) {
         var tx = clamp(baseX + o[0], 30, GAME_W - 30);
         var ty = clamp(baseY + o[1], RUNGUN_END_Y + 14, RUNGUN_START_Y - 10);
@@ -473,6 +542,21 @@
         var s = minD - Math.hypot(tx - baseX, ty - baseY) * 0.4;
         if (s > bestScore) { bestScore = s; bestSpot = { x: tx, y: ty }; }
       });
+      // Reachability: the receiver has passLimit seconds at 208px/s, and
+      // the defence holds him up near the spot, so cap the straight-line
+      // run to the X at the distance covered at an effective 160px/s —
+      // full pace minus room to be held up. The cap scales with the
+      // difficulty's time limit, so a deep throw stays fair on Hard too.
+      // Pull the spot back toward the runner along the same line if it
+      // is beyond that, so the direction still reads but the catch
+      // stays fair.
+      var dx = bestSpot.x - px, dy = bestSpot.y - py;
+      var dist = Math.hypot(dx, dy);
+      var MAX_REACH = passLimit * 160;
+      if (dist > MAX_REACH) {
+        var k = MAX_REACH / dist;
+        bestSpot = { x: px + dx * k, y: py + dy * k };
+      }
       return bestSpot;
     }
     // Two men on the receiver, and they are ON the receiver: one shadows
@@ -483,19 +567,30 @@
     // he arrives. Once he reaches the X they break on him at full pace,
     // so the hold to catch is a real fight. The shadow sits wide of the
     // route, the man on the spot sits beside the X, never on it.
+    // Their offsets are perpendicular to the route (snap to X), not just
+    // sideways in x: throws now vary from short to deep and left to
+    // right, so a purely lateral offset could land a man on a shallow
+    // diagonal route and tackle the receiver before he arrives. Off the
+    // route line, the contest stays at the X whatever the throw.
     function spawnCoverage() {
+      var dx = passTarget.x - px, dy = passTarget.y - py;
+      var dl = Math.hypot(dx, dy) || 1;
+      var ux = dx / dl, uy = dy / dl; // route direction, snap to X
+      var perpX = -uy, perpY = ux; // perpendicular to the route
       var mx = (px + passTarget.x) / 2, my = (py + passTarget.y) / 2;
       var side = Math.random() < 0.5 ? -1 : 1;
+      var offShadow = side * rand(60, 75);
+      var offMan = side * rand(42, 54);
       var spots = [
-        { x: mx + side * rand(60, 75), y: my + rand(-15, 15) },
-        { x: passTarget.x + side * rand(42, 52), y: passTarget.y - rand(8, 15) },
+        { x: mx + perpX * offShadow, y: my + perpY * offShadow },
+        { x: passTarget.x + perpX * offMan, y: passTarget.y + perpY * offMan },
       ];
       spots.forEach(function (s) {
         var x = clamp(s.x, 40, GAME_W - 40);
         var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
         if (Math.hypot(x - px, y - py) < 45) return;
         if (Math.hypot(x - passTarget.x, y - passTarget.y) < 35) return;
-        defenders.push({ x: x, y: y, speed: rand(110, 130), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y });
+        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y });
       });
     }
     function startPlay(kind) {
@@ -516,13 +611,23 @@
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
         passTarget = pickPassTarget();
+        // Route label for the HUD: what kind of throw this is, so the
+        // receiver can read it at the snap even when the X sits near the
+        // top of the screen. Depth in yards, direction across the field.
+        var rDepth = Math.round((py - passTarget.y) / PX_PER_YARD);
+        var rLat = passTarget.x - px;
+        passRoute = {
+          yards: rDepth,
+          dir: rLat < -25 ? 'left' : rLat > 25 ? 'right' : 'middle',
+          kind: rDepth < 10 ? 'Short' : rDepth < 18 ? 'Medium' : 'Deep',
+        };
         spawnCoverage();
-        passTimeLeft = BOWL_PASS_TIME_LIMIT;
+        passTimeLeft = passLimit;
         impeded = false; reachedX = false;
         hasBall = false;
         state = 'pass';
       } else {
-        passTarget = null;
+        passTarget = null; passRoute = null;
         hasBall = true;
         state = 'run';
       }
@@ -582,7 +687,7 @@
       // St Swithin's drive after every quarter, per the demo: the Monsignor
       // Coach sums it up and the match score moves, so the game is a match
       // against an opponent, not a solo points tally.
-      var oppScored = Math.random() < 0.5;
+      var oppScored = Math.random() < oppChance;
       if (oppScored) oppTds += 1;
       if (quarter >= 4) { gameOver(); return; }
       quarter += 1; clock = RUNGUN_QUARTER_SECONDS; timeGoneShown = false;
@@ -635,8 +740,10 @@
       api.showOverlay(bowlCard(esc(parishName) + ' vs ' + esc(opponent), 'The Parish Bowl',
         '<p style="margin:0 0 6px;font-size:15px;line-height:1.45;">Four quarters of 45 seconds. Run or pass your way down the field — four downs to gain ten yards, and a touchdown is worth the yards plus a hundred. St Swithin\u2019s drive after every quarter.</p>' +
         '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">' + gameMark('rungun') + '</p>',
+        diffPickerHtml('rungun', diff) +
         bowlBtn('bowl-kickoff', 'Kick off for ' + esc(parishName)) +
         '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>'));
+      wireDiffButtons(api.overlay, 'rungun', function () { return diff; }, function (d) { diff = d; writeDiff('rungun', d); applyBowlDiff(); });
       var kick = document.getElementById('bowl-kickoff');
       if (kick) kick.addEventListener('click', function () { state = 'choose'; showChoose(); });
       var custom = document.getElementById('bowl-custom');
@@ -678,7 +785,7 @@
         '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
         '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>',
         bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
-        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have 2 seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch, or the clock running out, is incomplete — no gain, next down. Keys: R runs, T throws.</p>'));
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch, or the clock running out, is incomplete — no gain, next down. Keys: R runs, T throws.</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
@@ -692,9 +799,11 @@
         '<span style="font-size:20px;font-weight:700;line-height:1;color:#fff">' + Math.ceil(clock) + '<span style="font-size:11px;color:' + BOWL_GOLD_PALE + '">s</span></span>' +
         '<span style="font-size:14px;font-weight:700;letter-spacing:.1em;color:' + BOWL_GOLD_BRIGHT + '">' + esc(downLabel()) + '</span>' +
         '<span style="font-size:12px;letter-spacing:.14em;text-transform:uppercase">' + yardsToGo() + ' to go</span>' +
+        (state === 'pass' && !caught && passRoute ? '<span style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">' + passRoute.kind + ' ' + passRoute.dir + ' · ' + passRoute.yards + ' yds</span>' : '') +
         (state === 'pass' && !caught && !reachedX ? '<span style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:' + (passTimeLeft <= 1 ? '#ff8a7a' : BOWL_GOLD_BRIGHT) + '">Catch ' + Math.max(0, passTimeLeft).toFixed(1) + 's</span>' : '') +
         '<span style="margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase">' + esc(parishName) + ' <b style="font-size:22px;color:' + BOWL_GOLD_BRIGHT + '">' + score + '</b></span>' +
         '<span style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">Match ' + (tds * 7) + '–' + (oppTds * 7) + '</span>' +
+        (diff !== 'medium' ? '<span style="font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">' + DIFF_LABEL[diff] + '</span>' : '') +
         '<span style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:' + BOWL_GOLD_PALE + '">Best ' + best + '</span>' +
         '</div>');
     }
@@ -807,7 +916,7 @@
         // once the runner has the ball — no reinforcements dropping on the
         // receiver while a pass is in the air.
         waveT += dt;
-        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 15)) {
+        if (state === 'run' && (waveT >= waveSecs || (yardsAtWave - yardsToGo()) >= 15)) {
           waveT = 0; yardsAtWave = yardsToGo();
           if (defenders.length + 2 <= BOWL_DEFENDER_CAP) spawnDefenders(2, true, false, null, true);
         }
@@ -816,7 +925,7 @@
           if (dist <= BOWL_CATCH_RADIUS) {
             reachedX = true; // made the spot: the clock stops, the catch is the fight now
             catchT += dt;
-            if (catchT >= BOWL_CATCH_DWELL) {
+            if (catchT >= catchDwell) {
               caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
               api.showBanner('Caught!', 1600);
               state = 'run'; // carry on running with the ball
@@ -943,14 +1052,14 @@
         ctx.textAlign = 'left';
         if (catchT > 0) {
           ctx.fillStyle = 'rgba(217,180,90,0.55)';
-          ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS * (catchT / BOWL_CATCH_DWELL), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS * (catchT / catchDwell), 0, Math.PI * 2); ctx.fill();
         }
         // Countdown ring: the time left to reach the X, shrinking as it
         // runs out, red in the last second. The seconds sit under it. Once
         // the receiver reaches the X the ring is gone and the catch fill
         // shows the hold instead.
         if (!reachedX) {
-          var frac = Math.max(0, passTimeLeft / BOWL_PASS_TIME_LIMIT);
+          var frac = Math.max(0, passTimeLeft / passLimit);
           ctx.strokeStyle = passTimeLeft <= 1 ? '#ff6b5e' : BOWL_GOLD_BRIGHT;
           ctx.lineWidth = 4;
           ctx.beginPath();
@@ -1069,7 +1178,7 @@
       else if (k === 't') startPlay('pass');
     }
     document.addEventListener('keydown', onChooseKey);
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass you have 2 seconds to reach the gold X, and defenders in your face slow you down, so beat them to the spot and hold still to catch. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
     showStart();
     updateHud();
     last = performance.now();
@@ -1098,6 +1207,17 @@
     var grid = [], bag = [], cur = null, score = 0, lines = 0, level = 1, combo = 0;
     var held = null, canHold = true; // held pane (C key or Hold button), one swap per pane
     var best = readBest('stack');
+    var diff = readDiff('stack'); // Easy / Medium / Hard; Medium is the tuned default
+    var dropBase = 0.7, dropStep = 0.06, linesPerLevel = 10;
+    function applyStackDiff() {
+      // Easy: the panes fall slower and a level lasts longer. Hard:
+      // faster from the start and quicker to speed up. Medium is the
+      // current game.
+      if (diff === 'easy') { dropBase = 0.9; dropStep = 0.045; linesPerLevel = 12; }
+      else if (diff === 'hard') { dropBase = 0.55; dropStep = 0.08; linesPerLevel = 8; }
+      else { dropBase = 0.7; dropStep = 0.06; linesPerLevel = 10; }
+    }
+    applyStackDiff();
     var state = 'ready', paused = false, dropT = 0, raf = 0, last = 0, destroyed = false;
     function resetGrid() { grid = []; for (var y = 0; y < ROWS; y++) { grid.push(new Array(COLS).fill(null)); } }
     function refillBag() {
@@ -1155,7 +1275,7 @@
         score += STACK_POINTS[cleared] * level;
         if (combo > 1) score += (combo - 1) * 50 * level;
         lines += cleared;
-        level = 1 + Math.floor(lines / 10);
+        level = 1 + Math.floor(lines / linesPerLevel);
         // Say what happened: a clear used to vanish silently. The banner
         // names the clear and its points, and a level rise gets its own
         // callout so the quickening pace is never a surprise.
@@ -1180,12 +1300,13 @@
       updateHud();
     }
     function startGame() {
+      applyStackDiff();
       resetGrid(); bag = []; held = null; canHold = true; score = 0; lines = 0; level = 1; combo = 0; dropT = 0;
       state = 'playing'; api.hideOverlay(); spawn(); updateHud();
     }
     function updateHud() {
       api.setHud('<span class="score">Score: ' + score + '</span><span>Lines: ' + lines + '</span><span>Level: ' + level + '</span>' +
-        (combo > 1 ? '<span>Combo x' + combo + '</span>' : '') + '<span>Best: ' + best + '</span>');
+        (combo > 1 ? '<span>Combo x' + combo + '</span>' : '') + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function drawCell(x, y, color, ghost) {
       var px = OX + x * CELL, py = OY + y * CELL;
@@ -1259,7 +1380,7 @@
     function tick(dt) {
       if (paused || destroyed || state !== 'playing') return;
       dropT += dt;
-      var interval = Math.max(0.08, 0.7 - (level - 1) * 0.06);
+      var interval = Math.max(0.08, dropBase - (level - 1) * dropStep);
       if (dropT >= interval) {
         dropT = 0;
         if (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++;
@@ -1341,7 +1462,9 @@
     touchRow.appendChild(makeTouchButton('Slam', slam, { repeat: false, wide: true }));
     api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down, C to hold a pane for later. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.'));
     api.showOverlay('<h3>Stained-Glass Blocks</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
+      diffPickerHtml('stack', diff) +
       '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>');
+    wireDiffButtons(api.overlay, 'stack', function () { return diff; }, function (d) { diff = d; writeDiff('stack', d); applyStackDiff(); });
     var s = document.getElementById('stack-start');
     if (s) s.addEventListener('click', startGame);
     resetGrid();
@@ -1364,11 +1487,23 @@
     var perfectT = 0; // seconds left to show the Perfect flash after a clean drop
     var perfectStreak = 0; // consecutive perfect drops; the bonus grows with it
     var BASE_W = 120, BASE_Y = GAME_H - 20;
+    var diff = readDiff('steeple'); // Easy / Medium / Hard; Medium is the tuned default
+    var stoneBase = 115, stonePer = 6, windFrom = 15, windMag = 40, graceTopple = 3, graceWidth = 5;
+    function applySteepleDiff() {
+      // Easy: the stone swings slower, the wind comes later and gentler,
+      // and the first stones forgive a miss. Hard: faster swing, early
+      // wind, less forgiveness. Medium is the current game.
+      if (diff === 'easy') { stoneBase = 90; stonePer = 4; windFrom = 20; windMag = 20; graceTopple = 5; graceWidth = 8; }
+      else if (diff === 'hard') { stoneBase = 140; stonePer = 8; windFrom = 10; windMag = 60; graceTopple = 2; graceWidth = 3; }
+      else { stoneBase = 115; stonePer = 6; windFrom = 15; windMag = 40; graceTopple = 3; graceWidth = 5; }
+    }
+    applySteepleDiff();
     function newStone() {
       var w = tower.length ? tower[tower.length - 1].w : BASE_W;
-      moving = { x: -w / 2, w: w, dir: 1, speed: 115 + tower.length * 6 };
+      moving = { x: -w / 2, w: w, dir: 1, speed: stoneBase + tower.length * stonePer };
     }
     function startGame() {
+      applySteepleDiff();
       tower = []; score = 0; wind = 0; camOff = 0; state = 'playing';
       api.hideOverlay(); newStone(); updateHud();
     }
@@ -1381,7 +1516,7 @@
         // Early grace: the first three stones are for learning the swing.
         // A clean miss that early just drops the stone and lets the player
         // try again instead of ending the run before it has begun.
-        if (tower.length < 3) { api.showBanner('Missed \u2014 try again', 1400); newStone(); return; }
+        if (tower.length < graceTopple) { api.showBanner('Missed \u2014 try again', 1400); newStone(); return; }
         gameOver(); return;
       }
       var perfect = overlap / top.w > 0.9;
@@ -1390,7 +1525,7 @@
       // base instead of the tower narrowing to a sliver on one sloppy drop.
       // After five stones the overhang is cut, as usual.
       var stone;
-      if (tower.length < 5) {
+      if (tower.length < graceWidth) {
         stone = { x: top.x, w: top.w, y: top.y - 18 };
       } else {
         stone = { x: left, w: overlap, y: top.y - 18 };
@@ -1409,7 +1544,7 @@
       if (perfect) { perfectStreak += 1; score += 10 + 5 * (perfectStreak - 1); perfectT = 1.2; }
       else perfectStreak = 0;
       if (tower.length % 10 === 0) score += 100;
-      if (tower.length >= 15) wind = (Math.random() - 0.5) * 40;
+      if (tower.length >= windFrom) wind = (Math.random() - 0.5) * windMag;
       updateHud();
       newStone();
     }
@@ -1428,7 +1563,7 @@
     function updateHud() {
       api.setHud('<span class="score">Score: ' + score + '</span><span>Stones: ' + tower.length + '</span>' +
         (perfectStreak > 1 ? '<span>Perfect x' + perfectStreak + '</span>' : '') +
-        '<span>' + (tower.length >= 15 ? 'Wind: ' + (wind >= 0 ? '→' : '←') + ' ' + Math.abs(Math.round(wind)) : 'Calm air') + '</span><span>Best: ' + best + '</span>');
+        '<span>' + (tower.length >= windFrom ? 'Wind: ' + (wind >= 0 ? '→' : '←') + ' ' + Math.abs(Math.round(wind)) : 'Calm air') + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function draw() {
       var ctx = api.ctx;
@@ -1468,7 +1603,7 @@
       // Wind you can see: once the wind starts (stone fifteen), faint
       // streaks drift across the top of the screen in the wind's direction,
       // so the push on the stone is visible, not just a number in the HUD.
-      if (tower.length >= 15) {
+      if (tower.length >= windFrom) {
         var wNow = performance.now();
         ctx.strokeStyle = 'rgba(178,138,46,0.5)'; ctx.lineWidth = 1.5;
         for (var wi = 0; wi < 4; wi++) {
@@ -1506,9 +1641,11 @@
     document.addEventListener('keydown', onKey);
     function onKey(e) { if (e.key === ' ' && state === 'playing' && !paused) { e.preventDefault(); drop(); } }
     api.canvas.addEventListener('pointerdown', function () { drop(); });
-    api.actions.appendChild(el('p', 'game-note', 'Tap the field or press Space to drop the stone. After stone fifteen the wind pushes it.'));
+    api.actions.appendChild(el('p', 'game-note', 'Tap the field or press Space to drop the stone. The wind picks up once the tower grows tall.'));
     api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples. ' + gameMark('steeple') + '</p>' +
+      diffPickerHtml('steeple', diff) +
       '<button type="button" class="big-btn press" id="steeple-start">Start building</button>');
+    wireDiffButtons(api.overlay, 'steeple', function () { return diff; }, function (d) { diff = d; writeDiff('steeple', d); applySteepleDiff(); });
     var s = document.getElementById('steeple-start');
     if (s) s.addEventListener('click', startGame);
     updateHud();
@@ -1549,6 +1686,18 @@
     var px = GAME_W / 2, py = GAME_H / 2, score = 0, best = readBest('flee');
     var sins = [], halos = [], dashT = 0, dashCd = 0, bellT = 60, elapsed = 0, warmupT = 0;
     var bellCount = 0; // bells rung: the sins quicken after each one, so the late game tightens
+    var diff = readDiff('flee'); // Easy / Medium / Hard; Medium is the tuned default
+    var sinMult = 1, bellFirst = 30, bellEvery = 60, warmupSecs = 6;
+    var releaseSchedule = [0, 0, 0, 12, 20, 30, 40];
+    function applyFleeDiff() {
+      // Easy: slower sins that join the hunt later, and a quicker first
+      // bell. Hard: faster sins, sooner, and the bell takes longer.
+      // Medium is the current game.
+      if (diff === 'easy') { sinMult = 0.75; bellFirst = 25; bellEvery = 50; warmupSecs = 8; releaseSchedule = [0, 0, 0, 18, 28, 40, 52]; }
+      else if (diff === 'hard') { sinMult = 1.3; bellFirst = 35; bellEvery = 70; warmupSecs = 4; releaseSchedule = [0, 0, 0, 8, 14, 20, 26]; }
+      else { sinMult = 1; bellFirst = 30; bellEvery = 60; warmupSecs = 6; releaseSchedule = [0, 0, 0, 12, 20, 30, 40]; }
+    }
+    applyFleeDiff();
     var nearCd = 0; // near-miss bonus cooldown
     var rings = []; // halo pickup rings: gold circles that bloom and fade
     var prevPx = px, prevPy = py, pvx = 0, pvy = 0;
@@ -1556,7 +1705,8 @@
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
     function startGame() {
-      px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = 30; warmupT = 6;
+      applyFleeDiff();
+      px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = bellFirst; warmupT = warmupSecs;
       bellCount = 0; nearCd = 0;
       // The first bell rings after 30 seconds, not 60, so a casual player
       // has a realistic shot at the pushback that is the point of the game.
@@ -1571,7 +1721,7 @@
           // Staggered release: only three sins hunt at first, a new one joins
           // every twelve seconds. A casual player gets a real chance to learn
           // the arena before all seven are closing in at once.
-          releaseAt: [0, 0, 0, 12, 20, 30, 40][i] || 0, announced: false };
+          releaseAt: releaseSchedule[i] || 0, announced: false };
       });
       halos.push({ x: px + 70, y: py - 50 }); spawnHalo(); spawnHalo();
       state = 'playing'; api.hideOverlay(); updateHud();
@@ -1592,7 +1742,7 @@
     }
     function updateHud() {
       api.setHud('<span class="score">Score: ' + Math.floor(score) + '</span><span>Halos: +25 each</span>' +
-        '<span>Bell in: ' + Math.ceil(bellT) + 's</span><span>Best: ' + best + '</span>');
+        '<span>Bell in: ' + Math.ceil(bellT) + 's</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function draw() {
       var ctx = api.ctx;
@@ -1649,7 +1799,7 @@
       elapsed += dt; score += dt * 1;
       bellT -= dt;
       if (bellT <= 0) {
-        bellT = 60;
+        bellT = bellEvery;
         bellCount += 1; // every bell quickens the sins a little, capped below
         sins.forEach(function (s) {
           var dx = s.x - px, dy = s.y - py, len = Math.hypot(dx, dy) || 1;
@@ -1702,7 +1852,7 @@
           if (Math.hypot(tx - s.x, ty - s.y) < 24) s.wp++;
         }
         var ddx = tx - s.x, ddy = ty - s.y, l = Math.hypot(ddx, ddy) || 1;
-        var sp = s.speed * warm * (s.hunt === 'patrol' ? 0.7 : 1) * (1 + 0.06 * Math.min(bellCount, 5));
+        var sp = s.speed * sinMult * warm * (s.hunt === 'patrol' ? 0.7 : 1) * (1 + 0.06 * Math.min(bellCount, 5));
         s.x += (ddx / l) * sp * dt;
         s.y += (ddy / l) * sp * dt;
       });
@@ -1776,9 +1926,11 @@
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The first bell rings after 30 seconds, then every 60 seconds, and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
+    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
     api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. ' + gameMark('flee') + '</p>' +
+      diffPickerHtml('flee', diff) +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>');
+    wireDiffButtons(api.overlay, 'flee', function () { return diff; }, function (d) { diff = d; writeDiff('flee', d); applyFleeDiff(); });
     var s = document.getElementById('flee-start');
     if (s) s.addEventListener('click', startGame);
     updateHud();
@@ -1805,6 +1957,17 @@
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
     var moveCd = 0;
+    var diff = readDiff('cross'); // Easy / Medium / Hard; Medium is the tuned default
+    var carMult = 1, floatMult = 1, livesStart = 3, bellStart = 60, carBase = 3;
+    function applyCrossDiff() {
+      // Easy: slower traffic, fewer cars, an extra life and a longer
+      // bell. Hard: faster traffic, more cars, one life fewer and a
+      // shorter bell. Medium is the current game.
+      if (diff === 'easy') { carMult = 0.75; floatMult = 0.8; livesStart = 4; bellStart = 75; carBase = 2; }
+      else if (diff === 'hard') { carMult = 1.25; floatMult = 1.2; livesStart = 2; bellStart = 50; carBase = 4; }
+      else { carMult = 1; floatMult = 1; livesStart = 3; bellStart = 60; carBase = 3; }
+    }
+    applyCrossDiff();
     var riverT = 0; // grace in the water: a mistimed step is recoverable for 0.6s
     function buildLevel() {
       cars = [];
@@ -1812,8 +1975,8 @@
         var dir = i % 2 === 0 ? 1 : -1;
         // Level 1 is the welcome mat: slower cars and only three per lane, so
         // a first-time player can read the gaps and cross. It ramps up after.
-        var speed = (45 + level * 10) * (0.8 + Math.random() * 0.5);
-        var n = level === 1 ? 3 : 3 + Math.floor(Math.random() * 2);
+        var speed = (45 + level * 10) * carMult * (0.8 + Math.random() * 0.5);
+        var n = level === 1 ? carBase : carBase + Math.floor(Math.random() * 2);
         for (var k = 0; k < n; k++) {
           // Each car keeps its own pace, so the gaps open and close instead
           // of the whole lane rolling along as one block.
@@ -1826,14 +1989,15 @@
         var dir2 = r % 2 === 0 ? 1 : -1;
         var n2 = 3;
         for (var k2 = 0; k2 < n2; k2++) {
-          floats.push({ y: y, x: rand(0, GAME_W), dir: dir2, speed: 45 + level * 6, w: rand(52, 84), kind: k2 === 1 ? 'turtle' : 'log',
+          floats.push({ y: y, x: rand(0, GAME_W), dir: dir2, speed: (45 + level * 6) * floatMult, w: rand(52, 84), kind: k2 === 1 ? 'turtle' : 'log',
             diveCd: 3 + Math.random() * 3, diving: 0 }); // turtles dive now and then; logs never do
         }
       }
       mothDoor = randInt(0, 4);
     }
     function startGame() {
-      px = GAME_W / 2; py = GAME_H - 18; lives = 3; score = 0; level = 1; bellT = 60;
+      applyCrossDiff();
+      px = GAME_W / 2; py = GAME_H - 18; lives = livesStart; score = 0; level = 1; bellT = bellStart;
       buildLevel(); state = 'playing'; api.hideOverlay(); updateHud();
     }
     function resetSpot() { px = GAME_W / 2; py = GAME_H - 18; bestPy = GAME_H - 18; }
@@ -1863,14 +2027,14 @@
         var gained = 250 + level * 50 + timeBonus;
         score += gained;
         api.showBanner('Through the right door! +' + gained + (timeBonus > 0 ? ' (incl. +' + timeBonus + ' for beating the bell)' : ''), 1600);
-        level += 1; bellT = 60; buildLevel(); resetSpot(); updateHud();
+        level += 1; bellT = bellStart; buildLevel(); resetSpot(); updateHud();
       } else {
         loseLife('Wrong door');
       }
     }
     function updateHud() {
       api.setHud('<span class="score">Score: ' + score + '</span><span>Lives: ' + '♥'.repeat(Math.max(0, lives)) + '</span>' +
-        '<span>Level: ' + level + '</span><span>Bell: ' + Math.ceil(bellT) + 's</span><span>Best: ' + best + '</span>');
+        '<span>Level: ' + level + '</span><span>Bell: ' + Math.ceil(bellT) + 's</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function draw() {
       var ctx = api.ctx;
@@ -2042,7 +2206,9 @@
     });
     api.actions.appendChild(el('p', 'game-note', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. On touch, hold the field to walk toward your finger.'));
     api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Every step forward is +10. Follow the moth to the right door. ' + gameMark('cross') + '</p>' +
+      diffPickerHtml('cross', diff) +
       '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>');
+    wireDiffButtons(api.overlay, 'cross', function () { return diff; }, function (d) { diff = d; writeDiff('cross', d); applyCrossDiff(); });
     var s = document.getElementById('cross-start');
     if (s) s.addEventListener('click', startGame);
     updateHud();
@@ -2055,7 +2221,7 @@
   }
 
   // ================= Parish Pastor =================
-  // 16-week season, shuffled 16-of-35 deck, start 140 / 3000 / 65.
+  // 16-week season, shuffled 16-of-35 deck, start 140 / 3000 / 65 on Medium.
   // Ends early if cong <= 0, funds < -500, or happy <= 0. After each choice:
   // collection = round(cong * happy/100 * 2.2), costs = 120 + round(cong * 0.3).
   // Event titles, texts and choice labels/deltas are the demo deck as
@@ -2236,8 +2402,20 @@
     var ledger = el('div', 'pastor-ledger');
     wrap.appendChild(ledger);
     parent.appendChild(wrap);
-    var deck = [], week = 0, cong = 140, funds = 3000, happy = 65, over = false;
-    var histCong = [140], histHappy = [65]; // the season's arc, for the trend chart
+    var diff = readDiff('pastor'); // Easy / Medium / Hard; Medium is the tuned default
+  var startCong = 140, startFunds = 3000, startHappy = 65, collMult = 2.2, costBase = 120, costPer = 0.3;
+  function applyPastorDiff() {
+    // Easy: a fuller parish, deeper coffers, a happier congregation,
+    // and a kinder weekly balance. Hard: a thinner parish, tighter
+    // funds, lower spirits, and a harsher balance. Medium is the
+    // current game.
+    if (diff === 'easy') { startCong = 165; startFunds = 4200; startHappy = 72; collMult = 2.5; costBase = 100; costPer = 0.25; }
+    else if (diff === 'hard') { startCong = 115; startFunds = 2200; startHappy = 58; collMult = 1.9; costBase = 140; costPer = 0.35; }
+    else { startCong = 140; startFunds = 3000; startHappy = 65; collMult = 2.2; costBase = 120; costPer = 0.3; }
+  }
+  applyPastorDiff();
+  var deck = [], week = 0, cong = startCong, funds = startFunds, happy = startHappy, over = false;
+    var histCong = [startCong], histHappy = [startHappy]; // the season's arc, for the trend chart
     // The week's event: Holy Week is fixed at the halfway point (week 8),
     // every other week comes from the shuffled deck.
     function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week]; }
@@ -2266,6 +2444,7 @@
         // the player can see the number they are playing for as it moves.
         '<span>Score: <b>' + Math.max(0, Math.round(cong + happy + Math.max(0, funds) / 10)) + '</b></span>' +
         '<span>' + parishMood() + '</span>' +
+        (diff !== 'medium' ? '<span>Difficulty: ' + DIFF_LABEL[diff] + '</span>' : '') +
         '<span>Best: ' + best + '</span>';
       // The season's arc, as a small chart: congregation in burgundy and
       // happiness in gold, week by week, so the player can see the parish
@@ -2339,8 +2518,8 @@
       var ch = ev[2 + i];
       cong += ch[2]; funds += ch[3]; happy += ch[4];
       histCong.push(cong); histHappy.push(happy);
-      var collection = Math.round(cong * (happy / 100) * 2.2);
-      var costs = 120 + Math.round(cong * 0.3);
+      var collection = Math.round(cong * (happy / 100) * collMult);
+      var costs = costBase + Math.round(cong * costPer);
       funds += collection - costs;
       ledgerEntry('<b>Week ' + (week + 1) + ' — ' + esc(ev[0]) + ':</b> ' + esc(ch[0]) + ' — ' + esc(ch[1]) +
         '<br><span class="pastor-nums">Collection +' + money(collection) + ' &middot; Costs -' + money(costs) +
@@ -2353,16 +2532,19 @@
       showWeek();
     }
     function startSeason() {
+      applyPastorDiff();
       deck = PASTOR_DECK.slice();
       for (var i = deck.length - 1; i > 0; i--) { var j = randInt(0, i); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
       deck = deck.slice(0, PASTOR_WEEKS);
-      week = 0; cong = 140; funds = 3000; happy = 65; over = false;
-      histCong = [140]; histHappy = [65];
+      week = 0; cong = startCong; funds = startFunds; happy = startHappy; over = false;
+      histCong = [startCong]; histHappy = [startHappy];
       ledger.innerHTML = '';
       showWeek();
     }
     card.innerHTML = '<h3>Parish Pastor</h3><p>Shepherd your parish for 16 weeks. Every decision moves the congregation, the funds, and the happiness of the parish. Keep the pews full, the books out of the red, and the people glad. Your season score is congregation + happiness + funds &divide; 10. ' + gameMark('pastor') + '</p>' +
+      diffPickerHtml('pastor', diff) +
       '<button type="button" class="big-btn press" id="pastor-start">Begin the season</button>';
+    wireDiffButtons(card, 'pastor', function () { return diff; }, function (d) { diff = d; writeDiff('pastor', d); applyPastorDiff(); });
     var s = document.getElementById('pastor-start');
     if (s) s.addEventListener('click', startSeason);
     renderStats();
@@ -2428,11 +2610,23 @@
     var called25 = false, called10 = false;
     var extraGiven = { 10000: false, 30000: false };
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
+    var diff = readDiff('maze'); // Easy / Medium / Hard; Medium is the tuned default
+    var vigilTarget = 110, sinMult = 1, playerMult = 1, livesStart = 3;
+    var sinRelease = [0, 0.6, 3.2, 6.0];
+    function applyMazeDiff() {
+      // Easy: fewer candles to the vigil, slower sins that start later,
+      // a quicker Father and an extra life. Hard: more candles, faster
+      // sins that start sooner, a slower Father and one life fewer.
+      if (diff === 'easy') { vigilTarget = 85; sinMult = 0.85; playerMult = 1.06; livesStart = 4; sinRelease = [0, 1.2, 5, 9]; }
+      else if (diff === 'hard') { vigilTarget = 130; sinMult = 1.15; playerMult = 0.94; livesStart = 2; sinRelease = [0, 0.3, 1.8, 3.5]; }
+      else { vigilTarget = 110; sinMult = 1; playerMult = 1; livesStart = 3; sinRelease = [0, 0.6, 3.2, 6.0]; }
+    }
+    applyMazeDiff();
     var MODE_SEQ = [7, 20, 7, 20, 5, Infinity]; // scatter, chase, scatter, chase, scatter, chase forever
     function modeName() { return modeIdx % 2 === 0 ? 'scatter' : 'chase'; }
-    function playerSpeed() { return Math.min(126, 111 + 3 * (level - 1)); }
+    function playerSpeed() { return Math.min(126, 111 + 3 * (level - 1)) * playerMult; }
     function sinSpeed(s) {
-      var sp = Math.min(122, 100 + 5 * (level - 1));
+      var sp = Math.min(122, 100 + 5 * (level - 1)) * sinMult;
       if (s.name === 'Sloth') sp *= 0.93;
       if (frightT > 0) sp *= 0.62;
       if (s.state === 'eyes') return 200;
@@ -2452,8 +2646,8 @@
       player = { c: 9, r: 14, tc: 9, tr: 14, x: tileX(9), y: tileY(14), dx: -1, dy: 0, speed: playerSpeed() };
       player.tc = 8; player.tr = 14;
       queued = { dx: -1, dy: 0 };
-      sins = SINS_DEF.map(function (d) {
-        return { name: d.name, color: d.color, release: d.release, corner: d.corner,
+      sins = SINS_DEF.map(function (d, i) {
+        return { name: d.name, color: d.color, release: sinRelease[i], corner: d.corner,
           c: d.spawn[0], r: d.spawn[1], tc: d.spawn[0], tr: d.spawn[1],
           x: tileX(d.spawn[0]), y: tileY(d.spawn[1]), dx: 0, dy: 0,
           active: d.release === 0, leaving: true, state: 'normal', eyesPhase: 0, waitT: 0 };
@@ -2462,7 +2656,8 @@
       modeIdx = 0; modeT = 7; frightT = 0; frightChain = 0; elapsed = 0;
     }
     function startGame() {
-      score = 0; level = 1; lives = 3; flawless = true;
+      applyMazeDiff();
+      score = 0; level = 1; lives = livesStart; flawless = true;
       extraGiven = { 10000: false, 30000: false };
       buildMaze(); resetPositions();
       state = 'playing'; api.hideOverlay(); updateHud();
@@ -2505,7 +2700,7 @@
       // candles lit out of the 110 that complete a vigil.
       api.setHud('<span class="score">Grace: ' + score + '</span><span>Vigil: ' + level + '</span>' +
         '<span>Hearts: ' + '♥'.repeat(Math.max(0, lives)) + '</span>' +
-        '<span>Candles: ' + candlesEaten + '/110</span><span>Best: ' + best + '</span>');
+        '<span>Candles: ' + candlesEaten + '/' + vigilTarget + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function addScore(n) {
       score += n;
@@ -2551,13 +2746,13 @@
       if (candles[key]) {
         delete candles[key]; candlesEaten += 1; addScore(10);
         var left = Object.keys(candles).length + Object.keys(vials).length;
-        if (candlesEaten === 85 && !called25) { called25 = true; api.showBanner('25 candles to the vigil', 1500); }
-        if (candlesEaten === 100 && !called10) { called10 = true; api.showBanner('10 candles to the vigil', 1500); }
-        if (chaliceSpawned === 0 && candlesEaten >= 70) { chaliceSpawned = 1; chaliceActive = true; chaliceT = 9; api.showBanner('A golden chalice appears!', 1600); }
-        else if (chaliceSpawned === 1 && candlesEaten >= 90 && !chaliceActive) { chaliceSpawned = 2; chaliceActive = true; chaliceT = 9; api.showBanner('Another golden chalice appears!', 1600); }
-        // A vigil completes at 110 candles lit, not all 150: a good run
+        if (candlesEaten === vigilTarget - 25 && !called25) { called25 = true; api.showBanner('25 candles to the vigil', 1500); }
+        if (candlesEaten === vigilTarget - 10 && !called10) { called10 = true; api.showBanner('10 candles to the vigil', 1500); }
+        if (chaliceSpawned === 0 && candlesEaten >= vigilTarget - 40) { chaliceSpawned = 1; chaliceActive = true; chaliceT = 9; api.showBanner('A golden chalice appears!', 1600); }
+        else if (chaliceSpawned === 1 && candlesEaten >= vigilTarget - 20 && !chaliceActive) { chaliceSpawned = 2; chaliceActive = true; chaliceT = 9; api.showBanner('Another golden chalice appears!', 1600); }
+        // A vigil completes at the difficulty's target (110 on Medium), not all 150: a good run
         // finishes the vigil instead of the goal sitting out of reach.
-        if (candlesEaten >= 110) { nextLevel(); return; }
+        if (candlesEaten >= vigilTarget) { nextLevel(); return; }
         if (left === 0) { nextLevel(); return; }
         updateHud();
       } else if (vials[key]) {
@@ -2829,9 +3024,11 @@
       if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? 1 : -1, 0);
       else steer(0, dy > 0 ? 1 : -1);
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light 110 candles to complete the vigil; the vials turn the sins edible. R restarts.'));
-    api.showOverlay('<h3>Candle Maze</h3><p>Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible. R restarts.'));
+    api.showOverlay('<h3>Candle Maze</h3><p>Light the candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
+      diffPickerHtml('maze', diff) +
       '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>');
+    wireDiffButtons(api.overlay, 'maze', function () { return diff; }, function (d) { diff = d; writeDiff('maze', d); applyMazeDiff(); });
     var s = document.getElementById('maze-start');
     if (s) s.addEventListener('click', startGame);
     buildMaze(); resetPositions(); updateHud();
@@ -2874,7 +3071,8 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  function genDashLayout(seed) {
+  function genDashLayout(seed, dens) {
+    dens = dens || 1; // obstacle spacing: Easy spreads the course out, Hard packs it tighter
     var rnd = dashRng(seed);
     var L = {
       spikes: [], pews: [], clouds: [], censers: [], orbs: [],
@@ -2884,28 +3082,28 @@
     function inSpecial(x) {
       return (x > 1980 && x < 3070) || (x > 3830 && x < 4820) || (x > 5530 && x < 6620);
     }
-    // Clear opening runway: the first thorn waits until 1400px, so a new
+    // Clear opening runway: the first thorn waits until 1400px on Medium (scaled by difficulty), so a new
     // player gets a few jumps in before the first thing to clear, and the
     // first pew waits until 1300px.
-    var x = 1400;
+    var x = Math.round(1400 * dens);
     while (x < 9000) {
       if (!inSpecial(x)) {
         var n = 1 + Math.floor(rnd() * 3);
         for (var i = 0; i < n; i++) L.spikes.push({ x: x + i * 26, w: 24 });
-        x += 380 + rnd() * 260;
+        x += (380 + rnd() * 260) * dens;
       } else x += 120;
     }
-    x = 1300;
-    while (x < 8900) { if (!inSpecial(x)) L.pews.push({ x: x, w: 70 + rnd() * 30, h: 46 + rnd() * 20 }); x += 750 + rnd() * 350; }
-    x = 1100;
-    while (x < 8900) { if (!inSpecial(x)) L.clouds.push({ x: x, w: 54 }); x += 950 + rnd() * 400; }
+    x = Math.round(1300 * dens);
+    while (x < 8900) { if (!inSpecial(x)) L.pews.push({ x: x, w: 70 + rnd() * 30, h: 46 + rnd() * 20 }); x += (750 + rnd() * 350) * dens; }
+    x = Math.round(1100 * dens);
+    while (x < 8900) { if (!inSpecial(x)) L.clouds.push({ x: x, w: 54 }); x += (950 + rnd() * 400) * dens; }
     // The first censer waits until 3200px: a new player gets a few thorn
     // jumps in before the first thing that punishes jumping. The censers
     // hang above the floor, so you run under them — never jump into one.
-    x = 3200;
-    while (x < 8900) { if (!inSpecial(x)) L.censers.push({ x: x, phase: rnd() * Math.PI * 2 }); x += 850 + rnd() * 350; }
-    x = 800;
-    while (x < 8900) { if (!inSpecial(x)) L.orbs.push({ x: x, y: 150 + rnd() * 70, used: false }); x += 620 + rnd() * 300; }
+    x = Math.round(3200 * dens);
+    while (x < 8900) { if (!inSpecial(x)) L.censers.push({ x: x, phase: rnd() * Math.PI * 2 }); x += (850 + rnd() * 350) * dens; }
+    x = Math.round(800 * dens);
+    while (x < 8900) { if (!inSpecial(x)) L.orbs.push({ x: x, y: 150 + rnd() * 70, used: false }); x += (620 + rnd() * 300) * dens; }
     [[2100, 2950], [5650, 6500]].forEach(function (seg) {
       var cx = seg[0] + 120;
       while (cx < seg[1] - 60) {
@@ -2930,7 +3128,17 @@
   function mountDash(parent, onBack) {
     var api = createStage(parent, { title: 'Sanctuary Dash', onBack: onBack });
     var seed = Math.floor(Math.random() * 1e9);
-    var layout = genDashLayout(seed);
+    var diff = readDiff('dash'); // Easy / Medium / Hard; Medium is the tuned default
+    var dashDens = 1, dashBase = 235, dashSlope = 0.045, dashCap = 430;
+    function applyDashDiff() {
+      // Easy: a slower cube and a roomier course. Hard: a faster cube
+      // and tighter obstacles. Medium is the current game.
+      if (diff === 'easy') { dashDens = 1.25; dashBase = 210; dashSlope = 0.04; dashCap = 380; }
+      else if (diff === 'hard') { dashDens = 0.8; dashBase = 260; dashSlope = 0.05; dashCap = 470; }
+      else { dashDens = 1; dashBase = 235; dashSlope = 0.045; dashCap = 430; }
+    }
+    applyDashDiff();
+    var layout = genDashLayout(seed, dashDens);
     var practice = false, practiceDeaths = 0;
     var dist = 0, y = DASH_FLOOR - DASH_CUBE / 2, vy = 0, grounded = true;
     var gateIdx = -1, gateMult = 1, bonus = 0, chain = 0;
@@ -2952,10 +3160,11 @@
     }
     var QUARTER_X = [2300, 4600, 6900, 8280];
     function score() { return Math.floor(dist / 10) + bonus; }
-    function speedNow() { return Math.min(430, 235 + dist * 0.045) * gateMult; }
+    function speedNow() { return Math.min(dashCap, dashBase + dist * dashSlope) * gateMult; }
     function screenX(wx) { return wx - dist + 120; }
     function startRun(newSeed) {
-      if (typeof newSeed === 'number') { seed = newSeed; layout = genDashLayout(seed); }
+      applyDashDiff();
+      if (typeof newSeed === 'number') { seed = newSeed; layout = genDashLayout(seed, dashDens); }
       dist = 0; y = DASH_FLOOR - DASH_CUBE / 2; vy = 0; grounded = true;
       gateIdx = -1; gateMult = 1; bonus = 0; chain = 0;
       quarters = [false, false, false, false]; depthAwarded = false;
@@ -3045,7 +3254,7 @@
       var pct = Math.min(100, Math.floor((dist / DASH_COURSE) * 100));
       api.setHud('<span class="score">Score: ' + score() + '</span><span>' + pct + '%</span>' +
         '<span>' + (mode === 'dove' ? 'Dove flight' : mode === 'flip' ? 'Heavenward' : 'Running') + '</span>' +
-        '<span>Speed x' + gateMult + '</span><span>Best: ' + best + '</span>' +
+        '<span>Speed x' + gateMult + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>' +
         (practice ? '<span>Practice</span>' : ''));
     }
     function draw() {
@@ -3388,7 +3597,9 @@
     practiceWrap.appendChild(document.createTextNode(' Practice mode (candle checkpoints, no bests)'));
     api.actions.appendChild(practiceWrap);
     api.showOverlay('<h3>Sanctuary Dash</h3><p>The golden cube never stops. Jump the thorns, ride the pews, run under the swinging censers — never jump into one — and reach the sanctuary 9,200px down the nave. ' + gameMark('dash') + '</p>' +
+      diffPickerHtml('dash', diff) +
       '<button type="button" class="big-btn press" id="dash-start">Start the run</button>');
+    wireDiffButtons(api.overlay, 'dash', function () { return diff; }, function (d) { diff = d; writeDiff('dash', d); applyDashDiff(); });
     var s = document.getElementById('dash-start');
     if (s) s.addEventListener('click', function () { startRun(seed); });
     updateHud();
