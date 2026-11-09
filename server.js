@@ -42,9 +42,24 @@ async function statsFor(ids) {
   return out;
 }
 function avgLine(st) {
-  if (!st || !st.n) return `<p class="unrated">Not rated yet</p>`;
-  const caveat = st.n === 1 ? `<p class="caveat">Based on a single review.</p>` : '';
-  return `<p class="scores">Pace ${fmtAvg(st.pace)} &middot; Homily ${fmtAvg(st.homily)} &middot; Likability ${fmtAvg(st.likability)} <span class="count">(${st.n} review${st.n === 1 ? '' : 's'})</span></p>${caveat}`;
+  if (!st || !st.n) return `<span class="unrated">Not rated yet</span>`;
+  const caveat = st.n === 1 ? `<span class="caveat">Based on a single review.</span>` : '';
+  return `<span class="scores">Pace ${fmtAvg(st.pace)} &middot; Homily ${fmtAvg(st.homily)} &middot; Likability ${fmtAvg(st.likability)} <span class="count">(${st.n} review${st.n === 1 ? '' : 's'})</span></span>${caveat}`;
+}
+// Overall average across the three categories (display only; the three
+// category averages are always shown alongside it).
+function overallAvg(st) {
+  if (!st || !st.n) return null;
+  return (Number(st.pace) + Number(st.homily) + Number(st.likability)) / 3;
+}
+// Gold stars for an average out of 5. Whole-star rounding only; the exact
+// number is always shown numerically next to the stars.
+function starsHtml(avg) {
+  if (avg == null) return '';
+  const filled = Math.round(avg);
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += i <= filled ? '★' : '<span class="empty">★</span>';
+  return `<span class="stars" aria-label="${avg.toFixed(1)} out of 5">${s}</span>`;
 }
 function assignment(p) {
   const parts = [];
@@ -54,16 +69,28 @@ function assignment(p) {
   return parts.join(' &middot; ') || 'Listing details not available';
 }
 function priestCard(p, st) {
-  return `<article class="card">
-    <h3><a href="/priest/${p.id}">${esc(p.name)}</a></h3>
-    <p class="assign">${assignment(p)}</p>
-    ${p.user_added ? '<p class="badge">User-added profile</p>' : ''}
-    ${avgLine(st)}
-    <p><a class="btn" href="/priest/${p.id}">View profile</a></p>
-  </article>`;
+  const avg = overallAvg(st);
+  const scoreBox = avg == null
+    ? `<span class="score-box unrated">Not yet rated</span>`
+    : `<span class="score-box"><span class="num">${avg.toFixed(1)}</span><span class="lbl">out of 5</span></span>`;
+  return `<a class="card card-lift priest-card" href="/priest/${p.id}">
+    ${scoreBox}
+    <span class="priest-main">
+      <span class="priest-name">${esc(p.name)}</span>
+      <span class="assign">${assignment(p)}</span>
+      ${avg == null ? '' : starsHtml(avg)}
+      ${p.user_added ? '<span class="badge">User-added profile</span>' : ''}
+      ${avg == null ? '' : avgLine(st)}
+    </span>
+    <span class="chevron" aria-hidden="true">&rsaquo;</span>
+  </a>`;
 }
 const DISCLAIMER = 'Reviews are individual users&rsquo; opinions, not statements of fact, and are not verified or endorsed by RateMyFather.';
-const GLASS = `<div class="glass-strip" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>`;
+// Leaded-glass divider strip: five panes, weights 3,1,3,1,3, alternating ruby/amber.
+function glassStrip(cls = '') {
+  return `<div class="glass-strip ${cls}" aria-hidden="true"><span class="w3"></span><span></span><span class="w3"></span><span></span><span class="w3"></span></div>`;
+}
+const GLASS = glassStrip();
 
 function layout(title, body, extraHead = '') {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
@@ -71,19 +98,20 @@ function layout(title, body, extraHead = '') {
   <title>${esc(title)} | RateMyFather</title>
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
   <header class="topnav"><div class="wrap nav-inner">
-    <a class="brand" href="/">RateMyFather</a>
-    <nav><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/about">About</a><a href="/how">How ratings work</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a></nav>
-  </div></header>
+    <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
+    <nav><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
+  </div><div class="wrap">${glassStrip('thin')}</div></header>
   <main class="wrap">${body}</main>
-  <footer class="wrap"><p>${DISCLAIMER}</p>
-  <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p>
-  <p><a href="/owner/login">Owner moderation</a> &middot; <a href="/legal">Legal notices</a> &middot; <a href="/add-priest">Add a priest</a></p></footer>
+  <footer class="wrap site-footer">${glassStrip('gs-7')}
+  <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
+  <p>${DISCLAIMER}</p>
+  <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
   <div id="chat-widget"><button id="chat-toggle" type="button">Ask about a priest</button>
   <div id="chat-panel" hidden><div id="chat-log"></div>
   <form id="chat-form"><input id="chat-input" name="message" placeholder="e.g. Who is rated for a quick Mass?" required>
   <button type="submit">Ask</button></form>
   <p class="small">Answers use approved-review averages with review counts only. Individual reviews are never quoted.</p></div></div>
-  <script src="/chat.js"></script></body></html>`;
+  <script src="/chat.js"></script><script src="/places.js"></script></body></html>`;
 }
 function page(title, inner) { return layout(title, inner); }
 
@@ -119,6 +147,47 @@ async function audit(action, targetType, targetId, detail) {
   try { await pool.query('INSERT INTO moderation_audit (action, target_type, target_id, detail) VALUES ($1,$2,$3,$4)', [action, targetType, targetId, detail || null]); } catch (e) { console.error('audit failed', e.message); }
 }
 
+// Stained-glass window art, shared by the home hero and the profile banner.
+const HERO_ART = `<svg viewBox="0 0 800 420" role="img" aria-label="Stained-glass church window" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8c96a"/><stop offset="0.55" stop-color="#f6e7b8"/><stop offset="1" stop-color="#fbf7ef"/>
+    </linearGradient>
+    <clipPath id="archClip"><path d="M170 420 L170 190 A230 170 0 0 1 630 190 L630 420 Z"/></clipPath></defs>
+    <rect width="800" height="420" fill="url(#sky)"/>
+    <circle cx="648" cy="76" r="42" fill="#c49a3c" opacity="0.85"/>
+    <g clip-path="url(#archClip)">
+      <rect x="150" y="40" width="500" height="380" fill="#7a1f2b"/>
+      <rect x="150" y="40" width="125" height="140" fill="#c49a3c"/>
+      <rect x="275" y="40" width="125" height="140" fill="#8a2a35"/>
+      <rect x="400" y="40" width="125" height="140" fill="#2e5e4e"/>
+      <rect x="525" y="40" width="125" height="140" fill="#7a1f2b"/>
+      <rect x="150" y="180" width="125" height="120" fill="#c49a3c"/>
+      <rect x="275" y="180" width="125" height="120" fill="#3a6ea5"/>
+      <rect x="400" y="180" width="125" height="120" fill="#7a1f2b"/>
+      <rect x="525" y="180" width="125" height="120" fill="#c49a3c"/>
+      <rect x="150" y="300" width="125" height="120" fill="#5b2a4a"/>
+      <rect x="275" y="300" width="125" height="120" fill="#c49a3c"/>
+      <rect x="400" y="300" width="125" height="120" fill="#8a2a35"/>
+      <rect x="525" y="300" width="125" height="120" fill="#2e5e4e"/>
+      <g stroke="#38291a" stroke-width="6">
+        <line x1="275" y1="40" x2="275" y2="420"/><line x1="400" y1="40" x2="400" y2="420"/><line x1="525" y1="40" x2="525" y2="420"/>
+        <line x1="150" y1="180" x2="650" y2="180"/><line x1="150" y1="300" x2="650" y2="300"/>
+      </g>
+      <circle cx="400" cy="150" r="52" fill="#c49a3c" stroke="#38291a" stroke-width="6"/>
+      <circle cx="400" cy="150" r="30" fill="#7a1f2b" stroke="#38291a" stroke-width="5"/>
+      <circle cx="400" cy="150" r="10" fill="#c49a3c"/>
+      <g stroke="#38291a" stroke-width="4">
+        <line x1="400" y1="98" x2="400" y2="202"/><line x1="348" y1="150" x2="452" y2="150"/>
+      </g>
+      <g fill="#c49a3c" stroke="#38291a" stroke-width="5">
+        <rect x="388" y="330" width="24" height="90"/>
+        <rect x="356" y="356" width="88" height="20"/>
+      </g>
+    </g>
+    <path d="M170 420 L170 190 A230 170 0 0 1 630 190 L630 420 Z" fill="none" stroke="#38291a" stroke-width="6"/>
+    <rect x="140" y="404" width="520" height="16" fill="#38291a"/>
+  </svg>`;
+
 // ---------- public pages ----------
 app.get('/', async (req, res) => {
   let regionCounts = {};
@@ -131,32 +200,143 @@ app.get('/', async (req, res) => {
   } catch (e) { console.error(e.message); }
   const regions = ['Northeast', 'Midwest', 'South', 'West', 'Other listings'];
   const regionHtml = regions.map((r) => `<li><a href="/browse?region=${encodeURIComponent(r)}">${r}</a> <span class="count">${regionCounts[r] || 0} profiles</span></li>`).join('');
+  const totalProfiles = Object.values(regionCounts).reduce((a, b) => a + b, 0);
+  const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   res.send(page('Home', `
-    <section class="hero"><div class="hero-frame"><h1>RateMyFather</h1>
-    <p>Anonymous ratings of pace, homily, and likability, from people in the pews.</p>
-    <form class="search" action="/browse" method="get">
-      <input name="q" placeholder="Search by name, parish, or city" aria-label="Search">
-      <input name="zip" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" title="5-digit ZIP">
-      <button type="submit">Search</button>
+    <section class="hero">
+      <div class="sg-frame" aria-hidden="true">${HERO_ART}</div>
+      <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
+      <p class="tagline">Anonymous ratings of pace, homily, and likability, from people in the pews.</p>
+      ${totalProfiles ? `<p class="stats">${totalProfiles.toLocaleString()} profiles</p>` : ''}
+    </section>${GLASS}
+    <form action="/browse" method="get" id="home-search">
+      <div class="search">
+        <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search"></span>
+        <input name="zip" placeholder="ZIP (area-level)" aria-label="ZIP code" pattern="\\d{5}" title="5-digit ZIP">
+        <button type="submit">Search</button>
+      </div>
+      <div class="place-section">
+        <h2>Find by place</h2>
+        <p class="explainer">Pick a state, then a city, then a diocese.</p>
+        <div class="place-filters" data-state="" data-city="" data-diocese="">
+          <select id="place-state" name="state"><option value="">Choose a state</option></select>
+          <select id="place-city" name="city" disabled><option value="">Choose a city</option></select>
+          <select id="place-diocese" name="diocese" disabled><option value="">Choose a diocese</option></select>
+        </div>
+      </div>
     </form>
     <p class="small">ZIP search is area-level only: it finds the city and state area for a ZIP prefix, never an exact address.</p>
-    </div></section>${GLASS}
+    <section class="home-section">
     <h2>Browse by region</h2><ul class="regions">${regionHtml}</ul>
+    </section>
+    <section class="home-section">
     <h2>Find priests by what matters to you</h2>
-    <p><a class="btn" href="/browse?filter=quick">Quick Mass</a> <a class="btn" href="/browse?filter=homily">Great homily</a> <a class="btn" href="/browse?filter=lovable">Lovable priest</a></p>
-    <p class="small">Category lists show rated priests only, sorted by that category average, highest first, with review counts always shown.</p>
-    <p>${DISCLAIMER}</p>`));
+    <p class="explainer">Category lists show rated priests only, sorted by that category average, highest first, with review counts always shown.</p>
+    <p class="chip-row"><a class="chip press" href="/browse?filter=quick">Quick Mass</a> <a class="chip press" href="/browse?filter=homily">Great homily</a> <a class="chip press" href="/browse?filter=lovable">Lovable priest</a></p>
+    </section>
+    <section class="home-section">
+    <h2>Add a priest</h2>
+    <p>Know a priest who is not listed? Submit them for moderation review. Approved user-added priests are marked as user-added.</p>
+    <form action="/add-priest" method="post" class="rate-form">
+      <p><label>Name (required): <input name="name" required maxlength="200"></label></p>
+      <p><label>Parish: <input name="parish" maxlength="200"></label></p>
+      <p><label>City: <input name="city" maxlength="100"></label></p>
+      <p><label>State: <input name="state" maxlength="2"></label></p>
+      <button type="submit">Submit for moderation</button></form>
+    </section>
+    <section class="breather card-lift">
+      <h2>Need a breather?</h2>
+      <p class="explainer">Take a break between Masses with nine little games in the arcade. Best scores live only in your browser.</p>
+      <p><a class="btn btn-pill press" href="/games">Play the arcade</a></p>
+    </section>`));
 });
+
+// Diocese codes (2017 directory) to full names, for the Find by place filters.
+// Codes not listed here are religious-order or eparchy codes that do not map
+// to a single geographic diocese; the UI shows the code itself for those.
+const DIOCESE_NAMES = {
+  AGN: 'Agaña', ALB: 'Albany', ALN: 'Allentown', ALT: 'Altoona-Johnstown', ALX: 'Alexandria',
+  AMA: 'Amarillo', ANC: 'Anchorage', ARE: 'Arecibo', ARL: 'Arlington', ATL: 'Atlanta',
+  AUS: 'Austin', B: 'Boise', BAK: 'Baker', BAL: 'Baltimore', BEA: 'Beaumont', BEL: 'Belleville',
+  BGP: 'Bridgeport', BIR: 'Birmingham', BIS: 'Bismarck', BLX: 'Biloxi', BR: 'Baton Rouge',
+  BRK: 'Brooklyn', BUF: 'Buffalo', BUR: 'Burlington', BWN: 'Brownsville', CAM: 'Camden',
+  CC: 'Corpus Christi', CGS: 'Caguas', CHI: 'Chicago', CHK: 'Chalan Kanoa', CHL: 'Charlotte',
+  CHR: 'Charleston', CHY: 'Cheyenne', CIN: 'Cincinnati', CLV: 'Cleveland', COL: 'Columbus',
+  COS: 'Colorado Springs', COV: 'Covington', CR: 'Crookston', DAL: 'Dallas', DAV: 'Davenport',
+  DEN: 'Denver', DET: 'Detroit', DM: 'Des Moines', DOD: 'Dodge City', DUB: 'Dubuque',
+  DUL: 'Duluth', ELP: 'El Paso', EVN: 'Evansville', FAJ: 'Fajardo-Humacao', FAR: 'Fargo',
+  FBK: 'Fairbanks', FR: 'Fall River', FRS: 'Fresno', FTW: 'Fort Wayne-South Bend',
+  FWT: 'Fort Worth', GAL: 'Galveston-Houston', GB: 'Green Bay', GBG: 'Greensburg',
+  GF: 'Great Falls', GI: 'Grand Island', GLP: 'Gallup', GR: 'Grand Rapids', GRY: 'Gary',
+  HBG: 'Harrisburg', HEL: 'Helena', HON: 'Honolulu', HRT: 'Hartford', HT: 'Houma-Thibodaux',
+  IND: 'Indianapolis', JC: 'Jefferson City', JKS: 'Jackson', JOL: 'Joliet', JUN: 'Juneau',
+  KAL: 'Kalamazoo', KC: 'Kansas City', KCK: 'Kansas City in Kansas', KNX: 'Knoxville',
+  LA: 'Los Angeles', LAF: 'Lafayette', LAN: 'Lansing', LAR: 'Laredo', LC: 'La Crosse',
+  LEX: 'Lexington', LFT: 'Lafayette in Indiana', LIN: 'Lincoln', LKC: 'Lake Charles',
+  LR: 'Little Rock', LSC: 'Las Cruces', LUB: 'Lubbock', MAD: 'Madison', MAN: 'Manchester',
+  MAR: 'Marquette', MEM: 'Memphis', MET: 'Metuchen', MIA: 'Miami', MIL: 'Milwaukee',
+  MOB: 'Mobile', MRY: 'Monterey', NEW: 'Newark', NO: 'New Orleans', NOR: 'Norwich',
+  NSH: 'Nashville', NU: 'New Ulm', NY: 'New York', OAK: 'Oakland', OG: 'Ogdensburg',
+  OKL: 'Oklahoma City', OM: 'Omaha', ORG: 'Orange', ORL: 'Orlando', OWN: 'Owensboro',
+  PAT: 'Paterson', PBL: 'Pueblo', PEO: 'Peoria', PH: 'Philadelphia', PHX: 'Phoenix',
+  PIT: 'Pittsburgh', PMB: 'Palm Beach', PCE: 'Ponce', PRO: 'Providence', PRT: 'Portland',
+  PSC: 'Pensacola', RC: 'Rapid City', RCK: 'Rockford', RIC: 'Richmond', RNO: 'Reno',
+  ROC: 'Rochester', RVC: 'Rockville Centre', SAC: 'Sacramento', SAG: 'Saginaw', SAL: 'Salina',
+  SAN: 'San Angelo', SAT: 'San Antonio', SAV: 'Savannah', SB: 'San Bernardino',
+  SC: 'Sioux City', SCL: 'Saint Cloud', SCR: 'Scranton', SEA: 'Seattle', SFD: 'Springfield in Illinois',
+  SFE: 'Santa Fe', SFR: 'San Francisco', SFS: 'Sioux Falls', SHP: 'Shreveport', SJ: 'San Jose',
+  SJN: 'San Juan', SLC: 'Salt Lake City', SP: 'Saint Petersburg', SPC: 'Springfield-Cape Girardeau',
+  SPK: 'Spokane', SPP: 'Samoa-Pago Pago', SPR: 'Springfield in Massachusetts', SR: 'Santa Rosa',
+  STA: 'Saint Augustine', STL: 'St. Louis', STN: 'Steubenville', STO: 'Stockton',
+  STP: 'Saint Paul', SUP: 'Superior', SY: 'Syracuse', TLS: 'Tulsa', TOL: 'Toledo',
+  TR: 'Trenton', TUC: 'Tucson', TYL: 'Tyler', VEN: 'Venice', VIC: 'Victoria', WCH: 'Wichita',
+  WDC: 'Washington', WH: 'Wheeling-Charleston', WIL: 'Wilmington', WIN: 'Winona-Rochester',
+  WOR: 'Worcester', Y: 'Youngstown', YAK: 'Yakima',
+};
+function dioceseName(code) { return DIOCESE_NAMES[code] || code; }
+
+// Find by place: state, then city, then diocese. Data comes from the directory.
+app.get('/api/places/states', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT state, COUNT(*)::int AS n FROM priests WHERE status='approved' AND state IS NOT NULL AND state <> '' GROUP BY state ORDER BY state`);
+    res.json(rows.map((r) => ({ state: r.state, n: r.n })));
+  } catch (e) { res.json([]); }
+});
+app.get('/api/places/cities', async (req, res) => {
+  const state = String(req.query.state || '').toUpperCase();
+  if (!state) return res.json([]);
+  try {
+    const { rows } = await pool.query(`SELECT city, COUNT(*)::int AS n FROM priests WHERE status='approved' AND state=$1 AND city IS NOT NULL AND city <> '' GROUP BY city ORDER BY n DESC, city LIMIT 200`, [state]);
+    res.json(rows);
+  } catch (e) { res.json([]); }
+});
+app.get('/api/places/dioceses', async (req, res) => {
+  const state = String(req.query.state || '').toUpperCase();
+  if (!state) return res.json([]);
+  try {
+    const { rows } = await pool.query(`SELECT diocese_code, COUNT(*)::int AS n FROM priests WHERE status='approved' AND state=$1 AND diocese_code IS NOT NULL AND diocese_code <> '' GROUP BY diocese_code ORDER BY n DESC, diocese_code LIMIT 200`, [state]);
+    res.json(rows.map((r) => ({ code: r.diocese_code, name: dioceseName(r.diocese_code), n: r.n })));
+  } catch (e) { res.json([]); }
+});
+
+// Arcade page shell; the games themselves live in /arcade.js.
+app.get('/games', (req, res) => res.send(page('Games', `
+  <h1>The Arcade</h1>
+  <p>Take a breather between Masses. Nine little games, all free, all right here. Best scores live only in your browser.</p>
+  <div id="arcade-root"><p class="small">Loading games&hellip;</p></div>
+  <script src="/arcade.js"></script>`)));
 
 const FILTERS = { quick: 'pace', homily: 'homily', lovable: 'likability' };
 const FILTER_LABELS = { quick: 'Quick Mass (pace)', homily: 'Great homily', lovable: 'Lovable priest (likability)' };
 
 app.get('/browse', async (req, res) => {
-  const { q = '', state = '', region = '', zip = '', filter = '' } = req.query;
+  const { q = '', state = '', city = '', diocese = '', region = '', zip = '', filter = '' } = req.query;
   const where = [`status='approved'`];
   const params = [];
   let note = '';
   if (state) { params.push(state.toUpperCase()); where.push(`state = $${params.length}`); }
+  if (city) { params.push(city); where.push(`city ILIKE $${params.length}`); }
+  if (diocese) { params.push(diocese.toUpperCase()); where.push(`diocese_code = $${params.length}`); }
   if (region) {
     const states = REGIONS[region];
     if (states) { params.push(states); where.push(`state = ANY($${params.length})`); }
@@ -187,7 +367,8 @@ app.get('/browse', async (req, res) => {
     const whereP = where.map((w) => w
       .replace(/\bstatus\b/g, 'p.status').replace(/\bstate\b/g, 'p.state')
       .replace(/\bname\b/g, 'p.name').replace(/\bparish\b/g, 'p.parish')
-      .replace(/\bcity\b/g, 'p.city').replace(/\buser_added\b/g, 'p.user_added')
+      .replace(/\bcity\b/g, 'p.city').replace(/\bdiocese_code\b/g, 'p.diocese_code')
+      .replace(/\buser_added\b/g, 'p.user_added')
       .replace(/\bzip\b/g, 'p.zip'));
     const fsql = `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE ${whereP.join(' AND ')} GROUP BY p.id ORDER BY AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT 200`;
     try {
@@ -205,18 +386,33 @@ app.get('/browse', async (req, res) => {
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
     : `<p>No priests matched that search.</p><p><a class="btn" href="/add-priest">Add this priest</a></p><p class="small">If the priest is not listed, you can submit them for moderation review.</p>`;
+  const matchLine = cards.length
+    ? `<p class="match-count">${cards.length >= 200 ? 'Showing the first 200 priests' : `${cards.length} priest${cards.length === 1 ? '' : 's'}`}</p>`
+    : '';
+  const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   res.send(page(heading, `<h1>${esc(heading)}</h1>
-    <form class="search" action="/browse" method="get">
-      <input name="q" value="${esc(q)}" placeholder="Name, parish, or city">
-      <input name="state" value="${esc(state)}" placeholder="State (e.g. PA)" maxlength="2">
-      <input name="zip" value="${esc(zip)}" placeholder="ZIP (area-level)" pattern="\\d{5}">
-      <select name="filter"><option value="">All priests</option>
-        <option value="quick" ${filter === 'quick' ? 'selected' : ''}>Quick Mass</option>
-        <option value="homily" ${filter === 'homily' ? 'selected' : ''}>Great homily</option>
-        <option value="lovable" ${filter === 'lovable' ? 'selected' : ''}>Lovable priest</option></select>
-      <button type="submit">Search</button></form>
+    <form action="/browse" method="get" id="browse-form">
+      <div class="search">
+        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Name, parish, or city"></span>
+        <input name="zip" value="${esc(zip)}" placeholder="ZIP (area-level)" pattern="\\d{5}">
+        <select name="filter"><option value="">All priests</option>
+          <option value="quick" ${filter === 'quick' ? 'selected' : ''}>Quick Mass</option>
+          <option value="homily" ${filter === 'homily' ? 'selected' : ''}>Great homily</option>
+          <option value="lovable" ${filter === 'lovable' ? 'selected' : ''}>Lovable priest</option></select>
+        <button type="submit">Search</button>
+      </div>
+      <div class="place-section">
+        <h2>Find by place</h2>
+        <p class="explainer">Pick a state, then a city, then a diocese.</p>
+        <div class="place-filters stacked" data-state="${esc(state)}" data-city="${esc(city)}" data-diocese="${esc(diocese)}">
+          <select id="place-state" name="state"><option value="">Choose a state</option></select>
+          <select id="place-city" name="city" disabled><option value="">Choose a city</option></select>
+          <select id="place-diocese" name="diocese" disabled><option value="">Choose a diocese</option></select>
+        </div>
+      </div>
+    </form>
     <p class="small">Nationwide search works within your chosen state when one is given. ZIP results are area-level only.</p>
-    ${note}<div class="cards">${body}</div>`));
+    ${note}${matchLine}<div class="cards">${body}</div>`));
 });
 
 // ---------- profile + rating ----------
@@ -227,18 +423,38 @@ app.get('/priest/:id', async (req, res) => {
   const stats = await statsFor([p.id]);
   const st = stats[p.id];
   const revs = (await pool.query(`SELECT id, pace, homily, likability, mass_context, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
-  const reviewHtml = revs.length ? revs.map((r) => `<article class="review">
-    <p class="scores">Pace ${r.pace} &middot; Homily ${r.homily} &middot; Likability ${r.likability}${r.mass_context ? ` &middot; ${esc(r.mass_context)}` : ''}</p>
-    ${r.body ? `<p>${esc(r.body)}</p>` : '<p class="small">Star-only review (no written comment).</p>'}
-    <p><a href="/report?review=${r.id}&priest=${p.id}">Report this review</a></p></article>`).join('')
+  const reviewHtml = revs.length ? revs.map((r) => {
+    const ravg = (Number(r.pace) + Number(r.homily) + Number(r.likability)) / 3;
+    const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    return `<article class="review">
+    <div class="review-head"><span class="review-score">${ravg.toFixed(1)} out of 5</span>${starsHtml(ravg)}<span class="review-date">${date}${r.mass_context ? ` &middot; ${esc(r.mass_context)}` : ''}</span></div>
+    <p class="review-cats">Pace <strong>${r.pace}</strong> &middot; Homily <strong>${r.homily}</strong> &middot; Likability <strong>${r.likability}</strong></p>
+    ${r.body ? `<p class="review-body">${esc(r.body)}</p>` : '<p class="review-body small">Star-only review (no written comment).</p>'}
+    <div class="review-actions"><a href="/report?review=${r.id}&priest=${p.id}">Report this review</a></div></article>`;
+  }).join('')
     : '<p>No published reviews for this priest yet.</p>';
-  res.send(page(p.name, `<h1>${esc(p.name)}</h1>
-    <p class="assign">${assignment(p)}</p>
-    ${p.user_added ? '<p class="badge">User-added profile</p>' : `<p class="small discreet">Directory listing: this profile comes from the 2017 directory.</p>`}
-    ${p.diocese_code ? `<p class="small">Diocese code: ${esc(p.diocese_code)}</p>` : ''}
-    ${p.ordination_year ? `<p class="small">Ordination year (as listed): ${esc(p.ordination_year)}</p>` : ''}
-    <p>${DISCLAIMER}</p>
-    <h2>Ratings</h2>${avgLine(st)}${GLASS}
+  const avg = overallAvg(st);
+  const scoreBoxLg = avg == null
+    ? `<span class="score-box-lg unrated">Not yet rated</span>`
+    : `<span class="score-box-lg"><span class="num">${avg.toFixed(1)}</span><span class="lbl">out of 5</span></span>`;
+  const bar = (label, v) => `<div class="bar-row"><span class="bar-label">${label}</span><span class="bar-track"><span class="bar-fill" style="width:${(Number(v) / 5 * 100).toFixed(0)}%"></span></span><span class="bar-value">${fmtAvg(v)}</span></div>`;
+  const barsHtml = st && st.n
+    ? bar('Pace', st.pace) + bar('Homily', st.homily) + bar('Likability', st.likability)
+    : '<p class="unrated">Not rated yet</p>';
+  res.send(page(p.name, `<article class="profile-card">
+    <div class="profile-banner" aria-hidden="true">${HERO_ART}</div>
+    <div class="profile-body">
+      <h1 class="profile-name">${esc(p.name)}</h1>
+      <p class="profile-meta">${assignment(p)}</p>
+      ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : `<p class="profile-sub">Directory listing: this profile comes from the 2017 directory.</p>`}
+      ${p.diocese_code ? `<p class="profile-sub">Diocese: ${esc(dioceseName(p.diocese_code))} (${esc(p.diocese_code)})</p>` : ''}
+      ${p.ordination_year ? `<p class="profile-sub">Ordination year (as listed): ${esc(p.ordination_year)}</p>` : ''}
+      <div class="score-row">${scoreBoxLg}<div class="bars">${barsHtml}</div></div>
+      ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
+      ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
+      <p class="profile-note">${DISCLAIMER}</p>
+    </div>
+  </article>
     <h2>Rate this priest</h2>
     <form action="/priest/${p.id}/review" method="post" class="rate-form">
       <p><label>Pace of play (speed only, not a quality grade): <select name="pace" required>
@@ -374,7 +590,7 @@ app.post('/legal', async (req, res) => {
 });
 
 // ---------- informational pages ----------
-function infoPage(title, inner) { return page(title, `<h1>${esc(title)}</h1>${inner}`); }
+function infoPage(title, inner) { return page(title, `<h1>${esc(title)}</h1>${GLASS}${inner}`); }
 app.get('/about', (req, res) => res.send(infoPage('About', `<p>RateMyFather is a RateMyProfessor-style site for anonymous ratings of Catholic priests on three things: pace of play (how fast Mass moves), homily performance, and likability.</p>
   <p>Directory profiles come from the 2017 directory. Each directory profile carries one small line noting that. Assignments are historical listings ("Listed at ..."), not a claim about where a priest serves today.</p>
   <p>${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p>`)));
