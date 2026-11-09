@@ -115,12 +115,12 @@ main { padding:56px 0 72px; }
 .hero h1 { font-size:56px; line-height:0.98; letter-spacing:-0.03em; margin:36px 0 0; }
 @media (min-width:640px) { .hero h1 { font-size:72px; } }
 .hero h1 .accent { color:var(--accent); }
-.hero .tagline { font-size:20px; line-height:30px; color:var(--dim); margin:18px 0 0; max-width:36rem; }
+.hero .tagline { font-size:20px; line-height:30px; color:var(--dim); margin:18px 0 0; max-width:44rem; text-wrap:balance; }
 .hero .stats { font-size:14px; color:var(--dim); margin-top:8px; }
 
 /* ---------- Search ---------- */
 .search { display:flex; gap:8px; flex-wrap:wrap; margin:24px 0 0; }
-.search-field { position:relative; flex:1; min-width:220px; }
+.search-field { position:relative; flex:1; min-width:220px; display:flex; align-items:center; }
 .search-field svg { position:absolute; left:16px; top:50%; transform:translateY(-50%);
   width:20px; height:20px; stroke:var(--dim); fill:none; stroke-width:2; pointer-events:none; }
 .search-field input { width:100%; padding-left:48px !important; }
@@ -214,12 +214,12 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
 /* ---------- Regions and Find by place ---------- */
 .regions { list-style:none; padding:0; margin:12px 0 0; display:grid;
   grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
-.regions li { background:var(--surface); border:1px solid var(--border); padding:12px 14px;
+.regions li { background:var(--surface); border:1px solid var(--border); padding:0;
   border-radius:var(--radius); box-shadow:var(--shadow-card); transition:transform 180ms ease, box-shadow 200ms ease; }
 @media (hover:hover) {
   .regions li:hover { transform:translateY(-2px); box-shadow:var(--shadow-lift); }
 }
-.regions li a { font-weight:600; text-decoration:none; color:var(--text); }
+.regions li a { display:block; padding:12px 14px; font-weight:600; text-decoration:none; color:var(--text); }
 .regions li a:hover { color:var(--accent); }
 .place-section { margin-top:24px; }
 .place-section h2 { margin-top:0; }

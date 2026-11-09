@@ -123,7 +123,7 @@ function glassStrip(cls = '') {
 const GLASS = glassStrip();
 
 function layout(title, body, extraHead = '') {
-  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from people in the pews. Searchable by name, parish, city, state, or diocese.';
+  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from the pews. Searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="${description}">
@@ -246,7 +246,7 @@ app.get('/', async (req, res) => {
     <section class="hero">
       <div class="sg-frame" aria-hidden="true">${HERO_ART}</div>
       <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
-      <p class="tagline">Anonymous ratings of pace, homily, and likability, from people in the pews.</p>
+      <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
     </section>${GLASS}
     <form action="/browse" method="get" id="home-search">
       <div class="search">
