@@ -125,7 +125,7 @@ const GLASS = glassStrip();
 function layout(title, body, extraHead = '') {
   const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, from the pews. Searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="${description}">
   <meta property="og:title" content="${esc(title)} | RateMyFather">
   <meta property="og:description" content="${description}">
@@ -519,6 +519,63 @@ const ATTENDANCE_OPTIONS = [
   'Lifelong parishioner',
 ];
 
+// Anchored rating scales: what each star means, so a reviewer picks from a
+// real basis instead of guessing. `label` is the short tag shown on review
+// cards and profiles; `text` is the full sentence shown under the dropdown
+// in the form as the reviewer selects a star. Score math is unchanged: the
+// priest's score is still pace, homily, and likability only, and church
+// beauty never enters it.
+// Pace times are grounded in Catholic Index data (209,000 livestreamed
+// Sunday Masses from 3,253 US parishes, published March 2026): Sunday Mass
+// runs about 71 minutes at the median, and about 7 in 10 Sunday Masses fall
+// between 60 and 90 minutes. The spread works out to a standard deviation of
+// roughly 14 minutes, estimated from the published distribution, not a figure
+// the source prints. Livestream timing includes a few minutes of camera
+// setup, so time in the pew runs slightly shorter. Weekday Mass is a
+// different world, about 43 minutes at the median.
+const ANCHORS = {
+  pace: {
+    1: { label: 'Very slow', text: 'A long, slow Mass, usually over 90 minutes on a Sunday.' },
+    2: { label: 'Slow', text: 'Unhurried, about 75 to 90 minutes on a Sunday.' },
+    3: { label: 'About average', text: 'About average, about 60 to 75 minutes on a Sunday.' },
+    4: { label: 'Brisk', text: 'Brisk, about 45 to 60 minutes on a Sunday.' },
+    5: { label: 'Very quick', text: 'Very quick, under 45 minutes on a Sunday.' },
+  },
+  homily: {
+    1: { label: 'Lost me', text: 'Lost me entirely, or I could not follow it.' },
+    2: { label: 'Forgettable', text: 'Thin or wandering, little to take home.' },
+    3: { label: 'Solid', text: 'Clear and faithful, it did the job.' },
+    4: { label: 'Memorable', text: 'Good preaching, I kept thinking about it after Mass.' },
+    5: { label: 'Shapes my week', text: 'Preaching that shapes how I live the week.' },
+  },
+  likability: {
+    1: { label: 'Off-putting', text: 'Cold or off-putting in person.' },
+    2: { label: 'Distant', text: 'Distant, hard to warm to.' },
+    3: { label: 'Pleasant', text: 'Pleasant enough, no strong impression either way.' },
+    4: { label: 'Warm', text: 'Warm and easy to talk to, I would seek him out.' },
+    5: { label: 'A real shepherd', text: 'A priest I would cross town to see, a real shepherd.' },
+  },
+  church_beauty: {
+    1: { label: 'Run down', text: 'Plain or run down, nothing that lifts the eye.' },
+    2: { label: 'Modest', text: 'Serviceable, but little beauty to it.' },
+    3: { label: 'Pleasant', text: 'A decent church, some things worth looking at.' },
+    4: { label: 'Beautiful', text: 'A beautiful church, the space itself helps prayer.' },
+    5: { label: 'Stunning', text: 'A stunning church, the building alone is worth the visit.' },
+  },
+};
+// Short label for one star, or '' when the value is not a 1-5 rating.
+function anchorLabel(key, v) {
+  const n = Number(v);
+  const a = ANCHORS[key] && ANCHORS[key][n];
+  return a ? a.label : '';
+}
+// Nearest-star label for an average (used on profile bars).
+function anchorLabelForAvg(key, v) {
+  if (v == null) return '';
+  return anchorLabel(key, Math.max(1, Math.min(5, Math.round(Number(v)))));
+}
+const MASS_TIMING_NOTE = 'Typical Sunday Mass runs about 71 minutes (median), and about 7 in 10 fall between 60 and 90 minutes. The spread is roughly 14 minutes either way. Weekday Mass is shorter, about 43 minutes at the median. Figures: Catholic Index, 209,000 livestreamed Masses from 3,253 US parishes, March 2026. Livestream timing includes a few minutes of camera setup, so time in the pew runs slightly shorter.';
+
 // ---------- profile + rating ----------
 app.get('/priest/:id', async (req, res) => {
   const { rows } = await pool.query(`SELECT * FROM priests WHERE id=$1 AND status='approved'`, [req.params.id]);
@@ -535,8 +592,8 @@ app.get('/priest/:id', async (req, res) => {
     const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     return `<article class="review">
     <div class="review-head"><span class="review-score">${ravg.toFixed(1)} out of 5</span>${starsHtml(ravg)}<span class="review-date">${date}${r.mass_context ? ` &middot; ${esc(r.mass_context)}` : ''}</span></div>
-    <p class="review-cats">Pace <strong>${r.pace}</strong> &middot; Homily <strong>${r.homily}</strong> &middot; Likability <strong>${r.likability}</strong></p>
-    ${r.church_beauty ? `<p class="review-church">Church beauty: <strong>${r.church_beauty} out of 5</strong> <span class="small">(the building, not the priest)</span></p>` : ''}
+    <p class="review-cats">Pace <strong>${r.pace}</strong> <span class="small">${esc(anchorLabel('pace', r.pace))}</span> &middot; Homily <strong>${r.homily}</strong> <span class="small">${esc(anchorLabel('homily', r.homily))}</span> &middot; Likability <strong>${r.likability}</strong> <span class="small">${esc(anchorLabel('likability', r.likability))}</span></p>
+    ${r.church_beauty ? `<p class="review-church">Church beauty: <strong>${r.church_beauty} out of 5</strong> <span class="small">${esc(anchorLabel('church_beauty', r.church_beauty))} (the building, not the priest)</span></p>` : ''}
     ${r.attendance_duration ? `<p class="review-attendance">Attending this parish / knows this priest: <strong>${esc(r.attendance_duration)}</strong></p>` : ''}
     ${r.body ? `<p class="review-body">${esc(r.body)}</p>` : '<p class="review-body small">Star-only review (no written comment).</p>'}
     <div class="review-actions"><a href="/report?review=${r.id}&priest=${p.id}">Report this review</a></div></article>`;
@@ -546,9 +603,9 @@ app.get('/priest/:id', async (req, res) => {
   const scoreBoxLg = avg == null
     ? `<span class="score-box-lg unrated">Not yet rated</span>`
     : `<span class="score-box-lg"><span class="num">${avg.toFixed(1)}</span><span class="lbl">out of 5</span></span>`;
-  const bar = (label, v) => `<div class="bar-row"><span class="bar-label">${label}</span><span class="bar-track"><span class="bar-fill" style="width:${(Number(v) / 5 * 100).toFixed(0)}%"></span></span><span class="bar-value">${fmtAvg(v)}</span></div>`;
+  const bar = (label, key, v) => `<div class="bar-row"><span class="bar-label">${label}</span><span class="bar-track"><span class="bar-fill" style="width:${(Number(v) / 5 * 100).toFixed(0)}%"></span></span><span class="bar-value">${fmtAvg(v)}</span><span class="small">${esc(anchorLabelForAvg(key, v))}</span></div>`;
   const barsHtml = st && st.n
-    ? bar('Pace', st.pace) + bar('Homily', st.homily) + bar('Likability', st.likability)
+    ? bar('Pace', 'pace', st.pace) + bar('Homily', 'homily', st.homily) + bar('Likability', 'likability', st.likability)
     : '<p class="unrated">Not rated yet</p>';
   res.send(page(p.name, `<article class="profile-card">
     <div class="profile-banner" aria-hidden="true">${HERO_ART}</div>
@@ -566,20 +623,26 @@ app.get('/priest/:id', async (req, res) => {
     </div>
   </article>
     <h2>Rate this priest</h2>
+    <p class="small">Each star has a meaning, so pick the one that matches what you actually experienced. Pace is speed only, not a quality grade: a slow Mass is not a bad Mass.</p>
     <form action="/priest/${p.id}/review" method="post" class="rate-form">
       <p><label>Pace of play (speed only, not a quality grade): <select name="pace" required>
-        <option value="">Choose</option><option value="1">1: very slow</option><option value="2">2: slow</option>
-        <option value="3">3: moderate</option><option value="4">4: brisk</option><option value="5">5: brisk and quick</option></select></label></p>
+        <option value="">Choose</option><option value="1">1: very slow, over 90 min</option><option value="2">2: slow, 75 to 90 min</option>
+        <option value="3">3: moderate, 60 to 75 min</option><option value="4">4: brisk, 45 to 60 min</option><option value="5">5: very quick, under 45 min</option></select></label></p>
+      <p class="small" data-anchor="pace">Pick a pace to see what it means.</p>
+      <p class="small">${MASS_TIMING_NOTE}</p>
       <p><label>Homily performance: <select name="homily" required>
-        <option value="">Choose</option><option value="1">1: poor</option><option value="2">2: below average</option>
-        <option value="3">3: average</option><option value="4">4: good</option><option value="5">5: excellent</option></select></label></p>
+        <option value="">Choose</option><option value="1">1: lost me</option><option value="2">2: forgettable</option>
+        <option value="3">3: solid</option><option value="4">4: memorable</option><option value="5">5: shapes my week</option></select></label></p>
+      <p class="small" data-anchor="homily">Pick a homily rating to see what it means.</p>
       <p><label>Likability: <select name="likability" required>
-        <option value="">Choose</option><option value="1">1: not likable</option><option value="2">2: below average</option>
-        <option value="3">3: average</option><option value="4">4: likable</option><option value="5">5: very likable</option></select></label></p>
+        <option value="">Choose</option><option value="1">1: off-putting</option><option value="2">2: distant</option>
+        <option value="3">3: pleasant</option><option value="4">4: warm</option><option value="5">5: a real shepherd</option></select></label></p>
+      <p class="small" data-anchor="likability">Pick a likability rating to see what it means.</p>
       <fieldset class="church-fieldset"><legend>The church building (optional)</legend>
       <p><label>How beautiful is the church building itself? <select name="church_beauty">
-        <option value="">No rating</option><option value="1">1: plain</option><option value="2">2: modest</option>
+        <option value="">No rating</option><option value="1">1: run down</option><option value="2">2: modest</option>
         <option value="3">3: pleasant</option><option value="4">4: beautiful</option><option value="5">5: stunning</option></select></label></p>
+      <p class="small" data-anchor="church_beauty">Pick a rating to see what it means.</p>
       <p class="small">This rates the building, not the priest. It never affects the priest's score, and it is shown separately on the profile.</p></fieldset>
       <p><label>How long have you attended this parish or known this priest? <select name="attendance_duration" required>
         <option value="">Choose</option>${ATTENDANCE_OPTIONS.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select></label></p>
@@ -591,7 +654,7 @@ app.get('/priest/:id', async (req, res) => {
       <button type="submit">Submit review</button>
     </form>
     <h2>Published reviews</h2>${reviewHtml}
-    <p><a class="btn" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>`, '<script src="/review.js"></script>'));
+    <p><a class="btn" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>`, '<script>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS) + ';</script><script src="/review.js"></script>'));
 });
 
 app.post('/priest/:id/review', async (req, res) => {

@@ -20,8 +20,32 @@ function initReviewCounters() {
   wire(document.querySelector('textarea[name="body"]'), 2000);
   wire(document.querySelector('input[name="mass_context"]'), 120);
 }
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initReviewCounters);
-} else {
+// Review form: live anchor text under each star dropdown. When the reviewer
+// picks a star, the line below the dropdown shows what that star means, so
+// the rating has a real basis. Anchor data comes from window.RMF_ANCHORS,
+// rendered into the profile page by the server.
+function initReviewAnchors() {
+  var anchors = window.RMF_ANCHORS;
+  if (!anchors) return;
+  ['pace', 'homily', 'likability', 'church_beauty'].forEach(function (key) {
+    var select = document.querySelector('select[name="' + key + '"]');
+    var line = document.querySelector('[data-anchor="' + key + '"]');
+    if (!select || !line) return;
+    var prompt = line.textContent;
+    function update() {
+      var a = anchors[key] && anchors[key][select.value];
+      line.textContent = a ? a.text : prompt;
+    }
+    select.addEventListener('change', update);
+    update();
+  });
+}
+function initReview() {
   initReviewCounters();
+  initReviewAnchors();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initReview);
+} else {
+  initReview();
 }
