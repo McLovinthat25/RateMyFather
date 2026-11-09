@@ -181,7 +181,7 @@ main { padding:56px 0 72px; }
 .search-field input { width:100%; padding-left:48px !important; }
 .search input, .search select { padding:16px; font-size:18px; border-radius:var(--radius);
   box-shadow:var(--shadow-card); }
-.search input, .search select, form input[type="text"], form input:not([type]), form select,
+.search input, .search select, form input[type="text"], form input[type="password"], form input:not([type]), form select,
 form textarea, #chat-input {
   padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius);
   font-size:16px; background:var(--surface); color:var(--text); }
@@ -982,3 +982,67 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .game-card .play-row button { background:linear-gradient(180deg, var(--gold-bright), var(--gold));
   color:#2e2205; box-shadow:0 2px 8px rgb(0 0 0 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.35); }
 .game-stage { border-top:3px solid var(--gold); }
+
+/* ==========================================================================
+   PHASE 3 — Nov 9, 2026. Mobile throughout. Everything above already
+   worked on a phone; this layer only lifts the tap targets that measured
+   under 40px on a 390px / 360px viewport, and tidies one wrapping label.
+   No layout, copy, route, or behaviour changes. The quicknav strip is
+   untouched: same five pills, no Menu button. One fix sits in the base
+   form rule above instead of here: password inputs were missing from
+   the padded-inputs selector, so the owner sign-in field rendered
+   21px tall; it now gets the same padding as every other text input.
+   ========================================================================== */
+
+/* Header wordmark: 31px tall as plain text, 40px as a tap target. */
+.brand { display:inline-flex; align-items:center; min-height:40px; }
+
+/* Footer nav: 23px text links become 40px rows. */
+.footer-nav { gap:4px 20px; }
+.footer-nav a { display:inline-flex; align-items:center; min-height:40px; padding:8px 0; }
+
+/* Homepage discrete links: the section-more link, the three step-heading
+   links, and the category-card links were 22-36px tall. Inline-block
+   with vertical padding makes each a 40px+ target without moving the
+   surrounding copy. (Links inside flowing prose paragraphs are left
+   alone: they are inline text, not discrete controls.) */
+.section-more a { display:inline-block; padding:9px 0; min-height:40px; }
+.about-center p a { display:inline-block; padding:9px 0; min-height:40px; }
+.step h3 a { display:inline-block; padding:9px 0; min-height:40px; }
+.cat-card a { padding:12px 0 6px; }
+
+/* Arcade: filter chips were 30px, Play buttons 39px. */
+.arcade-tools .chip { padding:12px 14px; }
+.game-card .play-row button { padding:12px 20px; }
+/* Game start-overlay "back" link: 32px tall, now a 40px+ target. */
+.game-overlay .linklike { padding:10px 12px; }
+
+/* Browse: active-filter chips were 39px; the Clear-all link was bare text. */
+.filter-chip { padding:9px 12px; }
+.filter-clear { display:inline-block; padding:9px 0; min-height:40px; }
+
+/* Review actions: "Report this review" was a 23px text link. */
+.review-actions a { display:inline-block; padding:9px 0; min-height:40px; }
+
+/* Review-form attestations: the 16px checkbox alone was the target.
+   The whole label row is now the target (40px+), with a slightly
+   larger box. */
+.rate-form p label:has(> input[type="checkbox"]) { display:flex; align-items:flex-start;
+  gap:10px; padding:10px 0; min-height:40px; }
+.rate-form input[type="checkbox"] { width:20px; height:20px; flex:none; margin-top:2px; }
+
+/* Find-by-place combobox buttons are dormant (the dropdowns were
+   retired for region links) but the rules stay live, so they are
+   40px if the markup ever returns. The clear button shifts right
+   to stay clear of the wider chevron. */
+.combo .combo-btn { width:40px; height:40px; }
+.combo .combo-clear { right:50px; }
+
+/* Browse region label: on a phone it shared a row with the first chip
+   ("BROWSE BY REGION [Northeast]" then the rest wrapped), which read
+   as a cramped first row. The label now takes its own line on mobile;
+   the chips start cleanly below it. Same for the "Filtered by" label. */
+@media (max-width:639px) {
+  .region-links .filter-chips-label,
+  .filter-chips .filter-chips-label { flex-basis:100%; }
+}
