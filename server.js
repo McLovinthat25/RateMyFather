@@ -138,7 +138,7 @@ function layout(title, body, extraHead = '') {
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav"><span class="nav-toggle-icon" aria-hidden="true"></span>Menu</button>
     <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
-  </div><div class="wrap">${glassStrip('thin')}</div></header>
+  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
   <main class="wrap">${body}</main>
   <footer class="wrap site-footer">${glassStrip('gs-7')}
   <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
@@ -484,6 +484,12 @@ app.get('/', async (req, res) => {
       <div class="step"><span class="step-num">02</span><h3><a href="/browse?filter=quick">Read the pews</a></h3><p>See what others thought, with review counts on every score.</p></div>
       <div class="step"><span class="step-num">03</span><h3><a href="/how">Rate your Mass</a></h3><p>Anonymous, 1 to 5, in under a minute. No name, no email.</p></div>
     </div>
+    </section>
+    <section class="home-section">
+    <p class="eyebrow">About</p>
+    <h2>A passion project, from the pews</h2>
+    <p class="explainer">RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Free and ad free, built to help you find a Mass you love.</p>
+    <p><a href="/about">Read more about RateMyFather &rsaquo;</a></p>
     </section>
     <section class="home-section">
       <div class="cta-card">
