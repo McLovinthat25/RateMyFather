@@ -136,10 +136,13 @@ function layout(title, body, extraHead = '') {
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
-    <nav><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav"><span class="nav-toggle-icon" aria-hidden="true"></span>Menu</button>
+    <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
   </div><div class="wrap">${glassStrip('thin')}</div></header>
   <main class="wrap">${body}</main>
   <footer class="wrap site-footer">${glassStrip('gs-7')}
+  <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
+  <p class="footer-tagline small">Anonymous ratings, from the pews.</p>
   <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
   <p>${DISCLAIMER}</p>
   <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
@@ -148,7 +151,8 @@ function layout(title, body, extraHead = '') {
   <form id="chat-form"><input id="chat-input" name="message" placeholder="e.g. Who is rated for a quick Mass?" required>
   <button type="submit">Ask</button></form>
   <p class="small">Answers use approved-review averages with review counts only. Individual reviews are never quoted.</p></div></div>
-  <script src="/chat.js"></script><script src="/places.js"></script></body></html>`;
+  <script src="/chat.js"></script><script src="/places.js"></script>
+  <script>(function(){var h=document.querySelector('.topnav');if(!h)return;var b=h.querySelector('.nav-toggle');if(!b)return;h.classList.add('js-nav');function close(){h.classList.remove('nav-open');b.setAttribute('aria-expanded','false');}b.addEventListener('click',function(){var open=h.classList.toggle('nav-open');b.setAttribute('aria-expanded',open?'true':'false');});h.querySelectorAll('nav a').forEach(function(a){a.addEventListener('click',close);});document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});})();</script></body></html>`;
 }
 function page(title, inner, extraHead = '') { return layout(title, inner, extraHead); }
 // ---------- error pages with a playable game ----------
@@ -419,86 +423,77 @@ async function audit(action, targetType, targetId, detail) {
   try { await pool.query('INSERT INTO moderation_audit (action, target_type, target_id, detail) VALUES ($1,$2,$3,$4)', [action, targetType, targetId, detail || null]); } catch (e) { console.error('audit failed', e.message); }
 }
 
-// Stained-glass window art, shared by the home hero and the profile banner.
-const HERO_ART = `<svg viewBox="0 0 800 420" role="img" aria-label="Stained-glass church window" preserveAspectRatio="xMidYMid slice">
-    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e8c96a"/><stop offset="0.55" stop-color="#f6e7b8"/><stop offset="1" stop-color="#fbf7ef"/>
-    </linearGradient>
-    <clipPath id="archClip"><path d="M170 420 L170 190 A230 170 0 0 1 630 190 L630 420 Z"/></clipPath></defs>
-    <rect width="800" height="420" fill="url(#sky)"/>
-    <circle cx="648" cy="76" r="42" fill="#c49a3c" opacity="0.85"/>
-    <g clip-path="url(#archClip)">
-      <rect x="150" y="40" width="500" height="380" fill="#7a1f2b"/>
-      <rect x="150" y="40" width="125" height="140" fill="#c49a3c"/>
-      <rect x="275" y="40" width="125" height="140" fill="#8a2a35"/>
-      <rect x="400" y="40" width="125" height="140" fill="#2e5e4e"/>
-      <rect x="525" y="40" width="125" height="140" fill="#7a1f2b"/>
-      <rect x="150" y="180" width="125" height="120" fill="#c49a3c"/>
-      <rect x="275" y="180" width="125" height="120" fill="#3a6ea5"/>
-      <rect x="400" y="180" width="125" height="120" fill="#7a1f2b"/>
-      <rect x="525" y="180" width="125" height="120" fill="#c49a3c"/>
-      <rect x="150" y="300" width="125" height="120" fill="#5b2a4a"/>
-      <rect x="275" y="300" width="125" height="120" fill="#c49a3c"/>
-      <rect x="400" y="300" width="125" height="120" fill="#8a2a35"/>
-      <rect x="525" y="300" width="125" height="120" fill="#2e5e4e"/>
-      <g stroke="#38291a" stroke-width="6">
-        <line x1="275" y1="40" x2="275" y2="420"/><line x1="400" y1="40" x2="400" y2="420"/><line x1="525" y1="40" x2="525" y2="420"/>
-        <line x1="150" y1="180" x2="650" y2="180"/><line x1="150" y1="300" x2="650" y2="300"/>
-      </g>
-      <circle cx="400" cy="150" r="52" fill="#c49a3c" stroke="#38291a" stroke-width="6"/>
-      <circle cx="400" cy="150" r="30" fill="#7a1f2b" stroke="#38291a" stroke-width="5"/>
-      <circle cx="400" cy="150" r="10" fill="#c49a3c"/>
-      <g stroke="#38291a" stroke-width="4">
-        <line x1="400" y1="98" x2="400" y2="202"/><line x1="348" y1="150" x2="452" y2="150"/>
-      </g>
-      <g fill="#c49a3c" stroke="#38291a" stroke-width="5">
-        <rect x="388" y="330" width="24" height="90"/>
-        <rect x="356" y="356" width="88" height="20"/>
-      </g>
-    </g>
-    <path d="M170 420 L170 190 A230 170 0 0 1 630 190 L630 420 Z" fill="none" stroke="#38291a" stroke-width="6"/>
-    <rect x="140" y="404" width="520" height="16" fill="#38291a"/>
-  </svg>`;
-
 // ---------- public pages ----------
 app.get('/', async (req, res) => {
   const regions = ['Northeast', 'Midwest', 'South', 'West', 'Other listings'];
   const regionHtml = regions.map((r) => `<li><a href="/browse?region=${encodeURIComponent(r)}">${r}</a></li>`).join('');
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
+  // Highest rated: real data only, top 3 by overall average among rated
+  // priests. The section is omitted entirely when nobody is rated yet.
+  let topRated = '';
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability,
+              (AVG(r.pace) + AVG(r.homily) + AVG(r.likability)) / 3 AS overall
+       FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved'
+       WHERE p.status='approved' GROUP BY p.id ORDER BY overall DESC, COUNT(r.id) DESC LIMIT 3`);
+    if (rows.length) {
+      topRated = `<section class="home-section">
+    <p class="eyebrow">From the pews</p>
+    <h2>Highest rated</h2>
+    <p class="explainer">The best-reviewed priests in the directory, by overall average. Every score carries its review count.</p>
+    <div class="cards">${rows.map((p) => priestCard(p, { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability })).join('')}</div>
+    </section>`;
+    }
+  } catch (e) { console.error('top-rated query failed', e.message); }
   res.send(page('Home', `
     <section class="hero">
       <div class="hero-photo">
         <div class="hero-copy">
           <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
           <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
+          <form action="/browse" method="get" class="hero-search">
+            <div class="search">
+              <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
+              <button type="submit">Search</button>
+            </div>
+          </form>
         </div>
       </div>
     </section>${GLASS}
-    <form action="/browse" method="get" id="home-search">
-      <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
-        <button type="submit">Search</button>
-      </div>
-    </form>
     <section class="home-section">
+    <p class="eyebrow">The directory</p>
     <h2>Browse by region</h2><ul class="regions">${regionHtml}</ul>
     </section>
     <section class="home-section">
+    <p class="eyebrow">What matters to you</p>
     <h2>Find priests by what matters to you</h2>
     <p class="explainer">Category lists show rated priests only, sorted by that category average, highest first, with review counts always shown.</p>
-    <p class="chip-row"><a class="chip press" href="/browse?filter=quick">Quick Mass</a> <a class="chip press" href="/browse?filter=homily">Great homily</a> <a class="chip press" href="/browse?filter=lovable">Lovable priest</a></p>
+    <div class="cat-grid">
+      <div class="cat-card card-lift"><h3>Quick Mass</h3><p>Priests whose Sunday Mass moves briskly, ranked by pace. Pace is speed only, never a quality grade.</p><a href="/browse?filter=quick">Browse Quick Mass &rsaquo;</a></div>
+      <div class="cat-card card-lift"><h3>Great homily</h3><p>Preaching worth sitting still for, ranked by homily, highest first.</p><a href="/browse?filter=homily">Browse great homilies &rsaquo;</a></div>
+      <div class="cat-card card-lift"><h3>Lovable priest</h3><p>Priests people would cross town to see, ranked by likability.</p><a href="/browse?filter=lovable">Browse lovable priests &rsaquo;</a></div>
+    </div>
+    </section>
+    ${topRated}
+    <section class="home-section">
+    <p class="eyebrow">How it works</p>
+    <h2>Three steps, from the pews</h2>
+    <div class="steps">
+      <div class="step"><span class="step-num">01</span><h3><a href="/browse">Find a priest</a></h3><p>Search by name, parish, or city, or browse by region.</p></div>
+      <div class="step"><span class="step-num">02</span><h3><a href="/browse?filter=quick">Read the pews</a></h3><p>See what others thought, with review counts on every score.</p></div>
+      <div class="step"><span class="step-num">03</span><h3><a href="/how">Rate your Mass</a></h3><p>Anonymous, 1 to 5, in under a minute. No name, no email.</p></div>
+    </div>
     </section>
     <section class="home-section">
-    <h2>Add a priest</h2>
-    <p>Know a priest who is not listed? Submit them for moderation review. Approved user-added priests are marked as user-added.</p>
-    <form action="/add-priest" method="post" class="rate-form">
-      <p><label>Name (required): <input name="name" required maxlength="200"></label></p>
-      <p><label>Parish: <input name="parish" maxlength="200"></label></p>
-      <p><label>City: <input name="city" maxlength="100"></label></p>
-      <p><label>State: <input name="state" maxlength="2"></label></p>
-      <button type="submit">Submit for moderation</button></form>
+      <div class="cta-card">
+        <h2>Know a priest who is not listed?</h2>
+        <p>Submit them for moderation review. Approved user-added priests are marked as user-added, and every submission is checked before it goes public.</p>
+        <p><a class="btn btn-pill press" href="/add-priest">Add a priest</a></p>
+      </div>
     </section>
     <section class="breather card-lift">
+      <p class="eyebrow">Take a breather</p>
       <h2>Need a breather?</h2>
       <p class="explainer">Take a break between Masses with nine little games in the arcade. Best scores live only in your browser.</p>
       <p><a class="btn btn-pill press" href="/games">Play the arcade</a></p>
@@ -573,10 +568,10 @@ app.get('/api/places/dioceses', async (req, res) => {
   } catch (e) { res.json([]); }
 });
 
-// Arcade page shell; the games themselves live in /arcade.js.
+// Arcade page shell; the games themselves live in /arcade.js, which renders
+// its own "The Arcade" heading, intro, and filters. The shell stays minimal
+// so the title is not printed twice.
 app.get('/games', (req, res) => res.send(page('Games', `
-  <h1>The Arcade</h1>
-  <p>Take a breather between Masses. Nine little games, all free, all right here. Best scores live only in your browser.</p>
   <div id="arcade-root"><p class="small">Loading games&hellip;</p></div>
   <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>
   <script src="/arcade.js"></script>
@@ -704,7 +699,7 @@ app.get('/browse', async (req, res) => {
   const heading = filter ? FILTER_LABELS[filter] : 'Search & Browse';
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
-    : `<p>No priests matched that search.</p><p><a class="btn" href="/add-priest">Add this priest</a> <a class="btn btn-secondary" href="/browse">Clear search and filters</a></p><p class="small">If the priest is not listed, you can submit them for moderation review.</p>`;
+    : `<div class="empty-state"><p>No priests matched that search.</p><p class="small">If the priest is not listed, you can submit them for moderation review.</p><div class="btnrow"><a class="btn" href="/add-priest">Add this priest</a> <a class="btn btn-secondary" href="/browse">Clear search and filters</a></div></div>`;
   const matchLine = cards.length && totalCount > 200
     ? `<p class="match-count">Showing the first 200 priests</p>`
     : '';
@@ -719,7 +714,7 @@ app.get('/browse', async (req, res) => {
   // box; an active filter is kept as a hidden input so refining the text
   // search does not silently drop it. Entry points are the home chips.
   const filterHidden = FILTERS[filter] ? `<input type="hidden" name="filter" value="${esc(filter)}">` : '';
-  res.send(page(heading, `<h1>${esc(heading)}</h1>
+  res.send(page(heading, `<p class="eyebrow">The directory</p><h1>${esc(heading)}</h1>
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
         <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
@@ -828,7 +823,7 @@ app.get('/priest/:id', async (req, res) => {
     ? bar('Pace', 'pace', st.pace) + bar('Homily', 'homily', st.homily) + bar('Likability', 'likability', st.likability)
     : '<p class="unrated">Not rated yet</p>';
   res.send(page(p.name, `<article class="profile-card">
-    <div class="profile-banner" aria-hidden="true">${HERO_ART}</div>
+    <div class="profile-banner" aria-hidden="true"></div>
     <div class="profile-body">
       <h1 class="profile-name">${esc(p.name)}</h1>
       <p class="profile-meta">${assignment(p)}</p>
@@ -836,6 +831,7 @@ app.get('/priest/:id', async (req, res) => {
       ${p.diocese_code ? `<p class="profile-sub">Diocese: ${esc(dioceseName(p.diocese_code))} (${esc(p.diocese_code)})</p>` : ''}
       ${p.ordination_year ? `<p class="profile-sub">Ordination year (as listed): ${esc(p.ordination_year)}</p>` : ''}
       <div class="score-row">${scoreBoxLg}<div class="bars">${barsHtml}</div></div>
+      ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : ''}
       ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
       ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
       ${church && church.n ? `<div class="church-box"><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box"><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
@@ -844,7 +840,7 @@ app.get('/priest/:id', async (req, res) => {
   </article>
     <h2>Rate this priest</h2>
     <p class="small">Each star has a meaning, so pick the one that matches what you actually experienced. Pace is speed only, not a quality grade: a slow Mass is not a bad Mass.</p>
-    <form action="/priest/${p.id}/review" method="post" class="rate-form">
+    <form action="/priest/${p.id}/review" method="post" class="rate-form rate-card">
       <p><label>Pace of play (speed only, not a quality grade): <select name="pace" required>
         <option value="">Choose</option><option value="1">1: very slow, over 90 min</option><option value="2">2: slow, 75 to 90 min</option>
         <option value="3">3: moderate, 60 to 75 min</option><option value="4">4: brisk, 45 to 60 min</option><option value="5">5: very quick, under 45 min</option></select></label></p>
@@ -1002,7 +998,7 @@ app.post('/legal', async (req, res) => {
 });
 
 // ---------- informational pages ----------
-function infoPage(title, inner) { return page(title, `<h1>${esc(title)}</h1>${GLASS}${inner}`); }
+function infoPage(title, inner) { return page(title, `<div class="prose"><h1>${esc(title)}</h1>${GLASS}${inner}</div>`); }
 app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2>
   <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p>
   <h2>How the ratings work</h2>
