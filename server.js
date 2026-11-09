@@ -377,9 +377,9 @@ function notFoundPage() {
   return errorPage({
     title: 'Not found',
     heading: 'We could not find that page',
-    message: 'The link may be mistyped, or the priest may not be listed. Try searching by name, parish, city, or ZIP — or play a quick round while you are here.',
+    message: 'The link may be mistyped, or the priest may not be listed. Try searching by name, parish, or city — or play a quick round while you are here.',
     actions: `<form action="/browse" method="get"><div class="search">
-      <input name="q" placeholder="Search by name, parish, city, or ZIP" aria-label="Search">
+      <input name="q" placeholder="Search by name, parish, or city" aria-label="Search">
       <button class="btn" type="submit">Search</button>
     </div></form>
     <div class="btnrow"><a class="btn" href="/browse">Browse all priests</a> <a class="btn btn-secondary" href="/games">Play the arcade</a></div>
@@ -476,11 +476,10 @@ app.get('/', async (req, res) => {
     </section>${GLASS}
     <form action="/browse" method="get" id="home-search">
       <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, city, or ZIP" aria-label="Search by name, parish, city, or ZIP"></span>
+        <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
         <button type="submit">Search</button>
       </div>
     </form>
-    <p class="small">One search box for name, parish, city, or ZIP. A ZIP finds the city and state area, never an exact address.</p>
     <section class="home-section">
     <h2>Browse by region</h2><ul class="regions">${regionHtml}</ul>
     </section>
@@ -640,10 +639,11 @@ app.get('/browse', async (req, res) => {
   // (see the relevance score below). "Erie Saint George" therefore finds the
   // St. George priests in Erie, even though "Erie" is the city and
   // "St. George" is the parish, in different fields.
-  // Unified search: a 5-digit ZIP may appear anywhere in the single box
-  // (alone or beside words). It is pulled out and resolved area-level;
-  // the remaining words match name, parish, or city as before. A legacy
-  // ?zip= parameter is folded in the same way, so old links keep working.
+  // Unified search: a 5-digit number typed anywhere in the single box
+  // (alone or beside words) is pulled out and resolved to its metro area
+  // behind the scenes; the remaining words match name, parish, or city
+  // as before. A legacy ?zip= parameter is folded in the same way, so
+  // old links keep working.
   const zipMatch = q.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : legacyZip;
   const words = q.trim().split(/\s+/).filter(Boolean).filter((t) => !/^\d{5}$/.test(t)).slice(0, 10).map(searchNormWord);
@@ -664,13 +664,13 @@ app.get('/browse', async (req, res) => {
   if (/^\d{5}$/.test(zip)) {
     const area = areaForZip(zip);
     if (area) {
-      note = `<p class="notice">ZIP ${esc(zip)} resolves to the ${esc(area.city)}, ${esc(area.state)} area. Results below are area-level, not exact-ZIP matches (except user-added profiles carrying that exact ZIP).</p>`;
+      note = `<p class="notice">Showing priests in the ${esc(area.city)}, ${esc(area.state)} area.</p>`;
       params.push(area.city, area.state, zip);
       where.push(`((city ILIKE $${params.length - 2} AND state = $${params.length - 1}) OR (user_added = true AND zip = $${params.length}))`);
     } else if (words.length) {
-      note = `<p class="notice">We could not map ZIP ${esc(zip)} to a known area, so it was ignored. Results below are from the rest of your search.</p>`;
+      note = `<p class="notice">The 5-digit number in your search did not match a known area, so it was ignored. Results below are from the rest of your search.</p>`;
     } else {
-      note = `<p class="notice">We could not map ZIP ${esc(zip)} to a known area, so no area results are shown. Try a name, parish, or city search instead.</p>`;
+      note = `<p class="notice">We could not match that number to a known area, so no results are shown. Try a name, parish, or city search instead.</p>`;
       where.push('false');
     }
   }
@@ -711,22 +711,22 @@ app.get('/browse', async (req, res) => {
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
   // A place filter arrived with by URL (state/city/diocese) is kept as hidden
   // inputs so refining the text search does not silently drop it. The Find
-  // by place dropdowns were retired; the unified box covers name, parish,
-  // city, and ZIP.
+  // by place dropdowns were retired; the single box covers name, parish,
+  // and city. A 5-digit number typed in the box still resolves to its metro
+  // area behind the scenes.
   const placeHidden = `${state ? `<input type="hidden" name="state" value="${esc(state)}">` : ''}${city ? `<input type="hidden" name="city" value="${esc(city)}">` : ''}${diocese ? `<input type="hidden" name="diocese" value="${esc(diocese)}">` : ''}`;
+  // The category filter select was removed from the search row to keep it one
+  // box; an active filter is kept as a hidden input so refining the text
+  // search does not silently drop it. Entry points are the home chips.
+  const filterHidden = FILTERS[filter] ? `<input type="hidden" name="filter" value="${esc(filter)}">` : '';
   res.send(page(heading, `<h1>${esc(heading)}</h1>
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Name, parish, city, or ZIP" aria-label="Search by name, parish, city, or ZIP"></span>
-        ${placeHidden}
-        <select name="filter" aria-label="Filter by category"><option value="">All priests</option>
-          <option value="quick" ${filter === 'quick' ? 'selected' : ''}>Quick Mass</option>
-          <option value="homily" ${filter === 'homily' ? 'selected' : ''}>Great homily</option>
-          <option value="lovable" ${filter === 'lovable' ? 'selected' : ''}>Lovable priest</option></select>
+        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
+        ${placeHidden}${filterHidden}
         <button type="submit">Search</button>
       </div>
     </form>
-    <p class="small">One search box for name, parish, city, or ZIP. A ZIP finds the city and state area, never an exact address.</p>
     ${note}${matchLine}<div class="cards">${body}</div>`));
 });
 
@@ -1018,17 +1018,51 @@ app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2
     <p>RateMyFather is a passion project, kept free and ad free. If it has helped you find a Mass you love, a small tip keeps it that way.</p>
     <a class="tip-link" href="https://ko-fi.com/ratemyfather" target="_blank" rel="noopener">Buy the creator a coffee on Ko-fi</a>
   </section>`)));
-app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p>Each rating is 1 to 5 in three categories:</p>
-  <ul><li><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</li>
-  <li><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</li>
-  <li><strong>Likability:</strong> 1 is not likable, 5 is very likable.</li></ul>
+// Star tables for the How page, built from ANCHORS itself so the page can
+// never drift from what the review form shows. 5 first, 1 last.
+function anchorRows(key) {
+  return [5, 4, 3, 2, 1].map(n => {
+    const a = ANCHORS[key][n];
+    return `<li>${starsHtml(n)}<span><strong>${esc(a.label)}</strong> &mdash; ${esc(a.text)}</span></li>`;
+  }).join('');
+}
+app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p class="how-lede">Each rating is 1 to 5 in three categories:</p>
+  <div class="how-cats">
+    <div class="how-cat-card"><h3>Pace of play</h3><p><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</p></div>
+    <div class="how-cat-card"><h3>Homily</h3><p><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</p></div>
+    <div class="how-cat-card"><h3>Likability</h3><p><strong>Likability:</strong> 1 is not likable, 5 is very likable.</p></div>
+  </div>
+  <section class="how-section"><h2>What the stars mean</h2>
+  <p>Each star has a plain description, the same one shown in the review form, so a reviewer picks from a real basis instead of guessing.</p>
+  <h3>Pace of play</h3>
+  <ul class="anchor-list">${anchorRows('pace')}</ul>
+  <p class="how-note">${esc(MASS_TIMING_NOTE)}</p>
+  <h3>Homily</h3>
+  <ul class="anchor-list">${anchorRows('homily')}</ul>
+  <h3>Likability</h3>
+  <ul class="anchor-list">${anchorRows('likability')}</ul>
+  <h3>Church beauty</h3>
+  <ul class="anchor-list">${anchorRows('church_beauty')}</ul></section>
+  <section class="how-section"><h2>How averages work</h2>
   <p>Every average score is shown with its review count, everywhere it appears. Averages use approved reviews only. A held review counts toward nothing.</p>
-  <p>Each review also says how long the reviewer has attended the parish or known the priest, from a first-time visitor to a lifelong parishioner, and that is printed on the review so readers can weigh it.</p>
-  <p>Screening: star-only and clearly clean reviews may auto-approve. Borderline reviews wait in the moderation queue. Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag and never auto-approved. Reviews containing phone numbers or email addresses are refused outright. A repeat review of the same priest from the same source is refused. After 5 reviews in an hour from one source, further reviews are refused. If 10 or more reviews of one priest arrive in 24 hours, further reviews of that priest are force-held.</p>
   <p>Category lists ("Quick Mass", "Great homily", "Lovable priest") show rated priests only, sorted by that category average highest first, tie-broken by review count. Listings based on a single review carry a single-review caveat.</p>
-  <p>Reviews are anonymous. No name or email is collected. For abuse prevention only, the site stores a hashed token derived from request data (see Privacy Policy).</p>
-  <p>Reviews are user opinions, not verified facts. The site does not verify or endorse them. If you believe a review is unlawful or about you, use the <a href="/legal">Legal notices</a> page or the correction form on the priest's profile.</p>
-  <p><strong>Church beauty is separate from the priest's score.</strong> When you review, you can optionally rate how beautiful the church building is, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It is shown on the profile in its own box with its own review count, and it never affects the priest's score, averages, rankings, or category lists. A priest is never punished because their church is not beautiful.</p>`)));
+  <p>Each review also says how long the reviewer has attended the parish or known the priest, from a first-time visitor to a lifelong parishioner, and that is printed on the review so readers can weigh it.</p></section>
+  <section class="how-section"><h2>How reviews are checked</h2>
+  <ul class="how-list">
+    <li>Star-only and clearly clean reviews may auto-approve.</li>
+    <li>Borderline reviews wait in the moderation queue.</li>
+    <li>Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag and never auto-approved.</li>
+    <li>Reviews containing phone numbers or email addresses are refused outright.</li>
+    <li>A repeat review of the same priest from the same source is refused.</li>
+    <li>After 5 reviews in an hour from one source, further reviews are refused.</li>
+    <li>If 10 or more reviews of one priest arrive in 24 hours, further reviews of that priest are force-held.</li>
+  </ul></section>
+  <section class="how-section"><h2>Church beauty is separate</h2>
+  <p><strong>Church beauty is separate from the priest's score.</strong> When you review, you can optionally rate how beautiful the church building is, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It is shown on the profile in its own box with its own review count, and it never affects the priest's score, averages, rankings, or category lists. A priest is never punished because their church is not beautiful.</p></section>
+  <section class="how-section"><h2>Anonymous reviews</h2>
+  <p>Reviews are anonymous. No name or email is collected. For abuse prevention only, the site stores a hashed token derived from request data (see Privacy Policy).</p></section>
+  <section class="how-section"><h2>Opinions, not verified facts</h2>
+  <p>Reviews are user opinions, not verified facts. The site does not verify or endorse them. If you believe a review is unlawful or about you, use the <a href="/legal">Legal notices</a> page or the correction form on the priest's profile.</p></section>`)));
 app.get('/terms', (req, res) => res.send(infoPage('Terms of Use', `<p>Reviews are user-generated opinions. They are the individual reviewer's own opinion, not statements of fact, not verified by RateMyFather, and not endorsed by RateMyFather. A rating reflects one person's experience, not a finding about a priest.</p>
   <p>By submitting a review, you confirm you are 18 or older and that the review is your own honest opinion. You are responsible for what you submit. You must not submit private contact details, unverified factual allegations about identifiable people, or content you do not have the right to post.</p>
   <p>RateMyFather is not liable for user-submitted content. The site hosts reviews as a platform for user opinions; it does not adopt, verify, or stand behind them.</p>
