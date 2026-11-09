@@ -484,7 +484,10 @@
       // cover the receiver, so reaching the gold X is a fight through
       // bodies under a countdown, not a free run. On a run the line sits
       // just ahead of the runner, as usual.
-      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [380, 460] : null);
+      // On a run the line sits closer than it used to (140-190px ahead
+      // instead of the default), so the runner meets it sooner instead of
+      // building a head of steam untouched.
+      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [380, 460] : [140, 190]);
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
         passTarget = pickPassTarget();
@@ -679,7 +682,10 @@
           if (Math.hypot(defenders[i].x - px, defenders[i].y - py) < BOWL_IMPEDE_RADIUS) { impeded = true; break; }
         }
       }
-      var speed = 208 * (impeded ? BOWL_IMPEDE_SLOW : 1); // Same pace with or without the ball: a caught pass
+      // A pure run play is a step slower (190 vs 208); a caught pass still
+      // runs at full pace. The hold-up already slows a pass, so the run
+      // slowdown only applies to a run play before the catch.
+      var speed = ((state === 'run' && !caught) ? 190 : 208) * (impeded ? BOWL_IMPEDE_SLOW : 1); // Same pace with or without the ball: a caught pass
       // gives no speed edge. The catch buys field position, not a faster run.
       px = clamp(px + dx * speed * dt, 16, GAME_W - 16);
       // The goal line is the floor: reaching it scores. The start line is
@@ -1071,6 +1077,9 @@
     }
     function lock() {
       cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v && cur.y + r >= 0) grid[cur.y + r][cur.x + c] = cur.type; }); });
+      // Every pane placed pays a little, so the score moves before the
+      // first line clears and a new player sees progress from the start.
+      score += 5;
       var cleared = 0;
       for (var y = ROWS - 1; y >= 0; y--) {
         if (grid[y].every(Boolean)) { grid.splice(y, 1); grid.unshift(new Array(COLS).fill(null)); cleared++; y++; }
@@ -1110,7 +1119,8 @@
       state = 'playing'; api.hideOverlay(); spawn(); updateHud();
     }
     function updateHud() {
-      api.setHud('<span class="score">Score: ' + score + '</span><span>Lines: ' + lines + '</span><span>Level: ' + level + '</span><span>Best: ' + best + '</span>');
+      api.setHud('<span class="score">Score: ' + score + '</span><span>Lines: ' + lines + '</span><span>Level: ' + level + '</span>' +
+        (combo > 1 ? '<span>Combo x' + combo + '</span>' : '') + '<span>Best: ' + best + '</span>');
     }
     function drawCell(x, y, color, ghost) {
       var px = OX + x * CELL, py = OY + y * CELL;
@@ -1189,7 +1199,7 @@
     function moveLeft() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x - 1, cur.y)) cur.x--; }
     function moveRight() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x + 1, cur.y)) cur.x++; }
     function rotateCur() { if (state !== 'playing' || paused) return; var r = rotate(cur.shape); if (!collides(r, cur.x, cur.y)) cur.shape = r; }
-    function softDrop() { if (state !== 'playing' || paused) return; if (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; else lock(); }
+    function softDrop() { if (state !== 'playing' || paused) return; if (!collides(cur.shape, cur.x, cur.y + 1)) { cur.y++; score += 1; updateHud(); } else lock(); }
     function slam() { if (state !== 'playing' || paused) return; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; lock(); }
     document.addEventListener('keydown', onKey);
     function onKey(e) {
@@ -1281,9 +1291,21 @@
         gameOver(); return;
       }
       var perfect = overlap / top.w > 0.9;
-      var stone = { x: left, w: overlap, y: top.y - 18 };
+      // Early forgiveness: the first five stones keep the full width of the
+      // tower below and settle squarely on it, so a new player can build a
+      // base instead of the tower narrowing to a sliver on one sloppy drop.
+      // After five stones the overhang is cut, as usual.
+      var stone;
+      if (tower.length < 5) {
+        stone = { x: top.x, w: top.w, y: top.y - 18 };
+      } else {
+        stone = { x: left, w: overlap, y: top.y - 18 };
+      }
       tower.push(stone);
       score += 1;
+      // Height milestones: every fifth stone pays a bonus and says so, so
+      // steady building is rewarded, not only perfect drops.
+      if (tower.length % 5 === 0) { score += 25; api.showBanner(tower.length + ' stones — the steeple rises! +25', 1400); }
       // A run of perfect drops is worth more than one alone: the streak
       // grows the bonus, so a steady hand is rewarded for staying steady.
       if (perfect) { perfectStreak += 1; score += 10 + 5 * (perfectStreak - 1); perfectT = 1.2; }
@@ -1307,6 +1329,7 @@
     }
     function updateHud() {
       api.setHud('<span class="score">Score: ' + score + '</span><span>Stones: ' + tower.length + '</span>' +
+        (perfectStreak > 1 ? '<span>Perfect x' + perfectStreak + '</span>' : '') +
         '<span>' + (tower.length >= 15 ? 'Wind: ' + (wind >= 0 ? '→' : '←') + ' ' + Math.abs(Math.round(wind)) : 'Calm air') + '</span><span>Best: ' + best + '</span>');
     }
     function draw() {
@@ -1432,7 +1455,10 @@
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
     function startGame() {
-      px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = 60; warmupT = 6;
+      px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = 30; warmupT = 6;
+      // The first bell rings after 30 seconds, not 60, so a casual player
+      // has a realistic shot at the pushback that is the point of the game.
+      // After the first bell it settles to every 60 seconds.
       prevPx = px; prevPy = py; pvx = 0; pvy = 0;
       dashT = 0; dashCd = 0; halos = [];
       sins = FLEE_SINS.map(function (s, i) {
@@ -1642,7 +1668,7 @@
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings every 60 seconds and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
+    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The first bell rings after 30 seconds, then every 60 seconds, and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
     api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. ' + gameMark('flee') + '</p>' +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>');
     var s = document.getElementById('flee-start');
@@ -1720,8 +1746,12 @@
     }
     function reachDoor(i) {
       if (i === mothDoor) {
-        score += 250 + level * 50;
-        api.showBanner('Through the right door! +' + (250 + level * 50), 1600);
+        // Beating the bell pays: the seconds left on the bell are a bonus,
+        // so a quick, confident crossing is worth more than a slow one.
+        var timeBonus = Math.ceil(bellT) * 5;
+        var gained = 250 + level * 50 + timeBonus;
+        score += gained;
+        api.showBanner('Through the right door! +' + gained + (timeBonus > 0 ? ' (incl. +' + timeBonus + ' for beating the bell)' : ''), 1600);
         level += 1; bellT = 60; buildLevel(); resetSpot(); updateHud();
       } else {
         loseLife('Wrong door');
@@ -2093,6 +2123,9 @@
         '<span>Congregation: <b>' + cong + '</b></span>' +
         '<span>Funds: <b>' + money(funds) + '</b></span>' +
         '<span>Happiness: <b>' + happy + '</b></span>' +
+        // The season score, live: congregation + happiness + funds / 10, so
+        // the player can see the number they are playing for as it moves.
+        '<span>Score: <b>' + Math.max(0, Math.round(cong + happy + Math.max(0, funds) / 10)) + '</b></span>' +
         '<span>' + parishMood() + '</span>' +
         '<span>Best: ' + best + '</span>';
     }
@@ -2107,9 +2140,15 @@
       over = true;
       var score = Math.max(0, Math.round(cong + happy + Math.max(0, funds) / 10));
       var fb = writeBest('pastor', score); best = fb;
+      // A verdict for the season, so the ending lands and the player has a
+      // title to chase next season.
+      var verdict = score >= 700 ? 'A flourishing parish — the pews are full and the books balance.' :
+        score >= 550 ? 'A steady parish — holding together, with room to grow.' :
+        score >= 400 ? 'A parish holding on — the work is not finished.' :
+        'A parish in need — the next season will ask more of you.';
       card.innerHTML = '<h3>' + esc(reason) + '</h3>' +
         '<p>Final congregation: ' + cong + ' &middot; Funds: ' + money(funds) + ' &middot; Happiness: ' + happy + '<br>' +
-        'Season score: <b>' + score + '</b> &middot; Best: ' + fb + '</p>' +
+        'Season score: <b>' + score + '</b> &middot; Best: ' + fb + '<br>' + esc(verdict) + '</p>' +
         '<button type="button" class="big-btn press" id="pastor-again">New season</button> ' +
         '<button type="button" class="linklike" id="pastor-back2">Back to arcade</button>';
       var a = document.getElementById('pastor-again');
@@ -2165,7 +2204,7 @@
       ledger.innerHTML = '';
       showWeek();
     }
-    card.innerHTML = '<h3>Parish Pastor</h3><p>Shepherd your parish for 16 weeks. Every decision moves the congregation, the funds, and the happiness of the parish. Keep the pews full, the books out of the red, and the people glad. ' + gameMark('pastor') + '</p>' +
+    card.innerHTML = '<h3>Parish Pastor</h3><p>Shepherd your parish for 16 weeks. Every decision moves the congregation, the funds, and the happiness of the parish. Keep the pews full, the books out of the red, and the people glad. Your season score is congregation + happiness + funds &divide; 10. ' + gameMark('pastor') + '</p>' +
       '<button type="button" class="big-btn press" id="pastor-start">Begin the season</button>';
     var s = document.getElementById('pastor-start');
     if (s) s.addEventListener('click', startSeason);
@@ -2291,10 +2330,11 @@
       updateHud();
     }
     function updateHud() {
-      var dark = Object.keys(candles).length + Object.keys(vials).length;
+      // The vigil is the goal, so the HUD shows progress toward it:
+      // candles lit out of the 110 that complete a vigil.
       api.setHud('<span class="score">Grace: ' + score + '</span><span>Vigil: ' + level + '</span>' +
         '<span>Hearts: ' + '♥'.repeat(Math.max(0, lives)) + '</span>' +
-        '<span>Candles still dark: ' + dark + '</span><span>Best: ' + best + '</span>');
+        '<span>Candles: ' + candlesEaten + '/110</span><span>Best: ' + best + '</span>');
     }
     function addScore(n) {
       score += n;
@@ -2661,9 +2701,10 @@
     function inSpecial(x) {
       return (x > 1980 && x < 3070) || (x > 3830 && x < 4820) || (x > 5530 && x < 6620);
     }
-    // Clear opening runway: the first thorn waits until 1000px, so a
-    // new player gets a few jumps in before the first thing to clear.
-    var x = 1000;
+    // Clear opening runway: the first thorn waits until 1400px, so a new
+    // player gets a few jumps in before the first thing to clear, and the
+    // first pew waits until 1300px.
+    var x = 1400;
     while (x < 9000) {
       if (!inSpecial(x)) {
         var n = 1 + Math.floor(rnd() * 3);
@@ -2671,11 +2712,14 @@
         x += 380 + rnd() * 260;
       } else x += 120;
     }
-    x = 900;
+    x = 1300;
     while (x < 8900) { if (!inSpecial(x)) L.pews.push({ x: x, w: 70 + rnd() * 30, h: 46 + rnd() * 20 }); x += 750 + rnd() * 350; }
     x = 1100;
     while (x < 8900) { if (!inSpecial(x)) L.clouds.push({ x: x, w: 54 }); x += 950 + rnd() * 400; }
-    x = 1000;
+    // The first censer waits until 3200px: a new player gets a few thorn
+    // jumps in before the first thing that punishes jumping. The censers
+    // hang above the floor, so you run under them — never jump into one.
+    x = 3200;
     while (x < 8900) { if (!inSpecial(x)) L.censers.push({ x: x, phase: rnd() * Math.PI * 2 }); x += 850 + rnd() * 350; }
     x = 800;
     while (x < 8900) { if (!inSpecial(x)) L.orbs.push({ x: x, y: 150 + rnd() * 70, used: false }); x += 620 + rnd() * 300; }
@@ -3097,7 +3141,7 @@
             var cn = layout.censers[ce];
             var ang = Math.sin(runT * 1.5 + cn.phase) * 0.5;
             var bx = cn.x + Math.sin(ang) * 70, by = 120 + Math.cos(ang) * 70;
-            if (Math.hypot(bx - dist, by - y) < 27) { die('Struck by a swinging censer'); return; }
+            if (Math.hypot(bx - dist, by - y) < 20) { die('Struck by a swinging censer'); return; }
           }
         }
       }
@@ -3147,7 +3191,7 @@
     practiceWrap.appendChild(practiceBox);
     practiceWrap.appendChild(document.createTextNode(' Practice mode (candle checkpoints, no bests)'));
     api.actions.appendChild(practiceWrap);
-    api.showOverlay('<h3>Sanctuary Dash</h3><p>The golden cube never stops. Jump the thorns, ride the pews, mind the censers, and reach the sanctuary 9,200px down the nave. ' + gameMark('dash') + '</p>' +
+    api.showOverlay('<h3>Sanctuary Dash</h3><p>The golden cube never stops. Jump the thorns, ride the pews, run under the swinging censers — never jump into one — and reach the sanctuary 9,200px down the nave. ' + gameMark('dash') + '</p>' +
       '<button type="button" class="big-btn press" id="dash-start">Start the run</button>');
     var s = document.getElementById('dash-start');
     if (s) s.addEventListener('click', function () { startRun(seed); });
