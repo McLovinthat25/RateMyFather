@@ -720,9 +720,16 @@ app.post('/legal', async (req, res) => {
 
 // ---------- informational pages ----------
 function infoPage(title, inner) { return page(title, `<h1>${esc(title)}</h1>${GLASS}${inner}`); }
-app.get('/about', (req, res) => res.send(infoPage('About', `<p>RateMyFather is a RateMyProfessor-style site for anonymous ratings of Catholic priests on three things: pace of play (how fast Mass moves), homily performance, and likability.</p>
-  <p>Directory profiles come from the 2017 directory. Each directory profile carries one small line noting that. Assignments are historical listings ("Listed at ..."), not a claim about where a priest serves today.</p>
-  <p>${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p>`)));
+app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2>
+  <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p>
+  <h2>How the ratings work</h2>
+  <p>Reviews are anonymous. No name or email is collected, and every rating is 1 to 5 on pace, homily, and likability only. Pace measures speed alone, not quality: a slow Mass is not a bad Mass. Every average is shown with its review count, so you can see how many people stand behind a score.</p>
+  <p>You can also rate the church building itself, from 1 (plain) to 5 (stunning). That rating is about the building, not the priest. It lives in its own box on the profile, and it never affects the priest's score, averages, or rankings. A priest is never punished because their church is not beautiful.</p>
+  <h2>Where the profiles come from</h2>
+  <p>The priest profiles come from the 2017 Official Catholic Directory Priests Index. Each directory profile says so on the page. Assignments shown as "Listed at ..." are historical listings from that directory, not a claim about where a priest serves today.</p>
+  <p>We have also gone through the directory and attempted to verify and update the profiles against current diocese and parish sources, and that work is still going. In the verification sweep so far, about 37,793 profiles were checked and about 15,272 were resolved. But the underlying directory is still the 2017 one, so some listings may be out of date. Please treat parish assignments as a starting point, not a guarantee.</p>
+  <h2>If something is wrong</h2>
+  <p>If a listing is wrong or out of date, you can report it. Every priest's profile has a correction form, and the owner reviews each correction. ${DISCLAIMER}</p><p>No paid placement. No sponsored priests.</p>`)));
 app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p>Each rating is 1 to 5 in three categories:</p>
   <ul><li><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</li>
   <li><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</li>
