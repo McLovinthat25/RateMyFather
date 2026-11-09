@@ -1,4 +1,4 @@
-// RateMyFather Arcade: nine games, vanilla canvas JS. Best scores live only in
+// RateMyFather Arcade: eight games, vanilla canvas JS. Best scores live only in
 // the visitor's browser (localStorage). Games never auto-play: every game starts
 // on a start overlay and waits for a tap or click.
 (function () {
@@ -214,7 +214,6 @@
     { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light every candle in the cloister while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
-    { id: 'holy', title: 'Holy Water Havoc', blurb: 'Fend off the devil with holy water. Charge your shots and watch for extra hearts.', verdict: 'Best for boss fighters.', how: 'Move with arrows. Hold Space to charge, release to fire. On a phone, drag on the sanctuary to move, hold to charge, release to fire, or use the buttons below.', mount: mountHoly },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
     { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', mount: mountFlee },
     { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows to move, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
@@ -239,7 +238,7 @@
     root.innerHTML = '';
     var head = el('div', 'arcade-head');
     head.appendChild(el('h2', '', 'The Arcade'));
-    head.appendChild(el('p', 'small', 'Nine little games. Best scores live only in your browser.'));
+    head.appendChild(el('p', 'small', 'Eight little games. Best scores live only in your browser.'));
     var tools = el('div', 'arcade-tools');
     var surprise = el('button', 'press', 'Surprise me'); surprise.type = 'button';
     surprise.addEventListener('click', function () {
@@ -1296,235 +1295,6 @@
     return function cleanup() {
       destroyed = true; cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey);
-      cleanupPause();
-    };
-  }
-
-  // ================= Holy Water Havoc =================
-  // Devil boss: waypoint drift, teleports, weighted attacks. Charge shots:
-  // droplet, bolt, beam. Extra hearts at 800 and 2,000 points.
-  function mountHoly(parent, onBack) {
-    var api = createStage(parent, { title: 'Holy Water Havoc', onBack: onBack });
-    var px = GAME_W / 2, hearts = 3, score = 0, best = readBest('holy');
-    var boss = null, bossLevel = 1, shots = [], bolts = [], parts = [];
-    var charge = 0, charging = false, state = 'ready', paused = false;
-    var hitT = 0; // seconds the boss flashes pale after taking a hit
-    var invulnT = 0; // seconds of grace after a hit: one bolt spread cannot
-    // strip all three hearts in a single frame, and the player can see it.
-    var heartsGiven = { 800: false, 2000: false };
-    var raf = 0, last = 0, destroyed = false;
-    var keys = makeKeys();
-    // Touch state: held move buttons and the hold-to-charge fire button.
-    var leftHeld = false, rightHeld = false, touchCharging = false;
-    var WAYPOINTS = [{ x: 80, y: 70 }, { x: 240, y: 50 }, { x: 400, y: 70 }, { x: 150, y: 110 }, { x: 330, y: 110 }];
-    function newBoss() {
-      boss = { x: 240, y: 60, hp: 30 + bossLevel * 12, maxHp: 30 + bossLevel * 12, wp: 0, wpT: 0, atkT: 2, teleT: 9 };
-    }
-    function startGame() {
-      px = GAME_W / 2; hearts = 3; score = 0; bossLevel = 1;
-      shots = []; bolts = []; parts = []; charge = 0;
-      heartsGiven = { 800: false, 2000: false };
-      newBoss(); state = 'playing'; api.hideOverlay(); updateHud();
-    }
-    function fire() {
-      var kind = charge > 1 ? 'beam' : charge > 0.4 ? 'bolt' : 'droplet';
-      var dmg = kind === 'beam' ? 12 : kind === 'bolt' ? 6 : 3;
-      shots.push({ x: px, y: GAME_H - 40, vy: kind === 'beam' ? -520 : -340, kind: kind, dmg: dmg, pierce: kind === 'beam' });
-      charge = 0; charging = false;
-    }
-    function bossAttack() {
-      var roll = Math.random();
-      if (roll < 0.45) {
-        for (var i = -1; i <= 1; i++) bolts.push({ x: boss.x, y: boss.y + 18, vx: i * 70, vy: 170, r: 6 });
-      } else if (roll < 0.8) {
-        var dx = px - boss.x, dy = (GAME_H - 30) - boss.y, len = Math.hypot(dx, dy) || 1;
-        bolts.push({ x: boss.x, y: boss.y + 18, vx: (dx / len) * 230, vy: (dy / len) * 230, r: 7 });
-      } else {
-        for (var j = 0; j < 5; j++) bolts.push({ x: rand(40, GAME_W - 40), y: -10, vx: 0, vy: rand(120, 190), r: 6 });
-      }
-    }
-    function checkHearts() {
-      [800, 2000].forEach(function (t) {
-        if (score >= t && !heartsGiven[t]) { heartsGiven[t] = true; hearts += 1; api.showBanner('+1 heart!', 1500); }
-      });
-    }
-    function gameOver() {
-      state = 'over';
-      var fb = writeBest('holy', score); best = fb;
-      api.showOverlay('<h3>The devil got away... this time</h3><p>Score: ' + score + ' &middot; Level: ' + bossLevel + '<br>Best: ' + fb + '</p>' +
-        '<button type="button" class="big-btn press" id="holy-again">Play again</button>' +
-        '<button type="button" class="linklike" id="holy-back">Back to arcade</button>');
-      var a = document.getElementById('holy-again');
-      if (a) a.addEventListener('click', startGame);
-      var b = document.getElementById('holy-back');
-      if (b) b.addEventListener('click', function () { onBack(); });
-      updateHud();
-    }
-    function updateHud() {
-      api.setHud('<span class="score">Score: ' + score + '</span><span>Hearts: ' + '♥'.repeat(Math.max(0, hearts)) + '</span><span>Boss level: ' + bossLevel + '</span><span>Best: ' + best + '</span>');
-    }
-    function draw() {
-      var ctx = api.ctx;
-      ctx.fillStyle = '#1d1712'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      ctx.fillStyle = '#2a211a'; ctx.fillRect(0, GAME_H - 24, GAME_W, 24);
-      // Boss
-      if (boss) {
-        // Telegraph: a gold ring closes in during the half-second before
-        // the devil attacks, so the player can see the hit coming and
-        // move, instead of the bolts simply arriving.
-        if (boss.atkT < 0.5) {
-          ctx.strokeStyle = 'rgba(178,138,46,' + (0.35 + 0.45 * (0.5 - boss.atkT)) + ')';
-          ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.arc(boss.x, boss.y, 26 + (0.5 - boss.atkT) * 22, 0, Math.PI * 2); ctx.stroke();
-        }
-        // Hit flash: the devil goes pale for a beat when holy water lands,
-        // so every hit reads instead of vanishing into the health bar.
-        ctx.fillStyle = hitT > 0 ? '#e8c9a8' : '#b8452a';
-        ctx.beginPath(); ctx.arc(boss.x, boss.y, 26, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#fffdf7'; ctx.font = 'bold 12px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('😈', boss.x, boss.y + 4); ctx.textAlign = 'left';
-        ctx.fillStyle = '#33261a'; ctx.fillRect(boss.x - 30, boss.y - 40, 60, 6);
-        ctx.fillStyle = '#b8452a'; ctx.fillRect(boss.x - 30, boss.y - 40, 60 * Math.max(0, boss.hp / boss.maxHp), 6);
-      }
-      // Shots
-      shots.forEach(function (s) {
-        ctx.fillStyle = s.kind === 'beam' ? '#b28a2e' : s.kind === 'bolt' ? '#7fb3d5' : '#bcd8e8';
-        if (s.kind === 'beam') { ctx.fillRect(s.x - 3, s.y - 26, 6, 26); }
-        else { ctx.beginPath(); ctx.arc(s.x, s.y, s.kind === 'bolt' ? 6 : 4, 0, Math.PI * 2); ctx.fill(); }
-      });
-      bolts.forEach(function (b) {
-        ctx.fillStyle = '#e05a2a';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
-      });
-      // Player priest: blinks while invulnerable, so a hit reads clearly.
-      ctx.globalAlpha = (invulnT > 0 && Math.floor(performance.now() / 120) % 2 === 0) ? 0.35 : 1;
-      ctx.fillStyle = '#6e1a26';
-      ctx.beginPath(); ctx.arc(px, GAME_H - 34, 13, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
-      ctx.fillText('F', px, GAME_H - 30); ctx.textAlign = 'left';
-      ctx.globalAlpha = 1;
-      // Charge meter
-      if (charging) {
-        ctx.fillStyle = '#33261a'; ctx.fillRect(px - 25, GAME_H - 62, 50, 7);
-        ctx.fillStyle = charge > 1 ? '#b28a2e' : charge > 0.4 ? '#7fb3d5' : '#bcd8e8';
-        ctx.fillRect(px - 25, GAME_H - 62, 50 * clamp(charge / 1.2, 0, 1), 7);
-        ctx.fillStyle = '#fffdf7'; ctx.font = '11px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText(charge > 1 ? 'BEAM' : charge > 0.4 ? 'BOLT' : 'droplet', px, GAME_H - 68); ctx.textAlign = 'left';
-      }
-      if (paused) {
-        ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
-      }
-    }
-    function tick(dt) {
-      if (paused || destroyed || state !== 'playing') return;
-      var ax = keys.axis();
-      var mx = ax.x + (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0);
-      px = clamp(px + mx * 260 * dt, 20, GAME_W - 20);
-      var held = keys.pressed(' ') || touchCharging;
-      if (held && !charging) { charging = true; charge = 0; }
-      if (charging) charge += dt;
-      if (!held && charging) fire();
-      // Boss drift between waypoints
-      if (boss) {
-        var wp = WAYPOINTS[boss.wp];
-        var dx = wp.x - boss.x, dy = wp.y - boss.y, len = Math.hypot(dx, dy) || 1;
-        boss.x += (dx / len) * 42 * dt; boss.y += (dy / len) * 42 * dt;
-        boss.wpT += dt;
-        if (boss.wpT > 2.4) { boss.wpT = 0; boss.wp = (boss.wp + 1) % WAYPOINTS.length; }
-        boss.teleT -= dt;
-        if (boss.teleT <= 0) {
-          boss.teleT = rand(7, 11);
-          var nw = WAYPOINTS[randInt(0, WAYPOINTS.length - 1)];
-          boss.x = nw.x; boss.y = nw.y;
-        }
-        boss.atkT -= dt;
-        if (boss.atkT <= 0) { boss.atkT = Math.max(0.9, 2.2 - bossLevel * 0.12); bossAttack(); }
-      }
-      shots.forEach(function (s) { s.y += s.vy * dt; });
-      shots = shots.filter(function (s) { return s.y > -30; });
-      bolts.forEach(function (b) { b.x += b.vx * dt; b.y += b.vy * dt; });
-      bolts = bolts.filter(function (b) { return b.y < GAME_H + 20 && b.x > -20 && b.x < GAME_W + 20; });
-      // Shot vs boss
-      shots = shots.filter(function (s) {
-        if (boss && Math.abs(s.x - boss.x) < 30 && Math.abs(s.y - boss.y) < 30) {
-          boss.hp -= s.dmg;
-          hitT = 0.12;
-          score += s.dmg * 2;
-          if (boss.hp <= 0) {
-            score += 500;
-            bossLevel += 1;
-            api.showBanner('Devil banished! Level ' + bossLevel, 1800);
-            newBoss();
-          }
-          checkHearts(); updateHud();
-          return s.pierce;
-        }
-        return true;
-      });
-      if (invulnT > 0) invulnT -= dt;
-      if (hitT > 0) hitT -= dt;
-      // Bolts vs player: a hit grants a short grace window, so one spread
-      // cannot take more than one heart.
-      for (var i = bolts.length - 1; i >= 0; i--) {
-        var b = bolts[i];
-        if (Math.hypot(b.x - px, b.y - (GAME_H - 34)) < 16) {
-          bolts.splice(i, 1);
-          if (invulnT > 0) continue;
-          hearts -= 1; invulnT = 1.2; updateHud();
-          if (hearts <= 0) { gameOver(); return; }
-        }
-      }
-    }
-    function loop(t) {
-      if (destroyed) return;
-      var dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
-      tick(dt); draw();
-      raf = requestAnimationFrame(loop);
-    }
-    function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
-    function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
-    var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
-    // Direct touch on the sanctuary: drag sideways and Father follows your
-    // finger; hold to charge the holy water, let go to fire. The buttons
-    // below still work exactly as before.
-    var holyTouch = null;
-    api.canvas.addEventListener('pointerdown', function (e) {
-      if (state !== 'playing' || paused) return;
-      e.preventDefault();
-      var pt = canvasPoint(api.canvas, e);
-      holyTouch = { x: pt.x };
-      touchCharging = true;
-      px = clamp(pt.x, 20, GAME_W - 20);
-    });
-    api.canvas.addEventListener('pointermove', function (e) {
-      if (!holyTouch || state !== 'playing' || paused) return;
-      e.preventDefault();
-      var pt = canvasPoint(api.canvas, e);
-      holyTouch.x = pt.x;
-      px = clamp(pt.x, 20, GAME_W - 20);
-    });
-    function endHolyTouch() { if (holyTouch) { holyTouch = null; touchCharging = false; } }
-    api.canvas.addEventListener('pointerup', endHolyTouch);
-    api.canvas.addEventListener('pointerleave', endHolyTouch);
-    api.canvas.addEventListener('pointercancel', endHolyTouch);
-    // Touch controls: hold ◀ ▶ to move, hold FIRE to charge, release to shoot.
-    var touchRow = makeTouchRow(api);
-    touchRow.appendChild(makeHoldButton('◀', function () { leftHeld = true; }, function () { leftHeld = false; }));
-    touchRow.appendChild(makeHoldButton('▶', function () { rightHeld = true; }, function () { rightHeld = false; }));
-    touchRow.appendChild(makeHoldButton('FIRE', function () { touchCharging = true; }, function () { touchCharging = false; }, { cls: 'fire-btn' }));
-    api.actions.appendChild(el('p', 'game-note', 'Move with arrows. Hold Space to charge: droplet, bolt, then beam. Extra hearts at 800 and 2,000 points. On touch, drag on the sanctuary to move, hold to charge, release to shoot, or use the buttons below.'));
-    api.showOverlay('<h3>Holy Water Havoc</h3><p>The devil is loose in the sanctuary. Drive him off with holy water. ' + gameMark('holy') + '</p>' +
-      '<button type="button" class="big-btn press" id="holy-start">Start the fight</button>');
-    var s = document.getElementById('holy-start');
-    if (s) s.addEventListener('click', startGame);
-    updateHud();
-    last = performance.now(); raf = requestAnimationFrame(loop);
-    return function cleanup() {
-      destroyed = true; cancelAnimationFrame(raf);
-      keys.cleanup();
       cleanupPause();
     };
   }
