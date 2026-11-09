@@ -143,7 +143,7 @@ function layout(title, body, extraHead = '') {
   <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
   <p>${DISCLAIMER}</p>
   <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
-  <div id="chat-widget"><button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat-panel">Ask about a priest</button>
+  <div id="chat-widget"><button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat-panel">Ask <span class="chat-toggle-long">about a priest</span></button>
   <div id="chat-panel" hidden role="region" aria-label="Chat about a priest"><div id="chat-log"></div>
   <form id="chat-form"><input id="chat-input" name="message" placeholder="e.g. Who is rated for a quick Mass?" required>
   <button type="submit">Ask</button></form>
@@ -151,17 +151,240 @@ function layout(title, body, extraHead = '') {
   <script src="/chat.js"></script><script src="/places.js"></script></body></html>`;
 }
 function page(title, inner, extraHead = '') { return layout(title, inner, extraHead); }
+// ---------- error pages with a playable game ----------
+// The error pages are fully self-contained: inline CSS and inline JS, no
+// external assets (no /style.css, no /mural.jpg, no /chat.js). That is
+// deliberate. When the server is overloaded, a follow-up request for a
+// stylesheet or script may fail, but this one response still plays.
+// The game is "The Lost Sheep": sheep pop out of the bushes and you tap them
+// to round them up, minding the wolf. It is new — none of the nine arcade
+// games is a tap-the-target roundup — and it is client side only: no fetch,
+// no database, no server calls of any kind. Best score lives in
+// localStorage only, and the page echoes no user input.
+const ERROR_CSS = `
+  :root{--bg:#faf6ec;--surface:#fffdf7;--text:#2a211a;--dim:#6e5d4b;--border:#e0d3bc;
+    --accent:#6e1a26;--accent-hover:#521219;--gold:#b28a2e;--lead:#33261a;--green:#2e5e4e;}
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px;line-height:1.6}
+  a{color:var(--accent)}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:28px 0 0;text-align:center}
+  .brand{font-family:Georgia,"Times New Roman",Times,serif;font-size:30px;font-weight:700;
+    color:var(--text);text-decoration:none;letter-spacing:-.02em}
+  .brand span{color:var(--accent)}
+  .glass{display:flex;height:10px;border:2px solid var(--lead);border-radius:6px;overflow:hidden;margin:14px auto 0}
+  .glass i{flex:1;display:block}
+  .glass i:nth-child(1){background:#6e1a26}.glass i:nth-child(2){background:#b28a2e}
+  .glass i:nth-child(3){background:#2e5e4e}.glass i:nth-child(4){background:#3a5a8a}
+  .glass i:nth-child(5){background:#b8452a}
+  main{padding:36px 0 64px}
+  h1{font-family:Georgia,"Times New Roman",Times,serif;font-size:32px;line-height:1.15;margin:0 0 10px}
+  p{margin:12px 0 0}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    box-shadow:0 1px 3px rgb(43 33 24/.05),0 14px 34px -18px rgb(43 33 24/.22);
+    padding:22px;margin-top:20px}
+  .btn{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;
+    font-weight:600;padding:10px 18px;border-radius:999px;border:0;cursor:pointer;font-size:16px}
+  .btn:hover{background:var(--accent-hover)}
+  .btn-secondary{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+  .btn-secondary:hover{background:#f5e6e2}
+  .btnrow{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+  .small{font-size:14px;color:var(--dim)}
+  .search{display:flex;gap:8px;margin-top:14px}
+  .search input{flex:1;min-width:0;padding:10px 12px;border:1.5px solid var(--border);border-radius:999px;font-size:16px;background:#fff}
+  .game-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+  .game-head h2{margin:0;font-family:Georgia,"Times New Roman",Times,serif;font-size:24px}
+  .game-score{font-weight:700}
+  .game-time{font-variant-numeric:tabular-nums;font-weight:700}
+  .game-bar{height:8px;background:#f1e8d8;border-radius:4px;margin-top:10px;overflow:hidden}
+  .game-bar i{display:block;height:100%;background:var(--gold);width:100%}
+  .game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+  .game-cell{aspect-ratio:1/1;border:1.5px solid var(--border);border-radius:14px;background:#f1e8d8;
+    font-size:44px;line-height:1;cursor:pointer;touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;user-select:none;padding:0}
+  .game-cell:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .game-cell.pop{animation:pop .18s ease-out}
+  @keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+  .game-cell.caught{animation:caught .25s ease-out}
+  @keyframes caught{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+  .game-overlay{text-align:center;padding:18px 0 4px}
+  .game-overlay p{margin:8px 0 0}
+  footer{padding:0 0 40px;text-align:center}
+`;
+// The Lost Sheep game. Written with string concatenation only (no template
+// literals, no ${}) so it can live inside the error page template safely.
+const LOST_SHEEP_SCRIPT = `
+(function () {
+  var grid = document.getElementById('sheep-grid');
+  if (!grid) return;
+  var scoreEl = document.getElementById('sheep-score');
+  var bestEl = document.getElementById('sheep-best');
+  var timeEl = document.getElementById('sheep-time');
+  var barEl = document.getElementById('sheep-bar');
+  var startBtn = document.getElementById('sheep-start');
+  var againBtn = document.getElementById('sheep-again');
+  var startPanel = document.getElementById('sheep-start-panel');
+  var endPanel = document.getElementById('sheep-end-panel');
+  var endText = document.getElementById('sheep-end-text');
+  var ROUND_MS = 45000;
+  var cells = [];
+  var score = 0, best = 0, timeLeft = ROUND_MS, timer = null, popTimer = null, endAt = 0, running = false;
+  try { best = parseInt(window.localStorage.getItem('rmf_lost_sheep_best') || '0', 10) || 0; } catch (e) { best = 0; }
+  bestEl.textContent = String(best);
+  var SHEEP = '\\uD83D\\uDC11';
+  var WOLF = '\\uD83D\\uDC3A';
+  var BUSH = '\\uD83C\\uDF3F';
+  function fmt(ms) {
+    var s = Math.ceil(ms / 1000);
+    return '0:' + (s < 10 ? '0' + s : String(s));
+  }
+  function buildGrid() {
+    for (var i = 0; i < 9; i++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'game-cell';
+      b.textContent = BUSH;
+      b.setAttribute('aria-label', 'Bush ' + (i + 1));
+      b.addEventListener('click', onTap);
+      grid.appendChild(b);
+      cells.push({ el: b, kind: null });
+    }
+  }
+  function onTap(ev) {
+    if (!running) return;
+    var cell = null;
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i].el === ev.currentTarget) { cell = cells[i]; break; }
+    }
+    if (!cell || !cell.kind) return;
+    if (cell.kind === 'sheep') {
+      score += 1;
+      cell.el.classList.remove('pop');
+      void cell.el.offsetWidth;
+      cell.el.classList.add('caught');
+    } else if (cell.kind === 'wolf') {
+      score = Math.max(0, score - 1);
+    }
+    cell.kind = null;
+    cell.el.textContent = BUSH;
+    cell.el.setAttribute('aria-label', 'Bush');
+    scoreEl.textContent = String(score);
+  }
+  function popOne() {
+    if (!running) return;
+    var free = [];
+    for (var i = 0; i < cells.length; i++) { if (!cells[i].kind) free.push(cells[i]); }
+    if (!free.length) return;
+    var cell = free[Math.floor(Math.random() * free.length)];
+    var isWolf = Math.random() < 0.15;
+    cell.kind = isWolf ? 'wolf' : 'sheep';
+    cell.el.textContent = isWolf ? WOLF : SHEEP;
+    cell.el.setAttribute('aria-label', isWolf ? 'Wolf! Do not tap.' : 'Sheep! Tap to catch it.');
+    cell.el.classList.remove('pop');
+    void cell.el.offsetWidth;
+    cell.el.classList.add('pop');
+    var elapsed = ROUND_MS - timeLeft;
+    var visible = 950 - Math.min(300, elapsed / 150);
+    setTimeout(function () {
+      if (cell.kind) {
+        cell.kind = null;
+        cell.el.textContent = BUSH;
+        cell.el.setAttribute('aria-label', 'Bush');
+      }
+    }, visible);
+  }
+  function tick() {
+    timeLeft = Math.max(0, endAt - Date.now());
+    timeEl.textContent = fmt(timeLeft);
+    barEl.style.width = (timeLeft / ROUND_MS * 100).toFixed(1) + '%';
+    if (timeLeft <= 0) { endGame(); return; }
+    timer = setTimeout(tick, 100);
+  }
+  function startGame() {
+    score = 0;
+    scoreEl.textContent = '0';
+    timeLeft = ROUND_MS;
+    timeEl.textContent = fmt(timeLeft);
+    barEl.style.width = '100%';
+    startPanel.hidden = true;
+    endPanel.hidden = true;
+    running = true;
+    endAt = Date.now() + ROUND_MS;
+    tick();
+    popTimer = setInterval(function () {
+      popOne();
+      if (timeLeft < ROUND_MS / 2 && Math.random() < 0.3) popOne();
+    }, 750);
+  }
+  function endGame() {
+    running = false;
+    clearTimeout(timer);
+    clearInterval(popTimer);
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].kind = null;
+      cells[i].el.textContent = BUSH;
+      cells[i].el.setAttribute('aria-label', 'Bush');
+    }
+    var isBest = score > 0 && score > best;
+    if (isBest) {
+      best = score;
+      try { window.localStorage.setItem('rmf_lost_sheep_best', String(best)); } catch (e) {}
+      bestEl.textContent = String(best);
+    }
+    var msg = 'Time! You rounded up ' + score + ' sheep.';
+    if (isBest) msg += ' A new best!';
+    msg += ' The flock is safe, for now.';
+    endText.textContent = msg;
+    endPanel.hidden = false;
+  }
+  startBtn.addEventListener('click', startGame);
+  againBtn.addEventListener('click', startGame);
+  buildGrid();
+})();
+`;
+// One self-contained error page for both cases. opts: title, heading,
+// message, actions (HTML for the recovery buttons). Same game on both; only
+// the message fits the situation.
+function errorPage(opts) {
+  var body = '<header class="wrap"><a class="brand" href="/">Rate<span>My</span>Father</a>'
+    + '<div class="glass" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></header>'
+    + '<main class="wrap"><h1>' + opts.heading + '</h1><p>' + opts.message + '</p>'
+    + opts.actions
+    + '<section class="card" aria-label="The Lost Sheep game">'
+    + '<div class="game-head"><h2>The Lost Sheep</h2><span class="game-score">Sheep: <span id="sheep-score">0</span> &middot; Best: <span id="sheep-best">0</span></span><span class="game-time" id="sheep-time">0:45</span></div>'
+    + '<div class="game-bar" aria-hidden="true"><i id="sheep-bar"></i></div>'
+    + '<div class="game-grid" id="sheep-grid"></div>'
+    + '<div class="game-overlay" id="sheep-start-panel"><p>Sheep keep wandering out of the bushes. Tap one to round it up. Mind the wolf &mdash; tapping him loses a sheep.</p><p><button class="btn" id="sheep-start" type="button">Start rounding them up</button></p></div>'
+    + '<div class="game-overlay" id="sheep-end-panel" hidden><p id="sheep-end-text"></p><p><button class="btn" id="sheep-again" type="button">Play again</button></p></div>'
+    + '</section>'
+    + '<p class="small"><a href="/">Home</a> &middot; <a href="/browse">Browse priests</a> &middot; <a href="/games">Arcade</a> &middot; <a href="/about">About</a></p>'
+    + '</main><footer class="wrap small">Reviews are individual users&rsquo; opinions, not statements of fact, and are not verified or endorsed by RateMyFather.</footer>'
+    + '<script>' + LOST_SHEEP_SCRIPT + '</script>';
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+    + '<title>' + opts.title + ' | RateMyFather</title>'
+    + '<meta name="description" content="RateMyFather — anonymous ratings of Catholic priests.">'
+    + '<style>' + ERROR_CSS + '</style></head><body>' + body + '</body></html>';
+}
 // A 404 that helps the visitor recover: search box, browse, games, add.
-// Used for bad ids and for priest profiles that do not exist.
+// Used for bad ids and for priest profiles that do not exist. Now a
+// self-contained page with the Lost Sheep game, so a visitor who followed a
+// dead link gets something to do instead of a dead end.
 function notFoundPage() {
-  return page('Not found', `<h1>We could not find that page</h1>
-  <p>The link may be mistyped, or the priest may not be listed. Try searching by name, parish, or city:</p>
-  <form action="/browse" method="get"><div class="search">
-    <span class="search-field"><input name="q" placeholder="Search by name, parish, or city" aria-label="Search"></span>
-    <button type="submit">Search</button>
-  </div></form>
-  <p><a class="btn" href="/browse">Browse all priests</a> <a class="btn btn-secondary" href="/games">Play the arcade</a></p>
-  <p class="small">If the priest is not listed, you can <a href="/add-priest">submit them for moderation review</a>.</p>`);
+  return errorPage({
+    title: 'Not found',
+    heading: 'We could not find that page',
+    message: 'The link may be mistyped, or the priest may not be listed. Try searching by name, parish, or city — or play a quick round while you are here.',
+    actions: `<form action="/browse" method="get"><div class="search">
+      <input name="q" placeholder="Search by name, parish, or city" aria-label="Search">
+      <button class="btn" type="submit">Search</button>
+    </div></form>
+    <div class="btnrow"><a class="btn" href="/browse">Browse all priests</a> <a class="btn btn-secondary" href="/games">Play the arcade</a></div>
+    <p class="small">If the priest is not listed, you can <a href="/add-priest">submit them for moderation review</a>.</p>`,
+  });
 }
 
 // ---------- owner auth (server side) ----------
@@ -1006,7 +1229,12 @@ app.post('/owner/legal-resolve/:id', requireOwner, async (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err && err.stack ? err.stack : err);
   if (res.headersSent) return next(err);
-  res.status(500).send(page('Something went wrong', '<h1>Something went wrong</h1><p>Please try again.</p>'));
+  res.status(500).send(errorPage({
+    title: 'Something went wrong',
+    heading: 'The server is having a moment',
+    message: 'Our server is busy right now. Give it a minute, then try again — or play a round of the Lost Sheep while you wait.',
+    actions: `<div class="btnrow"><button class="btn" type="button" onclick="location.reload()">Try again</button> <a class="btn btn-secondary" href="/">Back to home</a></div>`,
+  }));
 });
 
 // Catch-all 404: any URL that matches no route above gets the site's helpful

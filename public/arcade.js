@@ -75,6 +75,9 @@
   }
 
   // Direction pad (touch + mouse hold). Calls onMove(dx, dy, active).
+  // It sits directly under the canvas (before the HUD), so on a phone it
+  // is reachable without scrolling past the score and action buttons, and
+  // it stays clear of the fixed chat toggle at the bottom of the screen.
   function makeDpad(parent, onMove) {
     var dpad = el('div', 'dpad');
     var defs = [
@@ -91,10 +94,60 @@
       b.addEventListener('pointerup', end);
       b.addEventListener('pointerleave', end);
       b.addEventListener('pointercancel', end);
+      b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
       dpad.appendChild(b);
     });
-    parent.appendChild(dpad);
+    var hud = parent.querySelector('.game-hud');
+    if (hud) parent.insertBefore(dpad, hud);
+    else parent.appendChild(dpad);
     return dpad;
+  }
+
+  // Touch control button. Tap fires once; holding repeats after a short
+  // delay (move/drop buttons). Pass { repeat: false } for one-shot
+  // buttons such as rotate or slam. Works with touch, pen, and mouse.
+  function makeTouchButton(label, onPress, opts) {
+    var b = el('button', 'press touch-btn' + (opts && opts.wide ? ' wide' : '') + (opts && opts.cls ? ' ' + opts.cls : ''), label);
+    b.type = 'button';
+    var t1 = null, t2 = null;
+    function stop() {
+      if (t1) { clearTimeout(t1); t1 = null; }
+      if (t2) { clearInterval(t2); t2 = null; }
+      b.classList.remove('held');
+    }
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      onPress();
+      b.classList.add('held');
+      if (!opts || opts.repeat !== false) {
+        t1 = setTimeout(function () { t2 = setInterval(onPress, 90); }, 220);
+      }
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+      b.addEventListener(ev, function (e) { e.preventDefault(); stop(); });
+    });
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    return b;
+  }
+
+  // Hold-state button: onDown while the finger is down, onUp on release.
+  // For charge/fire and for held movement keys.
+  function makeHoldButton(label, onDown, onUp, opts) {
+    var b = el('button', 'press touch-btn' + (opts && opts.wide ? ' wide' : '') + (opts && opts.cls ? ' ' + opts.cls : ''), label);
+    b.type = 'button';
+    b.addEventListener('pointerdown', function (e) { e.preventDefault(); b.classList.add('held'); onDown(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+      b.addEventListener(ev, function (e) { e.preventDefault(); b.classList.remove('held'); onUp(); });
+    });
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    return b;
+  }
+
+  // Touch control row, placed directly under the canvas (before the HUD).
+  function makeTouchRow(api) {
+    var row = el('div', 'touch-row');
+    api.stage.insertBefore(row, api.hud);
+    return row;
   }
 
   // Keyboard arrows/WASD state.
@@ -126,10 +179,10 @@
   // ---- game registry ----
   var ARCADE_GAMES = [
     { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move. Choose RUN or PASS, then stand on the gold X to catch.', mount: mountBowl },
-    { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster.', mount: mountStack },
+    { id: 'stack', title: 'Stained-Glass Stack', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, use the buttons under the window.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light every candle in the cloister while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
-    { id: 'holy', title: 'Holy Water Havoc', blurb: 'Fend off the devil with holy water. Charge your shots and watch for extra hearts.', verdict: 'Best for boss fighters.', how: 'Move with arrows. Hold Space to charge, release to fire.', mount: mountHoly },
+    { id: 'holy', title: 'Holy Water Havoc', blurb: 'Fend off the devil with holy water. Charge your shots and watch for extra hearts.', verdict: 'Best for boss fighters.', how: 'Move with arrows. Hold Space to charge, release to fire. On a phone, use the move buttons and hold FIRE to charge.', mount: mountHoly },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
     { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash.', mount: mountFlee },
     { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows to move. Follow the moth to the right door.', mount: mountCross },
@@ -904,7 +957,7 @@
           });
         });
       }
-      ctx.fillText('Drop: Down  •  Turn: Up', 12, GAME_H - 12);
+      ctx.fillText('← → move · ↻ turn · ↓ drop', 12, GAME_H - 12);
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
@@ -930,17 +983,31 @@
     function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
+    // Named moves, shared by the keyboard and the touch buttons below, so
+    // the two inputs can never drift apart. Rules unchanged.
+    function moveLeft() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x - 1, cur.y)) cur.x--; }
+    function moveRight() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x + 1, cur.y)) cur.x++; }
+    function rotateCur() { if (state !== 'playing' || paused) return; var r = rotate(cur.shape); if (!collides(r, cur.x, cur.y)) cur.shape = r; }
+    function softDrop() { if (state !== 'playing' || paused) return; if (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; else lock(); }
+    function slam() { if (state !== 'playing' || paused) return; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; lock(); }
     document.addEventListener('keydown', onKey);
     function onKey(e) {
       if (state !== 'playing' || paused) return;
       var k = e.key.toLowerCase();
-      if (k === 'arrowleft' && !collides(cur.shape, cur.x - 1, cur.y)) cur.x--;
-      else if (k === 'arrowright' && !collides(cur.shape, cur.x + 1, cur.y)) cur.x++;
-      else if (k === 'arrowdown') { if (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; else lock(); }
-      else if (k === 'arrowup') { var r = rotate(cur.shape); if (!collides(r, cur.x, cur.y)) cur.shape = r; }
-      else if (k === ' ') { e.preventDefault(); while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; lock(); }
+      if (k === 'arrowleft') moveLeft();
+      else if (k === 'arrowright') moveRight();
+      else if (k === 'arrowdown') softDrop();
+      else if (k === 'arrowup') rotateCur();
+      else if (k === ' ') { e.preventDefault(); slam(); }
     }
-    api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down.'));
+    // Touch controls: hold ← → ↓ to repeat, tap ↻ to turn, tap Slam to drop.
+    var touchRow = makeTouchRow(api);
+    touchRow.appendChild(makeTouchButton('←', moveLeft));
+    touchRow.appendChild(makeTouchButton('↻', rotateCur, { repeat: false }));
+    touchRow.appendChild(makeTouchButton('→', moveRight));
+    touchRow.appendChild(makeTouchButton('↓', softDrop));
+    touchRow.appendChild(makeTouchButton('Slam', slam, { repeat: false, wide: true }));
+    api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down. On touch, use the buttons under the window.'));
     api.showOverlay('<h3>Stained-Glass Stack</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
       '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>');
     var s = document.getElementById('stack-start');
@@ -1089,6 +1156,8 @@
     var heartsGiven = { 800: false, 2000: false };
     var raf = 0, last = 0, destroyed = false;
     var keys = makeKeys();
+    // Touch state: held move buttons and the hold-to-charge fire button.
+    var leftHeld = false, rightHeld = false, touchCharging = false;
     var WAYPOINTS = [{ x: 80, y: 70 }, { x: 240, y: 50 }, { x: 400, y: 70 }, { x: 150, y: 110 }, { x: 330, y: 110 }];
     function newBoss() {
       boss = { x: 240, y: 60, hp: 30 + bossLevel * 12, maxHp: 30 + bossLevel * 12, wp: 0, wpT: 0, atkT: 2, teleT: 9 };
@@ -1184,10 +1253,12 @@
     function tick(dt) {
       if (paused || destroyed || state !== 'playing') return;
       var ax = keys.axis();
-      px = clamp(px + ax.x * 260 * dt, 20, GAME_W - 20);
-      if (keys.pressed(' ') && !charging) { charging = true; charge = 0; }
+      var mx = ax.x + (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0);
+      px = clamp(px + mx * 260 * dt, 20, GAME_W - 20);
+      var held = keys.pressed(' ') || touchCharging;
+      if (held && !charging) { charging = true; charge = 0; }
       if (charging) charge += dt;
-      if (!keys.pressed(' ') && charging) fire();
+      if (!held && charging) fire();
       // Boss drift between waypoints
       if (boss) {
         var wp = WAYPOINTS[boss.wp];
@@ -1246,7 +1317,12 @@
     function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
-    api.actions.appendChild(el('p', 'game-note', 'Move with arrows. Hold Space to charge: droplet, bolt, then beam. Extra hearts at 800 and 2,000 points.'));
+    // Touch controls: hold ◀ ▶ to move, hold FIRE to charge, release to shoot.
+    var touchRow = makeTouchRow(api);
+    touchRow.appendChild(makeHoldButton('◀', function () { leftHeld = true; }, function () { leftHeld = false; }));
+    touchRow.appendChild(makeHoldButton('▶', function () { rightHeld = true; }, function () { rightHeld = false; }));
+    touchRow.appendChild(makeHoldButton('FIRE', function () { touchCharging = true; }, function () { touchCharging = false; }, { cls: 'fire-btn' }));
+    api.actions.appendChild(el('p', 'game-note', 'Move with arrows. Hold Space to charge: droplet, bolt, then beam. Extra hearts at 800 and 2,000 points. On touch, hold the arrows to move and hold FIRE to charge, release to shoot.'));
     api.showOverlay('<h3>Holy Water Havoc</h3><p>The devil is loose in the sanctuary. Drive him off with holy water. ' + gameMark('holy') + '</p>' +
       '<button type="button" class="big-btn press" id="holy-start">Start the fight</button>');
     var s = document.getElementById('holy-start');
@@ -2837,6 +2913,8 @@
       holding = true; doJump();
     });
     api.canvas.addEventListener('pointerup', function () { holding = false; });
+    api.canvas.addEventListener('pointerleave', function () { holding = false; });
+    api.canvas.addEventListener('pointercancel', function () { holding = false; });
     api.actions.appendChild(el('p', 'game-note', 'Space, Up, W, click or tap to jump. Hold to keep hopping; in dove stretches hold to rise and release to fall. R restarts.'));
     var practiceWrap = el('label', 'game-note', '');
     var practiceBox = document.createElement('input');
