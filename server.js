@@ -136,9 +136,8 @@ function layout(title, body, extraHead = '') {
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
-    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav"><span class="nav-toggle-icon" aria-hidden="true"></span>Menu</button>
     <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
-  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
+  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
   <main class="wrap">${body}</main>
   <footer class="wrap site-footer">${glassStrip('gs-7')}
   <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
@@ -152,7 +151,7 @@ function layout(title, body, extraHead = '') {
   <button type="submit">Ask</button></form>
   <p class="small">Answers use approved-review averages with review counts only. Individual reviews are never quoted.</p></div></div>
   <script src="/chat.js"></script><script src="/places.js"></script>
-  <script>(function(){var h=document.querySelector('.topnav');if(!h)return;var b=h.querySelector('.nav-toggle');if(!b)return;h.classList.add('js-nav');function setLabel(t){var n=b.lastChild;if(n&&n.nodeType===3)n.textContent=t;}h.querySelectorAll('nav a').forEach(function(a){if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});function close(){h.classList.remove('nav-open');b.setAttribute('aria-expanded','false');setLabel('Menu');}b.addEventListener('click',function(){var open=h.classList.toggle('nav-open');b.setAttribute('aria-expanded',open?'true':'false');setLabel(open?'Close':'Menu');});h.querySelectorAll('nav a').forEach(function(a){a.addEventListener('click',close);});document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});})();</script></body></html>`;
+  <script>(function(){var h=document.querySelector('.topnav');if(!h)return;h.querySelectorAll('nav a').forEach(function(a){if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});})();</script></body></html>`;
 }
 function page(title, inner, extraHead = '') { return layout(title, inner, extraHead); }
 // ---------- error pages with a playable game ----------
