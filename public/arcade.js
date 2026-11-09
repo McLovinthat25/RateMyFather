@@ -208,10 +208,14 @@
   var RUNGUN_START_Y = 868;
   var RUNGUN_END_Y = 84;
   var RUNGUN_QUARTER_SECONDS = 45;
-  var RUNGUN_PASS_BONUS_YARDS = 20;
-  var RUNGUN_PASS_STUN_SECONDS = 1.5;
+  var RUNGUN_PASS_BONUS_YARDS = 0; // No free yards for a catch: the catch is
+  // worth the position it puts you in, and the yards after it are earned by
+  // running, exactly like a run play. A completed pass is no windfall.
+  var RUNGUN_PASS_STUN_SECONDS = 0.3; // A heartbeat to take a step after the
+  // catch, not a free run while the defence stands still.
   var PX_PER_YARD = (RUNGUN_START_Y - RUNGUN_END_Y) / 80; // 9.8
-  var BOWL_CATCH_DWELL = 0.55;
+  var BOWL_CATCH_DWELL = 0.85; // Hold still the better part of a second to
+  // catch: the defence has a real chance to close, so a completion is earned.
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 21; // demo tackle radius
@@ -309,8 +313,9 @@
       }
     }
     function pickPassTarget() {
-      // Demo depth: max(10, min(32, yardsToGo * 0.55)).
-      var depth = clamp(playStartYards * 0.55, 10, 32);
+      // Routes are short: a catch puts you a few yards upfield, and the rest
+      // is earned by running, like any other play.
+      var depth = clamp(playStartYards * 0.25, 5, 14);
       var baseX = px, baseY = Math.max(RUNGUN_END_Y + 14, py - depth * PX_PER_YARD);
       var bestSpot = null, bestScore = -1e9;
       var offsets = [[0, 0], [-45, 0], [45, 0], [-80, 0], [80, 0], [0, -20], [-45, -20], [45, -20], [0, 20]];
@@ -485,7 +490,7 @@
         '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
         '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>',
         bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
-        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: reach the gold X and hold still to catch, then run it in. A tackle before the catch is incomplete — no gain, next down.</p>'));
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: reach the gold X and hold still to catch, then run it in. A tackle before the catch is incomplete — no gain, next down. Keys: R runs, T throws.</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
@@ -509,7 +514,8 @@
       var dx = ax.x + dpadVec.x, dy = ax.y + dpadVec.y;
       var len = Math.hypot(dx, dy);
       if (len > 0) { dx /= len; dy /= len; }
-      var speed = caught ? 280 : 208;
+      var speed = 208; // Same pace with or without the ball: a caught pass
+      // gives no speed edge. The catch buys field position, not a faster run.
       px = clamp(px + dx * speed * dt, 16, GAME_W - 16);
       // The goal line is the floor: reaching it scores. The start line is
       // the ceiling: no running backwards past your own 80, no negative yards.
@@ -524,7 +530,7 @@
       // After the catch (or on a run) it hunts at full pace,
       // but every defender steers with a limited turn rate, so a sharp cut
       // leaves them wrong-footed instead of glued to the runner.
-      var chase = (state === 'pass' && !caught) ? 0.12 : 1;
+      var chase = (state === 'pass' && !caught) ? 0.3 : 1;
       defenders.forEach(function (d) {
         var want = Math.atan2(py - d.y, px - d.x);
         var diff = want - d.heading;
@@ -571,7 +577,7 @@
             catchT += dt;
             if (catchT >= BOWL_CATCH_DWELL) {
               caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
-              api.showBanner('+' + RUNGUN_PASS_BONUS_YARDS + ' big play — caught!', 1600);
+              api.showBanner('Caught!', 1600);
               state = 'run'; // carry on running with the ball
             }
           } else {
@@ -595,7 +601,7 @@
             var spotYards = Math.max(1, yardsToGo() - (caught ? RUNGUN_PASS_BONUS_YARDS : 0));
             var g = Math.max(0, playStartYards - spotYards);
             py = RUNGUN_END_Y + spotYards * PX_PER_YARD;
-            endPlay(g, caught ? 'Caught! +' + RUNGUN_PASS_BONUS_YARDS + ' big play.' : 'Tackled.', '+' + g + ' yards' + (caught ? ' — the catch is worth ' + RUNGUN_PASS_BONUS_YARDS + ' extra.' : '.'), {});
+            endPlay(g, caught ? 'Caught!' : 'Tackled.', '+' + g + ' yards.', {});
           }
           return;
         }
@@ -757,7 +763,17 @@
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards.'));
+    // Keyboard play-calling on the choose screen: R runs, T throws, so a
+    // desktop player is not reaching for the mouse on every down. P stays
+    // the pause key, so it is deliberately not the pass key.
+    function onChooseKey(e) {
+      if (state !== 'choose' || paused) return;
+      var k = e.key.toLowerCase();
+      if (k === 'r') startPlay('run');
+      else if (k === 't') startPlay('pass');
+    }
+    document.addEventListener('keydown', onChooseKey);
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards.'));
     showStart();
     updateHud();
     last = performance.now();
@@ -767,6 +783,7 @@
       cancelAnimationFrame(raf);
       keys.cleanup();
       cleanupPause();
+      document.removeEventListener('keydown', onChooseKey);
     };
   }
 
@@ -871,8 +888,22 @@
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, gy + r, STACK_COLORS[cur.type], true); }); });
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, cur.y + r, STACK_COLORS[cur.type]); }); });
       }
+      // Next piece, drawn as a small preview so the player can plan around
+      // its shape, not just its letter.
       ctx.fillStyle = '#fffdf7'; ctx.font = '13px Georgia';
-      ctx.fillText('Next: ' + (bag.length ? bag[bag.length - 1] : '—'), 12, 30);
+      ctx.fillText('Next', 12, 30);
+      var nextType = bag.length ? bag[bag.length - 1] : null;
+      if (nextType) {
+        var ns = STACK_SHAPES[nextType];
+        var nc = 9;
+        ns.forEach(function (row, r) {
+          row.forEach(function (v, c) {
+            if (!v) return;
+            ctx.fillStyle = STACK_COLORS[nextType];
+            ctx.fillRect(14 + c * nc, 36 + r * nc, nc - 1, nc - 1);
+          });
+        });
+      }
       ctx.fillText('Drop: Down  •  Turn: Up', 12, GAME_H - 12);
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
@@ -930,6 +961,7 @@
     var api = createStage(parent, { title: 'Steeple Stack', onBack: onBack });
     var tower = [], moving = null, wind = 0, score = 0, best = readBest('steeple');
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
+    var perfectT = 0; // seconds left to show the Perfect flash after a clean drop
     var BASE_W = 120, BASE_Y = GAME_H - 20;
     function newStone() {
       var w = tower.length ? tower[tower.length - 1].w : BASE_W;
@@ -949,7 +981,7 @@
       var stone = { x: left, w: overlap, y: top.y - 18 };
       tower.push(stone);
       score += 1;
-      if (perfect) score += 10;
+      if (perfect) { score += 10; perfectT = 1.2; }
       if (tower.length % 10 === 0) score += 100;
       if (tower.length >= 15) wind = (Math.random() - 0.5) * 40;
       updateHud();
@@ -986,8 +1018,24 @@
         ctx.fillStyle = '#b28a2e';
         ctx.fillRect(moving.x, 30, moving.w, 18);
         ctx.strokeStyle = '#33261a'; ctx.strokeRect(moving.x, 30, moving.w, 18);
+        // Landing guide: a faint dashed outline of the stone projected onto
+        // the tower top, with a thin line joining it to the moving stone,
+        // so the player can judge the drop instead of guessing across the
+        // gap between the top of the screen and the tower.
+        var topY = tower.length ? tower[tower.length - 1].y : BASE_Y;
+        ctx.strokeStyle = 'rgba(178,138,46,0.55)'; ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.strokeRect(moving.x, topY - 18, moving.w, 18);
+        ctx.beginPath(); ctx.moveTo(moving.x + moving.w / 2, 48); ctx.lineTo(moving.x + moving.w / 2, topY - 18); ctx.stroke();
+        ctx.setLineDash([]);
         ctx.fillStyle = '#6f6259'; ctx.font = '12px Georgia';
         ctx.fillText('Tap or press Space to drop', 12, 20);
+      }
+      if (perfectT > 0) {
+        ctx.globalAlpha = Math.min(1, perfectT);
+        ctx.fillStyle = '#b28a2e'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('Perfect! +10', GAME_W / 2, 90); ctx.textAlign = 'left';
+        ctx.globalAlpha = 1;
       }
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
@@ -997,6 +1045,7 @@
     }
     function tick(dt) {
       if (paused || destroyed || state !== 'playing' || !moving) return;
+      if (perfectT > 0) perfectT = Math.max(0, perfectT - dt);
       moving.x += (moving.dir * moving.speed + wind) * dt;
       if (moving.x + moving.w >= GAME_W) { moving.x = GAME_W - moving.w; moving.dir = -1; }
       if (moving.x <= 0) { moving.x = 0; moving.dir = 1; }
@@ -1035,6 +1084,8 @@
     var px = GAME_W / 2, hearts = 3, score = 0, best = readBest('holy');
     var boss = null, bossLevel = 1, shots = [], bolts = [], parts = [];
     var charge = 0, charging = false, state = 'ready', paused = false;
+    var invulnT = 0; // seconds of grace after a hit: one bolt spread cannot
+    // strip all three hearts in a single frame, and the player can see it.
     var heartsGiven = { 800: false, 2000: false };
     var raf = 0, last = 0, destroyed = false;
     var keys = makeKeys();
@@ -1108,12 +1159,14 @@
         ctx.fillStyle = '#e05a2a';
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
       });
-      // Player priest
+      // Player priest: blinks while invulnerable, so a hit reads clearly.
+      ctx.globalAlpha = (invulnT > 0 && Math.floor(performance.now() / 120) % 2 === 0) ? 0.35 : 1;
       ctx.fillStyle = '#6e1a26';
       ctx.beginPath(); ctx.arc(px, GAME_H - 34, 13, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, GAME_H - 30); ctx.textAlign = 'left';
+      ctx.globalAlpha = 1;
       // Charge meter
       if (charging) {
         ctx.fillStyle = '#33261a'; ctx.fillRect(px - 25, GAME_H - 62, 50, 7);
@@ -1171,12 +1224,15 @@
         }
         return true;
       });
-      // Bolts vs player
+      if (invulnT > 0) invulnT -= dt;
+      // Bolts vs player: a hit grants a short grace window, so one spread
+      // cannot take more than one heart.
       for (var i = bolts.length - 1; i >= 0; i--) {
         var b = bolts[i];
         if (Math.hypot(b.x - px, b.y - (GAME_H - 34)) < 16) {
           bolts.splice(i, 1);
-          hearts -= 1; updateHud();
+          if (invulnT > 0) continue;
+          hearts -= 1; invulnT = 1.2; updateHud();
           if (hearts <= 0) { gameOver(); return; }
         }
       }
@@ -1223,9 +1279,9 @@
   // never stack on each other.
   var FLEE_PATROL = [[40, 40], [440, 40], [440, 280], [40, 280]];
   var FLEE_SINS = [
-    { name: 'Pride', speed: 50, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
-    { name: 'Lust', speed: 52, color: '#b8452a', hunt: 'chase' }, { name: 'Envy', speed: 44, color: '#2e5e4e', hunt: 'flank' },
-    { name: 'Gluttony', speed: 44, color: '#8a6d3b', hunt: 'patrol' }, { name: 'Wrath', speed: 55, color: '#6e1a26', hunt: 'chase' },
+    { name: 'Pride', speed: 46, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
+    { name: 'Lust', speed: 46, color: '#b8452a', hunt: 'chase' }, { name: 'Envy', speed: 44, color: '#2e5e4e', hunt: 'flank' },
+    { name: 'Gluttony', speed: 44, color: '#8a6d3b', hunt: 'patrol' }, { name: 'Wrath', speed: 48, color: '#6e1a26', hunt: 'chase' },
     { name: 'Sloth', speed: 32, color: '#6f6259', hunt: 'chase' },
   ];
   function mountFlee(parent, onBack) {
@@ -1237,14 +1293,18 @@
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
     function startGame() {
-      px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = 60; warmupT = 4;
+      px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = 60; warmupT = 6;
       prevPx = px; prevPy = py; pvx = 0; pvy = 0;
       dashT = 0; dashCd = 0; halos = [];
       sins = FLEE_SINS.map(function (s, i) {
         return { name: s.name, speed: s.speed, color: s.color, hunt: s.hunt,
           x: rand(30, GAME_W - 30), y: i < 4 ? 20 : GAME_H - 20,
           side: i % 2 === 0 ? 1 : -1, phase: rand(0, Math.PI * 2),
-          wp: i % 4 };
+          wp: i % 4,
+          // Staggered release: only three sins hunt at first, a new one joins
+          // every twelve seconds. A casual player gets a real chance to learn
+          // the arena before all seven are closing in at once.
+          releaseAt: [0, 0, 0, 12, 20, 30, 40][i] || 0, announced: false };
       });
       spawnHalo(); spawnHalo(); spawnHalo();
       state = 'playing'; api.hideOverlay(); updateHud();
@@ -1278,6 +1338,7 @@
         ctx.beginPath(); ctx.ellipse(h.x, h.y, 11, 5, 0, 0, Math.PI * 2); ctx.stroke();
       });
       sins.forEach(function (s) {
+        if (elapsed < s.releaseAt) return; // not yet in the hunt
         ctx.fillStyle = s.color;
         ctx.beginPath(); ctx.arc(s.x, s.y, 13, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#fff'; ctx.font = '8px Georgia'; ctx.textAlign = 'center';
@@ -1291,6 +1352,11 @@
       if (dashCd > 0) {
         ctx.fillStyle = '#fffdf7'; ctx.font = '11px Georgia';
         ctx.fillText('Dash ready in ' + Math.ceil(dashCd) + 's', 12, 20);
+      } else if (state === 'playing') {
+        // Dash is ready: say so at a glance, so the player knows the
+        // grace-dash is available without having to remember the cooldown.
+        ctx.fillStyle = '#b28a2e'; ctx.font = 'bold 11px Georgia';
+        ctx.fillText('Dash ready — Space', 12, 20);
       }
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
@@ -1325,15 +1391,20 @@
       if (warmupT > 0) warmupT -= dt;
       var warm = warmupT > 0 ? 0.35 : 1;
       sins.forEach(function (s) {
+        if (elapsed < s.releaseAt) return; // not yet in the hunt
+        if (!s.announced && s.releaseAt > 0) {
+          s.announced = true;
+          api.showBanner(s.name + ' joins the hunt!', 1600);
+        }
         // Distinct hunts: chase runs straight at you, lead cuts ahead of
         // your movement, flank aims at your side, patrol drifts between
         // fixed waypoints around the edge and never hunts you. During the
         // warmup every sin moves at a third of pace.
         var tx = px, ty = py;
-        if (s.hunt === 'lead') { tx = px + pvx * 0.45; ty = py + pvy * 0.45; }
+        if (s.hunt === 'lead') { tx = px + pvx * 0.25; ty = py + pvy * 0.25; }
         else if (s.hunt === 'flank') {
           var fdx = px - s.x, fdy = py - s.y, fl = Math.hypot(fdx, fdy) || 1;
-          tx = px + (-fdy / fl) * 70 * s.side; ty = py + (fdx / fl) * 70 * s.side;
+          tx = px + (-fdy / fl) * 45 * s.side; ty = py + (fdx / fl) * 45 * s.side;
         } else if (s.hunt === 'patrol') {
           // Patrol the sanctuary edge on a slow loop; advance to the next
           // waypoint when close. A patroller is a hazard you steer around,
@@ -1354,6 +1425,7 @@
       }
       if (dashT <= 0) {
         for (var j = 0; j < sins.length; j++) {
+          if (elapsed < sins[j].releaseAt) continue;
           if (Math.hypot(sins[j].x - px, sins[j].y - py) < 20) { gameOver(); return; }
         }
       }
@@ -1411,12 +1483,15 @@
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
     var moveCd = 0;
+    var riverT = 0; // grace in the water: a mistimed step is recoverable for 0.6s
     function buildLevel() {
       cars = [];
       LANE_Y.forEach(function (y, i) {
         var dir = i % 2 === 0 ? 1 : -1;
-        var speed = (55 + level * 12) * (0.8 + Math.random() * 0.5);
-        var n = 3 + Math.floor(Math.random() * 2);
+        // Level 1 is the welcome mat: slower cars and only three per lane, so
+        // a first-time player can read the gaps and cross. It ramps up after.
+        var speed = (45 + level * 10) * (0.8 + Math.random() * 0.5);
+        var n = level === 1 ? 3 : 3 + Math.floor(Math.random() * 2);
         for (var k = 0; k < n; k++) {
           cars.push({ y: y, x: rand(0, GAME_W), dir: dir, speed: speed, w: rand(34, 52) });
         }
@@ -1471,10 +1546,12 @@
     function draw() {
       var ctx = api.ctx;
       ctx.fillStyle = '#2e5e4e'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      // Church (top)
+      // Church (top): all five doors look the same, so the moth circling
+      // one of them is the only tell. The right door used to be gold, which
+      // gave the answer away and made the moth pointless.
       ctx.fillStyle = '#6e1a26'; ctx.fillRect(0, 0, GAME_W, RIVER_TOP - 8);
       DOOR_X.forEach(function (x, i) {
-        ctx.fillStyle = i === mothDoor ? '#b28a2e' : '#33261a';
+        ctx.fillStyle = '#33261a';
         ctx.fillRect(x - 16, 10, 32, 26);
         ctx.fillStyle = '#fffdf7'; ctx.font = '10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('' + (i + 1), x, 28); ctx.textAlign = 'left';
@@ -1535,15 +1612,22 @@
         if (f.x - f.w / 2 > GAME_W) f.x = -f.w / 2;
         if (f.x + f.w / 2 < 0) f.x = GAME_W + f.w / 2;
       });
-      // Ride a log or turtle
+      // Ride a log or turtle. A mistimed step into the water is recoverable
+      // for a beat: the player can step back to the road or onto a float
+      // before the river takes a life, instead of dying on one bad step.
       if (onRiver()) {
         var riding = null;
         floats.forEach(function (f) {
           if (Math.abs(py - f.y) < 12 && Math.abs(px - f.x) < f.w / 2) riding = f;
         });
-        if (riding) { px += riding.dir * riding.speed * dt; if (px < 8 || px > GAME_W - 8) { loseLife('Swept off the log'); return; } }
-        else { loseLife('Into the river'); return; }
-      }
+        if (riding) {
+          riverT = 0;
+          px += riding.dir * riding.speed * dt; if (px < 8 || px > GAME_W - 8) { loseLife('Swept off the log'); return; }
+        } else {
+          riverT += dt;
+          if (riverT > 0.6) { riverT = 0; loseLife('Into the river'); return; }
+        }
+      } else riverT = 0;
       // Traffic
       for (var i = 0; i < cars.length; i++) {
         var c = cars[i];
