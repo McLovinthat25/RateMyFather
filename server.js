@@ -1,6 +1,6 @@
 // RateMyFather — Node + Express + PostgreSQL. No build step.
 // Entry point: server.js. Env: DATABASE_URL, OWNER_SECRET (no default, never hardcoded),
-// PORT (default 3000). Run migrations/001_init.sql on boot (idempotent).
+// PORT (default 3000). Runs migrations/*.sql on boot, in order (idempotent).
 // Moderation is enforced SERVER SIDE: every /owner route checks the signed owner
 // session cookie before touching data (see requireOwner). Owner login compares the
 // supplied secret with OWNER_SECRET using a timing-safe comparison.
@@ -22,6 +22,28 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1);
+
+// Numeric :id params only. Express 4 does not catch async route rejections,
+// so a non-numeric id (e.g. /priest/abc) used in a Postgres integer query
+// would throw as an unhandled promise rejection and hang or crash the
+// process. Reject it here with a 404 instead. The bound also keeps absurdly
+// large ids from reaching Postgres as an out-of-range integer.
+app.param('id', (req, res, next, id) => {
+  const n = Number(id);
+  if (!/^\d+$/.test(id) || !Number.isSafeInteger(n) || n > 2147483647) {
+    return res.status(404).send(page('Not found', '<h1>Not found</h1><p><a href="/">Home</a></p>'));
+  }
+  next();
+});
+
+// A body-supplied id that is missing or not a valid integer. Used by the
+// public report/correction forms so a tampered id yields null (or a 400)
+// instead of NaN reaching a Postgres integer column.
+function numOrNull(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isSafeInteger(n) && n >= 0 && n <= 2147483647 ? n : null;
+}
 
 // ---------- helpers ----------
 function esc(s) {
@@ -415,6 +437,15 @@ app.get('/browse', async (req, res) => {
     ${note}${matchLine}<div class="cards">${body}</div>`));
 });
 
+// Attendance-duration answers for the review form (required dropdown).
+// Kept as the exact option values; the form and the POST handler both use
+// this list so a tampered value cannot be stored.
+const ATTENDANCE_OPTIONS = [
+  'Just visiting / first time', 'Less than 6 months', '6 months to 1 year',
+  '1 to 3 years', '3 to 5 years', '5 to 10 years', 'More than 10 years',
+  'Lifelong parishioner',
+];
+
 // ---------- profile + rating ----------
 app.get('/priest/:id', async (req, res) => {
   const { rows } = await pool.query(`SELECT * FROM priests WHERE id=$1 AND status='approved'`, [req.params.id]);
@@ -422,13 +453,14 @@ app.get('/priest/:id', async (req, res) => {
   const p = rows[0];
   const stats = await statsFor([p.id]);
   const st = stats[p.id];
-  const revs = (await pool.query(`SELECT id, pace, homily, likability, mass_context, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
+  const revs = (await pool.query(`SELECT id, pace, homily, likability, mass_context, attendance_duration, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
   const reviewHtml = revs.length ? revs.map((r) => {
     const ravg = (Number(r.pace) + Number(r.homily) + Number(r.likability)) / 3;
     const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     return `<article class="review">
     <div class="review-head"><span class="review-score">${ravg.toFixed(1)} out of 5</span>${starsHtml(ravg)}<span class="review-date">${date}${r.mass_context ? ` &middot; ${esc(r.mass_context)}` : ''}</span></div>
     <p class="review-cats">Pace <strong>${r.pace}</strong> &middot; Homily <strong>${r.homily}</strong> &middot; Likability <strong>${r.likability}</strong></p>
+    ${r.attendance_duration ? `<p class="review-attendance">Attending this parish / knows this priest: <strong>${esc(r.attendance_duration)}</strong></p>` : ''}
     ${r.body ? `<p class="review-body">${esc(r.body)}</p>` : '<p class="review-body small">Star-only review (no written comment).</p>'}
     <div class="review-actions"><a href="/report?review=${r.id}&priest=${p.id}">Report this review</a></div></article>`;
   }).join('')
@@ -466,6 +498,8 @@ app.get('/priest/:id', async (req, res) => {
       <p><label>Likability: <select name="likability" required>
         <option value="">Choose</option><option value="1">1: not likable</option><option value="2">2: below average</option>
         <option value="3">3: average</option><option value="4">4: likable</option><option value="5">5: very likable</option></select></label></p>
+      <p><label>How long have you attended this parish or known this priest? <select name="attendance_duration" required>
+        <option value="">Choose</option>${ATTENDANCE_OPTIONS.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select></label></p>
       <p><label>Mass context (optional): <input name="mass_context" maxlength="120" placeholder="e.g. Sunday 10am Mass"></label></p>
       <p><label>Written review (optional):<br><textarea name="body" rows="4" maxlength="2000"></textarea></label></p>
       <p class="small">Reviews are anonymous. No name or email is collected.</p>
@@ -484,8 +518,12 @@ app.post('/priest/:id/review', async (req, res) => {
   const pace = Number(req.body.pace), homily = Number(req.body.homily), likability = Number(req.body.likability);
   const body = (req.body.body || '').trim().slice(0, 2000);
   const massContext = (req.body.mass_context || '').trim().slice(0, 120);
+  const attendance = (req.body.attendance_duration || '').trim();
   if (![pace, homily, likability].every((v) => Number.isInteger(v) && v >= 1 && v <= 5)) {
     return res.status(400).send(page('Review not submitted', '<h1>Review not submitted</h1><p>Each rating must be a whole number from 1 to 5.</p>'));
+  }
+  if (!ATTENDANCE_OPTIONS.includes(attendance)) {
+    return res.status(400).send(page('Review not submitted', '<h1>Review not submitted</h1><p>Please choose how long you have attended this parish or known this priest.</p>'));
   }
   if (!req.body.attest_age || !req.body.attest_honest) {
     return res.status(400).send(page('Review not submitted', '<h1>Review not submitted</h1><p>Both attestations are required: you must confirm you are 18 or older and that the review is your own honest opinion.</p>'));
@@ -512,9 +550,9 @@ app.post('/priest/:id/review', async (req, res) => {
   const spike = await pool.query(`SELECT COUNT(*)::int AS n FROM reviews WHERE priest_id=$1 AND created_at > NOW() - INTERVAL '24 hours'`, [pid]);
   if (spike.rows[0].n >= SPIKE_THRESHOLD) { status = 'pending'; flagReason = 'spike'; }
   const ins = await pool.query(
-    `INSERT INTO reviews (priest_id, pace, homily, likability, mass_context, body, status, source_token_hash, abuse_flag, flag_reason)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [pid, pace, homily, likability, massContext || null, body || null, status, token, abuseFlag, flagReason]);
+    `INSERT INTO reviews (priest_id, pace, homily, likability, mass_context, attendance_duration, body, status, source_token_hash, abuse_flag, flag_reason)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+    [pid, pace, homily, likability, massContext || null, attendance, body || null, status, token, abuseFlag, flagReason]);
   await audit(status === 'approved' ? 'review_auto_approved' : 'review_held', 'review', ins.rows[0].id, flagReason);
   if (status === 'approved') {
     res.send(page('Review published', `<h1>Thank you</h1><p>Your review passed screening and is now public. It can still be removed later if it is reported and found to break the rules.</p><p><a href="/priest/${pid}">Back to profile</a></p>`));
@@ -555,7 +593,7 @@ app.get('/report', async (req, res) => res.send(page('Report a review', `<h1>Rep
     <button type="submit">Submit report</button></form>`)));
 app.post('/report', async (req, res) => {
   await pool.query(`INSERT INTO reports (review_id, priest_id, reason, details) VALUES ($1,$2,$3,$4)`,
-    [req.body.review_id ? Number(req.body.review_id) : null, req.body.priest_id ? Number(req.body.priest_id) : null, req.body.reason || 'Other', req.body.details || null]);
+    [numOrNull(req.body.review_id), numOrNull(req.body.priest_id), req.body.reason || 'Other', req.body.details || null]);
   await audit('report_submitted', 'report', null, req.body.reason || '');
   res.send(page('Report received', '<h1>Report received</h1><p>Thank you. The report has been flagged for the moderation queue. Nothing has been removed by this report alone.</p>'));
 });
@@ -569,9 +607,10 @@ app.get('/priest/:id/correct', async (req, res) => res.send(page('Correction or 
     <p><label>Contact (optional, never published): <input name="contact" maxlength="200"></label></p>
     <button type="submit">Submit</button></form>`)));
 app.post('/correction', async (req, res) => {
-  if (!req.body.details || !req.body.priest_id) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Details and a priest are required.</p>'));
+  const priestId = numOrNull(req.body.priest_id);
+  if (!req.body.details || !priestId) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Details and a priest are required.</p>'));
   await pool.query(`INSERT INTO corrections (priest_id, type, details, contact) VALUES ($1,$2,$3,$4)`,
-    [Number(req.body.priest_id), req.body.type || 'correction', req.body.details, req.body.contact || null]);
+    [priestId, req.body.type || 'correction', req.body.details, req.body.contact || null]);
   await audit('correction_submitted', 'correction', null, req.body.type || '');
   res.send(page('Request received', '<h1>Request received</h1><p>Thank you. Your request has been flagged for the moderation queue.</p>'));
 });
@@ -599,6 +638,7 @@ app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p>Each rat
   <li><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</li>
   <li><strong>Likability:</strong> 1 is not likable, 5 is very likable.</li></ul>
   <p>Every average score is shown with its review count, everywhere it appears. Averages use approved reviews only. A held review counts toward nothing.</p>
+  <p>Each review also says how long the reviewer has attended the parish or known the priest, from a first-time visitor to a lifelong parishioner, and that is printed on the review so readers can weigh it.</p>
   <p>Screening: star-only and clearly clean reviews may auto-approve. Borderline reviews wait in the moderation queue. Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag and never auto-approved. Reviews containing phone numbers or email addresses are refused outright. A repeat review of the same priest from the same source is refused. After 5 reviews in an hour from one source, further reviews are refused. If 10 or more reviews of one priest arrive in 24 hours, further reviews of that priest are force-held.</p>
   <p>Category lists ("Quick Mass", "Great homily", "Lovable priest") show rated priests only, sorted by that category average highest first, tie-broken by review count. Listings based on a single review carry a single-review caveat.</p>
   <p>Reviews are anonymous. No name or email is collected. For abuse prevention only, the site stores a hashed token derived from request data (see Privacy Policy).</p>`)));
@@ -607,7 +647,7 @@ app.get('/terms', (req, res) => res.send(infoPage('Terms of Use', `<p>By submitt
   <p>No paid placement: no priest, parish, or diocese can pay for placement, ranking, or promotion on this site.</p>
   <p>This site does not claim that the site or its owner is immune from suit.</p>`)));
 app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What is collected:</p>
-  <ul><li><strong>Reviews:</strong> the three 1-5 ratings, optional Mass context, and optional written review text you submit. No name or email is collected with reviews.</li>
+  <ul><li><strong>Reviews:</strong> the three 1-5 ratings, how long you have attended the parish or known the priest, optional Mass context, and optional written review text you submit. No name or email is collected with reviews.</li>
   <li><strong>Abuse-prevention token:</strong> a SHA-256 hash derived from request data (IP address plus user agent). Only the hash is stored, never the raw IP address or user agent string. It is used only to refuse duplicates, enforce the hourly review limit, and detect review spikes.</li>
   <li><strong>Moderation submissions:</strong> reports, corrections, right-of-reply and removal requests, and legal notices, including any optional contact details you choose to provide. Contact details are never published.</li>
   <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time and a signature, nothing else.</li></ul>
@@ -637,7 +677,10 @@ app.post('/api/chat', async (req, res) => {
     const terms = [...new Set(words.filter((w) => !stop.has(w)))];
     if (terms.length) {
       const like = terms.map((t) => `%${t}%`);
-      const cond = terms.map((_, i) => `name ILIKE $${i + 1}`).join(' OR ');
+      // ALL terms must match the name. OR let one stray term (e.g. "such"
+      // in "Zzqx No Such Priest") return an unrelated priest such as
+      // "Bandsuch", instead of the no-match path with the add link.
+      const cond = terms.map((_, i) => `name ILIKE $${i + 1}`).join(' AND ');
       const { rows } = await pool.query(`SELECT * FROM priests WHERE status='approved' AND (${cond}) ORDER BY name LIMIT 10`, like);
       // Rank by how many search terms the name actually contains, with a
       // bonus when the whole query phrase matches at a word boundary, so an
@@ -784,6 +827,15 @@ app.post('/owner/legal-resolve/:id', requireOwner, async (req, res) => {
   res.redirect('/owner');
 });
 
+// Global error handler. Express 4 does not catch async route rejections, so
+// any error that escapes a route lands here as a 500 instead of hanging the
+// request or crashing the process on an unhandled rejection.
+app.use((err, req, res, next) => {
+  console.error(err && err.stack ? err.stack : err);
+  if (res.headersSent) return next(err);
+  res.status(500).send(page('Something went wrong', '<h1>Something went wrong</h1><p>Please try again.</p>'));
+});
+
 // ---------- boot ----------
 async function boot() {
   if (!process.env.DATABASE_URL) {
@@ -791,8 +843,14 @@ async function boot() {
     process.exit(1);
   }
   if (!OWNER_SECRET) console.warn('WARNING: OWNER_SECRET is not set. Owner moderation will refuse all access until it is set.');
-  const mig = path.join(__dirname, 'migrations', '001_init.sql');
-  if (fs.existsSync(mig)) await pool.query(fs.readFileSync(mig, 'utf8'));
+  // Run every migration in order (001, 002, ...). All migrations are
+  // idempotent (IF NOT EXISTS), so re-running them on boot is safe.
+  const migDir = path.join(__dirname, 'migrations');
+  if (fs.existsSync(migDir)) {
+    for (const f of fs.readdirSync(migDir).sort()) {
+      if (f.endsWith('.sql')) await pool.query(fs.readFileSync(path.join(migDir, f), 'utf8'));
+    }
+  }
   app.listen(PORT, () => console.log(`RateMyFather listening on port ${PORT}`));
 }
 boot().catch((e) => { console.error(e); process.exit(1); });

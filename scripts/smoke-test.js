@@ -33,28 +33,34 @@ async function get(path, headers = {}) { return fetch(BASE + path, { headers });
   const profileText = await profile.text();
   check('profile loads, unrated or rated shown honestly', profile.status === 200 && (profileText.includes('Not rated yet') || profileText.includes('review')));
   check('profile has pace scale definition + privacy note + attestations', profileText.includes('speed only') && profileText.includes('No name or email is collected') && profileText.includes('18 or older') && profileText.includes('own honest opinion'));
+  check('profile review form has required attendance dropdown', profileText.includes('name="attendance_duration"') && profileText.includes('Lifelong parishioner'));
+
+  // Missing attendance duration refused (it is a required field).
+  const noAtt = await post(`/priest/${pid}/review`, { pace: '5', homily: '4', likability: '5', attest_age: 'on', attest_honest: 'on' }, 'smoke-noatt/1.0');
+  check('missing attendance duration refused', noAtt.status === 400, `status=${noAtt.status}`);
 
   // Clean star-only review should auto-approve (public confirmation copy).
-  const clean = await post(`/priest/${pid}/review`, { pace: '5', homily: '4', likability: '5', attest_age: 'on', attest_honest: 'on' }, 'smoke-clean/1.0');
+  // attendance_duration is a required field on the review form.
+  const clean = await post(`/priest/${pid}/review`, { pace: '5', homily: '4', likability: '5', attendance_duration: '1 to 3 years', attest_age: 'on', attest_honest: 'on' }, 'smoke-clean/1.0');
   const cleanText = await clean.text();
   check('clean review auto-approves', clean.status === 200 && cleanText.includes('passed screening and is now public'), `status=${clean.status}`);
 
   // Allegation text should be held, not public.
-  const alleg = await post(`/priest/${pid}/review`, { pace: '3', homily: '3', likability: '3', body: 'He stole money from the parish', attest_age: 'on', attest_honest: 'on' }, 'smoke-allegation/1.0');
+  const alleg = await post(`/priest/${pid}/review`, { pace: '3', homily: '3', likability: '3', attendance_duration: '1 to 3 years', body: 'He stole money from the parish', attest_age: 'on', attest_honest: 'on' }, 'smoke-allegation/1.0');
   const allegText = await alleg.text();
   check('allegation review force-held', alleg.status === 200 && allegText.includes('not public') && allegText.includes('counts toward nothing'), `status=${alleg.status}`);
 
   // Missing attestation refused.
-  const noAttest = await post(`/priest/${pid}/review`, { pace: '5', homily: '5', likability: '5' }, 'smoke-noattest/1.0');
+  const noAttest = await post(`/priest/${pid}/review`, { pace: '5', homily: '5', likability: '5', attendance_duration: '1 to 3 years' }, 'smoke-noattest/1.0');
   check('missing attestations refused', noAttest.status === 400);
 
   // Duplicate from same source refused.
-  const dup = await post(`/priest/${pid}/review`, { pace: '4', homily: '4', likability: '4', attest_age: 'on', attest_honest: 'on' }, 'smoke-clean/1.0');
+  const dup = await post(`/priest/${pid}/review`, { pace: '4', homily: '4', likability: '4', attendance_duration: '1 to 3 years', attest_age: 'on', attest_honest: 'on' }, 'smoke-clean/1.0');
   check('duplicate refused', dup.status === 400, `status=${dup.status}`);
 
   // Burst: 6th review in an hour from one source refused (5 allowed, then refuse).
   for (let i = 0; i < 5; i++) {
-    await post(`/priest/${pid}/review`, { pace: '4', homily: '4', likability: '4', attest_age: 'on', attest_honest: 'on' }, 'smoke-burst/1.0');
+    await post(`/priest/${pid}/review`, { pace: '4', homily: '4', likability: '4', attendance_duration: '1 to 3 years', attest_age: 'on', attest_honest: 'on' }, 'smoke-burst/1.0');
     // Same priest + same source: 2nd+ would be duplicates, so burst needs distinct priests;
     // this loop only proves duplicate refusal here; burst is covered by unit check below.
     break;

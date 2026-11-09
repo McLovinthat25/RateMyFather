@@ -166,13 +166,15 @@
       var card = el('article', 'game-card card-lift');
       card.appendChild(el('h3', '', esc(g.title)));
       card.appendChild(el('p', 'blurb', esc(g.blurb)));
-      card.appendChild(el('p', 'meta', '<strong>' + esc(g.verdict) + '</strong> ' + esc(g.how)));
+      // Play sits right under the blurb, before the verdict/how-to paragraph,
+      // so it is reachable on a phone without scrolling past a long paragraph.
       var row = el('div', 'play-row');
       row.appendChild(el('span', 'best', gameMark(g.id)));
       var play = el('button', 'press', 'Play'); play.type = 'button';
       play.addEventListener('click', function () { openGame(g.id); });
       row.appendChild(play);
       card.appendChild(row);
+      card.appendChild(el('p', 'meta', '<strong>' + esc(g.verdict) + '</strong> ' + esc(g.how)));
       shelf.appendChild(card);
     });
     if (!shelf.children.length) {
@@ -199,6 +201,7 @@
   var BOWL_START_Y = 280;
   var BOWL_CATCH_DWELL = 0.55;
   var BOWL_CATCH_RADIUS = 26;
+  var RUNGUN_TOUCHDOWN_BONUS = 6; // bonus points on top of the yards gained
 
   function mountBowl(parent, onBack) {
     var api = createStage(parent, { title: 'The Parish Bowl', onBack: onBack });
@@ -394,8 +397,11 @@
           } else { catchT = 0; }
         }
         if (yardsToGo() <= 0) {
-          var gained = playStartYards;
-          endPlay(gained, 'Touchdown, ' + priestName + '! ' + esc(parishName) + ' score.', false);
+          // Touchdown: the yards gained, plus a bonus for reaching the end
+          // zone, so a scoring drive is worth more than the same yards
+          // gained on a tackle.
+          var gained = playStartYards + RUNGUN_TOUCHDOWN_BONUS;
+          endPlay(gained, 'Touchdown, ' + priestName + '! ' + esc(parishName) + ' score. +' + RUNGUN_TOUCHDOWN_BONUS + ' bonus.', false);
           py = BOWL_START_Y;
           return;
         }
