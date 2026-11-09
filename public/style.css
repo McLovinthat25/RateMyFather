@@ -288,16 +288,61 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
 
 /* ---------- Tip box (About page bottom) ---------- */
 /* Quiet and small by design: no banner, no popup, nothing loud. Only
-   someone who reads the whole About page finds it. The link is a real
-   pill button so it is a proper 44px tap target on a phone. */
-.tip-box { margin-top:48px; padding:18px 20px; border:1px solid var(--border);
-  border-radius:var(--radius); background:var(--surface-alt); }
-.tip-box h2 { margin:0; font-size:1.05rem; }
-.tip-box p { margin:8px 0 0; font-size:0.95rem; color:var(--dim); }
-.tip-link { display:inline-block; padding:11px 18px; margin-top:14px; border:1px solid var(--border);
-  border-radius:999px; background:var(--surface); color:var(--accent); font-weight:600;
-  font-size:1rem; text-decoration:none; box-shadow:var(--shadow-card); }
-.tip-link:hover { border-color:var(--gold); }
+   someone who reads the whole About page finds it. The treatment is
+   polished, not plain: a hairline of leaded-glass colour across the
+   top, generous breathing room, and a solid burgundy pill button with
+   a small lift on hover. The link is a real pill button so it is a
+   proper 44px tap target on a phone. */
+.tip-box { margin-top:56px; padding:28px 26px 26px; border:1px solid var(--border);
+  border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-card);
+  position:relative; overflow:hidden; }
+.tip-box::before { content:""; position:absolute; top:0; left:0; right:0; height:3px;
+  background:linear-gradient(90deg, var(--glass-ruby), var(--glass-amber) 55%, var(--glass-ruby)); }
+.tip-box h2 { margin:0; font-size:1.3rem; line-height:1.3; }
+.tip-box p { margin:10px 0 0; font-size:0.98rem; line-height:1.6; color:var(--dim); }
+.tip-link { display:inline-block; padding:12px 22px; margin-top:18px; border:1px solid var(--accent);
+  border-radius:999px; background:var(--accent); color:var(--surface); font-weight:600;
+  font-size:1rem; text-decoration:none; box-shadow:var(--shadow-card);
+  transition:background .15s ease, transform .15s ease, box-shadow .15s ease; }
+.tip-link:hover { background:var(--accent-hover); border-color:var(--accent-hover);
+  transform:translateY(-1px); box-shadow:var(--shadow-lift); }
+
+/* ---------- How ratings work page ---------- */
+/* Same content as before, given room to breathe: three category cards
+   up top, one section per idea with a gold kicker rule, and star
+   tables built from the same anchored descriptions as the review form. */
+.how-lede { font-size:1.1rem; }
+.how-cats { display:grid; gap:16px; margin-top:20px; }
+@media (min-width:640px) { .how-cats { grid-template-columns:repeat(3, 1fr); } }
+.how-cat-card { background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:20px; box-shadow:var(--shadow-card); }
+.how-cat-card h3 { margin:0 0 6px; }
+.how-cat-card p { margin:0; font-size:0.95rem; color:var(--dim); }
+.how-cat-card p strong { color:var(--text); }
+.how-section { margin-top:44px; }
+.how-section h2 { margin-top:0; }
+.how-section h2::before { content:""; display:block; width:40px; height:4px;
+  background:var(--gold); border-radius:2px; margin-bottom:12px; }
+.how-section h3 { margin:28px 0 0; font-size:1.25rem; }
+.how-note { margin-top:16px; padding:14px 16px; background:var(--surface-alt);
+  border:1px solid var(--border); border-radius:var(--radius); font-size:0.92rem;
+  color:var(--dim); line-height:1.6; }
+.how-list { margin:14px 0 0; padding-left:22px; }
+.how-list li { margin-top:8px; }
+.anchor-list { list-style:none; margin:14px 0 0; padding:0; }
+.anchor-list li { display:flex; gap:14px; align-items:baseline; padding:12px 0;
+  border-top:1px solid var(--border); }
+.anchor-list li:first-child { border-top:0; }
+.anchor-list .stars { flex:none; width:88px; margin:0; font-size:15px; }
+@media (max-width:639px) {
+  .anchor-list li { flex-direction:column; gap:4px; }
+  .anchor-list .stars { width:auto; }
+  /* Tip box: tighter padding and a slightly smaller pill so the button
+     text stays on one line. (This query sits after the tip-box rules,
+     so it wins over them; the early mobile query does not.) */
+  .tip-box { padding:22px 20px; }
+  .tip-link { font-size:0.9rem; padding:12px 18px; }
+}
 
 /* ---------- Footer ---------- */
 footer.site-footer { margin-top:64px; padding-bottom:32px; }

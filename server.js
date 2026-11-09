@@ -1023,7 +1023,7 @@ app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2
 function anchorRows(key) {
   return [5, 4, 3, 2, 1].map(n => {
     const a = ANCHORS[key][n];
-    return `<li>${starsHtml(n)}<span><strong>${esc(a.label)}</strong> &mdash; ${esc(a.text)}</span></li>`;
+    return `<li>${starsHtml(n)}<span>${esc(a.text)}</span></li>`;
   }).join('');
 }
 app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p class="how-lede">Each rating is 1 to 5 in three categories:</p>
