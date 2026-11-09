@@ -809,7 +809,7 @@ function anchorLabelForAvg(key, v) {
   if (v == null) return '';
   return anchorLabel(key, Math.max(1, Math.min(5, Math.round(Number(v)))));
 }
-const MASS_TIMING_NOTE = 'Typical Sunday Mass runs about 71 minutes (median), and about 7 in 10 fall between 60 and 90 minutes. The spread is roughly 14 minutes either way. Weekday Mass is shorter, about 43 minutes at the median. Figures: Catholic Index, 209,000 livestreamed Masses from 3,253 US parishes, March 2026. Livestream timing includes a few minutes of camera setup, so time in the pew runs slightly shorter.';
+const MASS_TIMING_NOTE = 'Typical Sunday Mass runs about 71 minutes (median), and about 7 in 10 fall between 60 and 90 minutes. The spread is roughly 14 minutes either way. Weekday Mass is shorter, about 43 minutes at the median. Figures: Catholic Index, 209,000 Masses from 3,253 US parishes, March 2026.';
 
 // ---------- profile + rating ----------
 app.get('/priest/:id', async (req, res) => {
@@ -1036,10 +1036,14 @@ app.get('/about', (req, res) => res.send(infoPage('About', `<h2>What this is</h2
   </section>`)));
 // Star tables for the How page, built from ANCHORS itself so the page can
 // never drift from what the review form shows. 5 first, 1 last.
-function anchorRows(key) {
+// Pace rows drop the repeated "on a Sunday" (stripSunday): the Sunday basis
+// is stated once, in the line above the pace list.
+function anchorRows(key, stripSunday) {
   return [5, 4, 3, 2, 1].map(n => {
     const a = ANCHORS[key][n];
-    return `<li>${starsHtml(n)}<span>${esc(a.text)}</span></li>`;
+    let text = a.text;
+    if (stripSunday) text = text.replace(/ on a Sunday\./, '.');
+    return `<li>${starsHtml(n)}<span>${esc(text)}</span></li>`;
   }).join('');
 }
 app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p class="how-lede">Each rating is 1 to 5 in three categories:</p>
@@ -1051,7 +1055,8 @@ app.get('/how', (req, res) => res.send(infoPage('How ratings work', `<p class="h
   <section class="how-section"><h2>What the stars mean</h2>
   <p>Each star has a plain description, the same one shown in the review form, so a reviewer picks from a real basis instead of guessing.</p>
   <h3>Pace of play</h3>
-  <ul class="anchor-list">${anchorRows('pace')}</ul>
+  <p>Pace times are for a Sunday Mass.</p>
+  <ul class="anchor-list">${anchorRows('pace', true)}</ul>
   <p class="how-note">${esc(MASS_TIMING_NOTE)}</p>
   <h3>Homily</h3>
   <ul class="anchor-list">${anchorRows('homily')}</ul>
