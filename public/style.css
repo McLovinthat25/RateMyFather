@@ -85,7 +85,9 @@ main { padding:56px 0 72px; }
    instead of truncating to one line, and tighter spacing so the content
    starts sooner on a small screen. Desktop is unchanged. */
 @media (max-width:639px) {
-  main { padding:36px 0 56px; }
+  /* Bottom padding clears the fixed "Ask" pill: the last lines of a page
+     must be able to scroll clear of it instead of ending underneath it. */
+  main { padding:36px 0 96px; }
   .home-section { margin-top:44px; }
   .hero h1 { font-size:44px; line-height:1.02; }
   .hero .tagline { font-size:18px; line-height:28px; }

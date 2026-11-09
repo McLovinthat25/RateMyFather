@@ -42,11 +42,27 @@
     var actions = el('div', 'game-actions');
     stage.appendChild(head); stage.appendChild(wrap); stage.appendChild(hud); stage.appendChild(actions);
     parent.appendChild(stage);
+    // The overlay is absolutely positioned over the fixed 480x320 canvas, so
+    // on a phone it is only ~240px tall while a menu card (intro, choose,
+    // customize) is far taller. Left alone the card is clipped mid-sentence
+    // at the canvas edge. Grow the wrap to fit the card so every word is
+    // visible on load; the wrap shrinks back when the overlay closes.
+    function fitOverlay() {
+      var natural = canvas.clientHeight; // wrap height with no growth
+      wrap.style.minHeight = '';
+      var need = overlay.scrollHeight;
+      if (need > natural) wrap.style.minHeight = Math.min(need, window.innerHeight) + 'px';
+    }
+    function onResize() {
+      if (!document.contains(stage)) { window.removeEventListener('resize', onResize); return; }
+      if (overlay.style.display !== 'none') fitOverlay();
+    }
+    window.addEventListener('resize', onResize);
     var api = {
       stage: stage, canvas: canvas, ctx: canvas.getContext('2d'), overlay: overlay,
       hud: hud, banner: banner, actions: actions, pauseBtn: pauseBtn, _bannerT: null,
-      showOverlay: function (html) { overlay.innerHTML = html; overlay.style.display = 'flex'; },
-      hideOverlay: function () { overlay.style.display = 'none'; overlay.innerHTML = ''; },
+      showOverlay: function (html) { overlay.innerHTML = html; overlay.style.display = 'flex'; fitOverlay(); },
+      hideOverlay: function () { overlay.style.display = 'none'; overlay.innerHTML = ''; wrap.style.minHeight = ''; },
       setHud: function (html) { hud.innerHTML = html; },
       showBanner: function (text, ms) {
         banner.textContent = text; banner.style.display = 'block';
@@ -192,8 +208,18 @@
   // ---- arcade shelf ----
   var currentCleanup = null;
   var currentFilter = 'all';
+  // The fixed "Ask about a priest" pill sits at the bottom of the screen and
+  // covers the game instructions as they scroll past it. While a game is
+  // open the chat is not needed, so hide it; it comes back on the shelf.
+  function setChatVisible(v) {
+    var w = document.getElementById('chat-widget');
+    if (w) w.style.display = v ? '' : 'none';
+  }
+
   function renderShelf() {
     if (currentCleanup) { currentCleanup(); currentCleanup = null; }
+    setChatVisible(true);
+    window.scrollTo(0, 0);
     root.innerHTML = '';
     var head = el('div', 'arcade-head');
     head.appendChild(el('h2', '', 'The Arcade'));
@@ -243,6 +269,12 @@
     if (currentCleanup) { currentCleanup(); currentCleanup = null; }
     root.innerHTML = '';
     currentCleanup = def.mount(root, function () { renderShelf(); }) || null;
+    setChatVisible(false);
+    // The shelf is long; swapping it for the stage keeps the old scroll
+    // offset, which left the arcade intro clipped under the sticky header
+    // (only "in your browser." visible). Start at the top so every line
+    // of text is visible when the game loads.
+    window.scrollTo(0, 0);
   }
 
   // ================= The Parish Bowl =================
@@ -271,23 +303,23 @@
   // catch: the defence has a real chance to close, so a completion is earned.
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
-  var BOWL_TACKLE_RADIUS = 21; // demo tackle radius
+  var BOWL_TACKLE_RADIUS = 19; // was 21: a tackle has to actually reach the runner
   var BOWL_PLAY_MAX_SECONDS = 9; // whistle: no play runs forever, no stall at 0:00
-  // Human-first defence tuning (Nov 9): Mikey played the live Bowl and the
-  // defence was still far too fast. The bots scored easily, but a human
-  // reacts in 600-800ms and plays on a dpad, so the defence must be clearly
-  // slower than the runner (208, 280 after a catch) in a way a human feels:
-  // defenders at roughly half the runner's pace, a slow turn so a sharp cut
-  // genuinely leaves them wrong-footed, slow pre-catch coverage, and wide
-  // gaps between reinforcement waves. Fair, not trivial.
-  // Final numbers (verified with a 720ms-reaction driver): defender speed
-  // 110-135 (was 140-168), turn 3.0 rad/s (was 6), pre-catch chase 0.12
-  // (was 0.22), waves every 4.5s (was 2.4) or 18 yards (was 12), cap 7
-  // (was 10), opening line 3 + quarter (was 4 + quarter). Slow driver:
-  // 5 TDs/game, 48% of plays end in a tackle, 1 turnover in 3 games.
-  var BOWL_WAVE_SECONDS = 4.5; // was 2.4: waves spaced out, the runner gets room
-  var BOWL_DEFENDER_CAP = 7; // was 10: fewer defenders on the field at once
-  var BOWL_TURN_RATE = 3.0; // rad/s, was 6: a cut beats the chase; a 180 takes ~1.4s
+  // Human-first defence tuning (Nov 9, second pass): Mikey played the live
+  // Bowl again and the defence was still far too fast. The bots scored
+  // easily, but a human reacts in 600-800ms and plays on a dpad, so the
+  // defence must be clearly slower than the runner (208) in a way a human
+  // feels: defenders at well under half the runner's pace, a slow turn so
+  // a sharp cut genuinely leaves them wrong-footed, slow pre-catch
+  // coverage, and wide gaps between reinforcement waves. Fair, not trivial.
+  // Final numbers (verified with a human-like driver that re-plans every
+  // 700ms and steers by the canvas): defender speed 85-105 (was 110-135),
+  // turn 2.2 rad/s (was 3.0), pre-catch chase 0.15 (was 0.3), waves every
+  // 6s (was 4.5) or 22 yards (was 18), cap 6 (was 7), opening line
+  // 2 + quarter (was 3 + quarter), tackle radius 19 (was 21).
+  var BOWL_WAVE_SECONDS = 6; // was 4.5: waves spaced out, the runner gets room
+  var BOWL_DEFENDER_CAP = 6; // was 7: fewer defenders on the field at once
+  var BOWL_TURN_RATE = 2.2; // rad/s, was 3.0: a cut beats the chase; a 180 takes ~1.4s
   var BOWL_BURGUNDY = '#6e1a26', BOWL_BURGUNDY_DEEP = '#521219', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
   var BOWL_GOLD = '#b28a2e', BOWL_GOLD_BRIGHT = '#d9b45a', BOWL_GOLD_PALE = '#f0d48a';
   var BOWL_PARCHMENT = '#f7ecd4', BOWL_INK = '#2b1d12';
@@ -320,7 +352,7 @@
     function downWord() { return down === 1 ? '1ST' : down === 2 ? '2ND' : down === 3 ? '3RD' : '4TH'; }
     function toGoLabel() { return seriesStart <= 10 ? 'GOAL' : String(10 - seriesGain); }
     function downLabel() { return downWord() + ' & ' + toGoLabel(); }
-    function defenderCount() { return 3 + quarter; } // was 4 + quarter: a thinner opening line
+    function defenderCount() { return 2 + quarter; } // was 3 + quarter: a thinner opening line
     // The defence lines up ahead of the runner in the scrolling world, so
     // the play is about reading the field as it scrolls and cutting past
     // defenders in sequence — not about one wall across a squeezed field.
@@ -337,26 +369,26 @@
             cand = {
               x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(110, 135),
+              speed: rand(85, 105),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
               x: clamp(px + rand(-140, 140), 40, GAME_W - 40),
               y: clamp(py - rand(150, 240), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(110, 135),
+              speed: rand(85, 105),
               heading: 0,
             };
           } else {
             cand = {
               x: rand(40, GAME_W - 40),
               y: rand(RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(110, 135),
+              speed: rand(85, 105),
               heading: 0,
             };
           }
           // Fair spawn: never on top of the runner, never on the catch spot.
-          if (Math.hypot(cand.x - px, cand.y - py) < 80) continue;
+          if (Math.hypot(cand.x - px, cand.y - py) < 100) continue;
           if (passTarget && Math.hypot(cand.x - passTarget.x, cand.y - passTarget.y) < 70) continue;
           d = cand; break;
         }
@@ -583,7 +615,7 @@
       // After the catch (or on a run) it hunts at full pace,
       // but every defender steers with a limited turn rate, so a sharp cut
       // leaves them wrong-footed instead of glued to the runner.
-      var chase = (state === 'pass' && !caught) ? 0.3 : 1;
+      var chase = (state === 'pass' && !caught) ? 0.15 : 1;
       defenders.forEach(function (d) {
         var want = Math.atan2(py - d.y, px - d.x);
         var diff = want - d.heading;
@@ -620,7 +652,7 @@
         // once the runner has the ball — no reinforcements dropping on the
         // receiver while a pass is in the air.
         waveT += dt;
-        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 18)) {
+        if (state === 'run' && (waveT >= BOWL_WAVE_SECONDS || (yardsAtWave - yardsToGo()) >= 22)) {
           waveT = 0; yardsAtWave = yardsToGo();
           if (defenders.length < BOWL_DEFENDER_CAP) spawnDefenders(1, true);
         }
