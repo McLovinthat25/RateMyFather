@@ -443,7 +443,13 @@
   // registers in 1.38s from the snap when the runner reaches the gold X
   // and holds still, so the pass game is intact.
   var BOWL_WAVE_SECONDS = 3; // was 4: fresh legs arrive sooner on a breakaway, so a long run meets reinforcements
-  var BOWL_DEFENDER_CAP = 7; // back to 7: the wave needs a body to send
+  var BOWL_DEFENDER_CAP = 11; // was 7: at 7 the cap left no room for a wave
+  // in Q3/Q4 on Medium and Hard (the opening line alone fills it), so
+  // the bigger 3- and 4-man waves never fired late. At 11 every quarter
+  // on Medium has room for a full 2-4 wave, and Hard has room for 2-4
+  // through Q3 and 2-3 in Q4. The wave still only fires when room is
+  // at least 2, and the fair-spawn checks (45px apart, 100px off the
+  // runner) keep a full field from stacking into a wall.
   var BOWL_TURN_RATE = 2.6; // rad/s, was 3.0: a cut beats the chase; a 180 takes ~1.2s
   var BOWL_BURGUNDY = '#6e1a26', BOWL_BURGUNDY_DEEP = '#521219', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
   var BOWL_GOLD = '#b28a2e', BOWL_GOLD_BRIGHT = '#d9b45a', BOWL_GOLD_PALE = '#f0d48a';
