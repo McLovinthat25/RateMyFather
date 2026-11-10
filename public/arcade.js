@@ -431,12 +431,59 @@
   var BOWL_BURGUNDY = '#6e1a26', BOWL_BURGUNDY_DEEP = '#521219', BOWL_BURGUNDY_BRIGHT = '#a02c3c';
   var BOWL_GOLD = '#b28a2e', BOWL_GOLD_BRIGHT = '#d9b45a', BOWL_GOLD_PALE = '#f0d48a';
   var BOWL_PARCHMENT = '#f7ecd4', BOWL_INK = '#2b1d12';
+  // Uniforms (Nov 10, Mikey: let the player change the kits). One scheme
+  // is a home kit (Father, St Mary's) and an away kit (St Swithin's).
+  // Every disc stays dark enough for the white F/S letter, and every kit
+  // stays clear of the green field and of the other kit, so the two teams
+  // always read apart on the pitch. Only the on-field discs change: the
+  // end zone, scoreboard, cards and buttons keep the brand burgundy and
+  // gold, so a kit can never make the game itself confusing.
+  var BOWL_UNIFORMS = [
+    { id: 'classic', name: 'Classic', home: { bright: '#8a2a38', deep: '#6e1a26', ring: '#b28a2e' }, away: { bright: '#4a3826', deep: '#241a10', ring: '#f7ecd4' } },
+    { id: 'navy', name: 'Navy', home: { bright: '#2e4a7d', deep: '#1e3257', ring: '#d9b45a' }, away: { bright: '#8a2a38', deep: '#6e1a26', ring: '#f7ecd4' } },
+    { id: 'royal', name: 'Royal', home: { bright: '#2f5aa8', deep: '#1e3f7d', ring: '#ffffff' }, away: { bright: '#3d3d3d', deep: '#1c1c1c', ring: '#f7ecd4' } },
+    { id: 'purple', name: 'Purple', home: { bright: '#5b3a7a', deep: '#3f2a57', ring: '#d9b45a' }, away: { bright: '#9a4a16', deep: '#6e3410', ring: '#f7ecd4' } },
+    { id: 'teal', name: 'Teal', home: { bright: '#17706a', deep: '#0f4a46', ring: '#d9b45a' }, away: { bright: '#7d2430', deep: '#521219', ring: '#f7ecd4' } },
+  ];
+  function bowlUniform(id) { for (var i = 0; i < BOWL_UNIFORMS.length; i++) if (BOWL_UNIFORMS[i].id === id) return BOWL_UNIFORMS[i]; return BOWL_UNIFORMS[0]; }
+  function readBowlUniform() { return bowlUniform(storeGet('rmf-parish-bowl-uniform')); }
+  // Swatch picker for the Bowl start screen: each button shows the home
+  // and away discs side by side, so the pair reads at a glance. The
+  // current one reads burgundy with a gold outline.
+  function uniformPickerHtml(cur) {
+    return '<div class="uniform-row" style="margin:0 0 14px;">' +
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#6b5636;margin-bottom:6px;">Uniforms</div>' +
+      BOWL_UNIFORMS.map(function (u) {
+        var on = u.id === cur;
+        return '<button type="button" class="press uniform-btn" data-uniform="' + u.id + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="margin:0 4px;padding:7px 10px;' + (on ? 'background:#6e1a26;color:#f7ecd4;box-shadow:0 0 0 2px #b28a2e;' : '') + '">' +
+          '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + u.home.bright + ';border:2px solid ' + u.home.ring + ';vertical-align:middle;"></span>' +
+          '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + u.away.bright + ';border:2px solid ' + u.away.ring + ';vertical-align:middle;margin-left:5px;"></span>' +
+          '<span style="margin-left:7px;vertical-align:middle;">' + u.name + '</span></button>';
+      }).join('') + '</div>';
+  }
+  function wireUniformButtons(root, get, set) {
+    if (!root) return;
+    var btns = root.querySelectorAll('.uniform-btn');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        set(b.getAttribute('data-uniform'));
+        btns.forEach(function (x) {
+          var on = x.getAttribute('data-uniform') === get();
+          x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          x.style.background = on ? '#6e1a26' : '';
+          x.style.color = on ? '#f7ecd4' : '';
+          x.style.boxShadow = on ? '0 0 0 2px #b28a2e' : '';
+        });
+      });
+    });
+  }
 
   function mountBowl(parent, onBack) {
     var api = createStage(parent, { title: 'The Parish Bowl', onBack: onBack });
     api.overlay.style.overflowY = 'auto';
     var priestName = storeGet('rmf-parish-bowl-priest') || 'Father Murphy';
     var diff = readDiff('rungun'); // Easy / Medium / Hard; Medium is the tuned default
+    var uniform = readBowlUniform(); // kit choice, remembered in the browser
     var defLo = 100, defHi = 125, covLo = 110, covHi = 130, defBase = 3;
     var passLimit = BOWL_PASS_TIME_LIMIT, catchDwell = BOWL_CATCH_DWELL, oppChance = 0.5, waveSecs = BOWL_WAVE_SECONDS;
     function applyBowlDiff() {
@@ -798,9 +845,11 @@
         '<p style="margin:0 0 6px;font-size:15px;line-height:1.45;">Four quarters of 45 seconds. Run or pass your way down the field — four downs to gain ten yards, and a touchdown is worth the yards plus a hundred. St Swithin\u2019s drive after every quarter.</p>' +
         '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">' + gameMark('rungun') + '</p>',
         diffPickerHtml('rungun', diff) +
+        uniformPickerHtml(uniform.id) +
         bowlBtn('bowl-kickoff', 'Kick off for ' + esc(parishName)) +
         '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>'));
       wireDiffButtons(api.overlay, 'rungun', function () { return diff; }, function (d) { diff = d; writeDiff('rungun', d); applyBowlDiff(); });
+      wireUniformButtons(api.overlay, function () { return uniform.id; }, function (u) { uniform = bowlUniform(u); storeSet('rmf-parish-bowl-uniform', u); });
       var kick = document.getElementById('bowl-kickoff');
       if (kick) kick.addEventListener('click', function () { state = 'choose'; showChoose(); });
       var custom = document.getElementById('bowl-custom');
@@ -1161,11 +1210,11 @@
         ctx.fillStyle = 'rgba(0,0,0,0.28)';
         ctx.beginPath(); ctx.ellipse(d.x, dy + 9, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
         var dg = ctx.createRadialGradient(d.x - 3, dy - 4, 2, d.x, dy, 12);
-        dg.addColorStop(0, '#4a3826');
-        dg.addColorStop(1, '#241a10');
+        dg.addColorStop(0, uniform.away.bright);
+        dg.addColorStop(1, uniform.away.deep);
         ctx.fillStyle = dg;
         ctx.beginPath(); ctx.arc(d.x, dy, 11, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = freezeT > 0 ? '#8a8a8a' : BOWL_PARCHMENT; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = freezeT > 0 ? '#8a8a8a' : uniform.away.ring; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('S', d.x, dy + 3); ctx.textAlign = 'left';
       });
@@ -1175,11 +1224,11 @@
       ctx.fillStyle = 'rgba(0,0,0,0.30)';
       ctx.beginPath(); ctx.ellipse(px, pyS + 10, 11, 4.5, 0, 0, Math.PI * 2); ctx.fill();
       var pg = ctx.createRadialGradient(px - 4, pyS - 5, 2, px, pyS, 13);
-      pg.addColorStop(0, '#8a2a38');
-      pg.addColorStop(1, BOWL_BURGUNDY);
+      pg.addColorStop(0, uniform.home.bright);
+      pg.addColorStop(1, uniform.home.deep);
       ctx.fillStyle = pg;
       ctx.beginPath(); ctx.arc(px, pyS, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = uniform.home.ring; ctx.lineWidth = 3; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, pyS + 4); ctx.textAlign = 'left';
       if (hasBall) {
