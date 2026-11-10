@@ -768,12 +768,39 @@ const FILTERS = { quick: 'pace', homily: 'homily', lovable: 'likability' };
 // a row matching only one. "Saint" and "St." are the same word: the field is
 // normalised so a whole-word St. or St becomes Saint, and the search word is
 // normalised the same way, so "Saint George" finds "St. George" and vice versa.
+// Normalize the standard US place-name abbreviations so "Mt Calvary",
+// "Ft Wayne", and "Ste Anne" match "Mount Calvary", "Fort Wayne", and
+// "St. Anne" exactly like the full forms do. Both the query words and the
+// stored columns are normalized the same way, so the phrase place gate and
+// the field-weighted matching treat abbreviations and full forms
+// identically. Whole words only, so names like Stephen, Clifton, or
+// Stevens are untouched. Dotted forms are replaced before bare forms:
+// a trailing word boundary after an optional period does not match when
+// the period is followed by a space, so a single optional-period pattern
+// would leave the period behind ("St. Paul" -> "Saint. Paul") and the
+// phrase gate would then miss every row stored in abbreviated form.
 function searchNormField(col) {
-  return `regexp_replace(${col}, '\\ySt\\.?\\y', 'Saint', 'gi')`;
+  const subs = [
+    ['\\ySt\\.', 'Saint'],
+    ['\\ySte\\.', 'Saint'],
+    ['\\ySt\\y', 'Saint'],
+    ['\\ySte\\y', 'Saint'],
+    ['\\ySainte\\y', 'Saint'],
+    ['\\yMt\\.', 'Mount'],
+    ['\\yMt\\y', 'Mount'],
+    ['\\yFt\\.', 'Fort'],
+    ['\\yFt\\y', 'Fort'],
+  ];
+  let expr = col;
+  for (const [pat, rep] of subs) expr = `regexp_replace(${expr}, '${pat}', '${rep}', 'gi')`;
+  return expr;
 }
 function searchNormWord(w) {
   const t = w.replace(/\./g, '').toLowerCase();
-  return t === 'st' ? 'saint' : t;
+  if (t === 'st' || t === 'ste' || t === 'sainte') return 'saint';
+  if (t === 'mt') return 'mount';
+  if (t === 'ft') return 'fort';
+  return t;
 }
 function searchLikeEscape(s) {
   return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
