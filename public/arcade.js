@@ -362,14 +362,24 @@
   // on a pass: the route to the X is a fight through bodies, not a free run.
   var BOWL_IMPEDE_SLOW = 0.4; // Runner's pace while held up.
   var PX_PER_YARD = (RUNGUN_START_Y - RUNGUN_END_Y) / 80; // 9.8
-  var BOWL_CATCH_DWELL = 0.38; // Hold still briefly to catch: the catch
-  // itself is quick, because the defence is right there — a clean, fast
-  // route to the spot completes the catch, and the man on the receiver is
-  // on him the instant after, so the catch buys position and then the
-  // runner has to beat the tackle. The hold is long enough that a man
-  // closing from a step away can break the catch up, so reaching the spot
-  // is not enough on its own: the receiver has to arrive with the
-  // defender still a step off him.
+  var BOWL_CATCH_DWELL = 0.38; // Medium throw on Medium difficulty: hold
+  // still briefly to catch. The catch itself is quick, because the
+  // defence is right there — a clean, fast route to the spot completes
+  // the catch, and the man on the receiver is on him the instant after,
+  // so the catch buys position and then the runner has to beat the
+  // tackle. The hold is long enough that a man closing from a step away
+  // can break the catch up, so reaching the spot is not enough on its
+  // own: the receiver has to arrive with the defender still a step off
+  // him.
+  // Catch window scales with the throw (Nov 10, Mikey: a further pass
+  // needs more time to catch than a short one). Base dwells on Medium:
+  // short 0.30s, medium 0.38s, deep 0.50s. Easy and Hard scale by the
+  // same factor as the difficulty table, so a medium throw is still
+  // 0.5s on Easy and 0.3s on Hard. startPlay sets catchDwell per throw
+  // from this table; the catch fill ring reads catchDwell, so the
+  // visible window scales with it automatically.
+  var BOWL_CATCH_DWELL_SHORT = 0.30;
+  var BOWL_CATCH_DWELL_DEEP = 0.50;
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
@@ -382,7 +392,8 @@
   // it read as the catch being stolen, not contested. So the coverage
   // now holds its ground ON the receiver (a man on the spot 43-54px from
   // the X, a shadow 60-75px off the route) and breaks on him at full
-  // pace the instant he reaches the X, and the hold is 0.38s. Measured
+  // pace the instant he reaches the X, and the hold scales with the
+  // throw (short 0.30s, medium 0.38s, deep 0.50s on Medium). Measured
   // with a straight-line driver over 16 pass plays: the nearest man is
   // 49-63px away when the receiver reaches the X (median 54) and 22-24px
   // away at the catch (median 24), the simple run-to-the-X strategy
@@ -507,6 +518,7 @@
         }
         if (!d) continue;
         d.heading = Math.atan2(py - d.y, px - d.x);
+        d.lane = d.x; // assigned lane: the defender's zone to hold on a pass
         defenders.push(d);
       }
     }
@@ -568,6 +580,9 @@
     // he arrives. Once he reaches the X they break on him at full pace,
     // so the hold to catch is a real fight. The shadow sits wide of the
     // route, the man on the spot sits beside the X, never on it.
+    // Both men work the same side of the route: the shadow guards the
+    // approach and the man sits on the X, so the contest is a fight on
+    // one side and the receiver can beat it with a cut to the open side.
     // Their offsets are perpendicular to the route (snap to X), not just
     // sideways in x: throws now vary from short to deep and left to
     // right, so a purely lateral offset could land a man on a shallow
@@ -581,7 +596,11 @@
       var mx = (px + passTarget.x) / 2, my = (py + passTarget.y) / 2;
       var side = Math.random() < 0.5 ? -1 : 1;
       var offShadow = side * rand(60, 75);
-      var offMan = side * rand(42, 54);
+      var offMan = side * rand(42, 54); // same side as the shadow: the
+      // bracket (opposite sides) squeezed the approach and dropped the
+      // catch rate across the board in playtesting, so the contest
+      // geometry stays as it was tuned. Lane discipline lives in the
+      // line holding its zones, not in the coverage pair.
       var spots = [
         { x: mx + perpX * offShadow, y: my + perpY * offShadow },
         { x: passTarget.x + perpX * offMan, y: passTarget.y + perpY * offMan },
@@ -591,7 +610,7 @@
         var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
         if (Math.hypot(x - px, y - py) < 45) return;
         if (Math.hypot(x - passTarget.x, y - passTarget.y) < 35) return;
-        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y });
+        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y, lane: x });
       });
     }
     function startPlay(kind) {
@@ -623,6 +642,15 @@
           kind: rDepth < 10 ? 'Short' : rDepth < 18 ? 'Medium' : 'Deep',
         };
         spawnCoverage();
+        // Catch window scales with the throw: a further pass gives the
+        // receiver a longer hold at the catch spot than a short one.
+        // Base dwells are the Medium values; Easy and Hard scale by the
+        // same factor as the difficulty table, so a medium throw is still
+        // 0.5s on Easy and 0.3s on Hard. The catch fill ring and the
+        // countdown read catchDwell, so the visible window scales too.
+        var dwellBase = passRoute.kind === 'Short' ? BOWL_CATCH_DWELL_SHORT : passRoute.kind === 'Deep' ? BOWL_CATCH_DWELL_DEEP : BOWL_CATCH_DWELL;
+        var dwellFactor = diff === 'easy' ? 0.5 / BOWL_CATCH_DWELL : diff === 'hard' ? 0.3 / BOWL_CATCH_DWELL : 1;
+        catchDwell = dwellBase * dwellFactor;
         passTimeLeft = passLimit;
         impeded = false; reachedX = false;
         hasBall = false;
@@ -879,6 +907,20 @@
         // A holding coverage man drifts back to his spot instead.
         var tx = px + pvx * 0.3, ty = py + pvy * 0.3;
         if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) { tx = d.hx; ty = d.hy; }
+        else if (state === 'pass' && !caught && !d.cover && d.lane !== undefined) {
+          // Lane discipline: on a pass, the line holds its zones instead
+          // of collapsing on the runner. Each man shuffles laterally
+          // within his own lane, shading toward the ball but never
+          // abandoning the lane, and holds his depth — the line is the
+          // second level, already beyond the catch spot. The field stays
+          // structured, the passing lanes read, and the contest stays at
+          // the X with the coverage men. Once the ball is caught the
+          // state flips to run and everyone hunts at full pace, as before.
+          var laneX = d.lane;
+          tx = clamp(laneX + (px - laneX) * 0.5, laneX - 55, laneX + 55);
+          ty = d.y;
+          chase = 0.55;
+        }
         var want = Math.atan2(ty - d.y, tx - d.x);
         var diff = want - d.heading;
         while (diff > Math.PI) diff -= Math.PI * 2;
