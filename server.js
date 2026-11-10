@@ -823,15 +823,52 @@ app.get('/browse', async (req, res) => {
   if (words.length) {
     const matchParts = [];
     const relParts = [];
+    const wordPhs = [];
     for (const w of words) {
       params.push(`%${searchLikeEscape(w)}%`);
       const ph = `$${params.length}`;
-      const m = `(${searchNormField('name')} ILIKE ${ph} OR ${searchNormField('parish')} ILIKE ${ph} OR ${searchNormField('city')} ILIKE ${ph})`;
-      matchParts.push(m);
-      relParts.push(`(CASE WHEN ${m} THEN 1 ELSE 0 END)`);
+      wordPhs.push(ph);
+      // Field-weighted match: a word in the city outranks the same word in
+      // the parish, which outranks it in the name. A place query ("San
+      // Diego") therefore surfaces place matches instead of priests who
+      // merely share a name ("Diego"), and a parish query ("St. Michael")
+      // surfaces that parish instead of priests named Michael elsewhere.
+      const cityM = `${searchNormField('city')} ILIKE ${ph}`;
+      const parishM = `${searchNormField('parish')} ILIKE ${ph}`;
+      const nameM = `${searchNormField('name')} ILIKE ${ph}`;
+      matchParts.push(`(${cityM} OR ${parishM} OR ${nameM})`);
+      relParts.push(`(CASE WHEN ${cityM} THEN 3 WHEN ${parishM} THEN 2 WHEN ${nameM} THEN 1 ELSE 0 END)`);
     }
     where.push(`(${matchParts.join(' OR ')})`);
     relevance = `(${relParts.join(' + ')})`;
+    if (words.length >= 2) {
+      // A multi-word query that matches a city or parish as a phrase is a
+      // place query, not a name query: restrict to rows matching the phrase
+      // in city or parish, so priests who merely share a word of the place
+      // name (a Diego for "San Diego", a Paul for "St. Paul") do not show
+      // up at all. When no place phrase matches, boost a row whose name
+      // contains every word instead, so a real full-name search
+      // ("Michael DeMartinis", stored "DeMartinis, Michael") still ranks
+      // first. The name bonus reuses the word params already pushed, so
+      // the count query's parameter list stays in sync.
+      const phrase = words.join(' ');
+      const phraseLike = `%${searchLikeEscape(phrase)}%`;
+      let phraseIsPlace = false;
+      try {
+        const ex = await pool.query(
+          `SELECT EXISTS(SELECT 1 FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND (${searchNormField('city')} ILIKE $1 OR ${searchNormField('parish')} ILIKE $1)) AS yes`,
+          [phraseLike]);
+        phraseIsPlace = !!ex.rows[0]?.yes;
+      } catch (e) { console.error(e.message); }
+      if (phraseIsPlace) {
+        params.push(phraseLike);
+        const pph = `$${params.length}`;
+        where.push(`(${searchNormField('city')} ILIKE ${pph} OR ${searchNormField('parish')} ILIKE ${pph})`);
+      } else {
+        const nameAll = wordPhs.map((ph) => `${searchNormField('name')} ILIKE ${ph}`).join(' AND ');
+        relevance += ` + (CASE WHEN (${nameAll}) THEN 6 ELSE 0 END)`;
+      }
+    }
   }
   if (/^\d{5}$/.test(zip)) {
     const area = areaForZip(zip);
