@@ -1503,14 +1503,21 @@ async function boot() {
     process.exit(1);
   }
   if (!OWNER_SECRET) console.warn('WARNING: OWNER_SECRET is not set. Owner moderation will refuse all access until it is set.');
-  // Run every migration in order (001, 002, ...). All migrations are
-  // idempotent (IF NOT EXISTS), so re-running them on boot is safe.
+  // Bind the port first so the deploy health check passes even if the
+  // database is slow to wake (Neon free tier suspends when idle). Then run
+  // migrations in the background; all are idempotent (IF NOT EXISTS), so
+  // re-running them on boot is safe.
+  app.listen(PORT, () => console.log(`RateMyFather listening on port ${PORT}`));
   const migDir = path.join(__dirname, 'migrations');
   if (fs.existsSync(migDir)) {
     for (const f of fs.readdirSync(migDir).sort()) {
-      if (f.endsWith('.sql')) await pool.query(fs.readFileSync(path.join(migDir, f), 'utf8'));
+      if (!f.endsWith('.sql')) continue;
+      try {
+        await pool.query(fs.readFileSync(path.join(migDir, f), 'utf8'));
+      } catch (e) {
+        console.error('migration failed', f, e.message);
+      }
     }
   }
-  app.listen(PORT, () => console.log(`RateMyFather listening on port ${PORT}`));
 }
 boot().catch((e) => { console.error(e); process.exit(1); });
