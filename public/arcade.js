@@ -337,6 +337,11 @@
   // still to catch, then run it in — but you have 2 seconds to get to the
   // spot, and the defence holds you up on the way, so the catch is a fight,
   // not a free run. A touchdown is the yards gained plus a bonus.
+  // The defence spawns randomly (Nov 10, Mikey): each man takes a
+  // jittered slot and a depth from a wide band, so the coverage looks
+  // different every snap. A tackle before the catch is pass interference:
+  // +10 yards (or the yards already gained, whichever is more, capped at
+  // the 1) and an automatic first down — the drive does not end.
   //
   // ---- The Parish Bowl: demo-matched geometry and rules ----
   // The demo plays on a scrolling 940px world (RUNGUN_WORLD_H 940,
@@ -491,7 +496,7 @@
             var slot = (i + 0.5) / Math.max(1, n);
             var lo = lineDepth ? lineDepth[0] : 170, hi = lineDepth ? lineDepth[1] : 230;
             cand = {
-              x: clamp(50 + slot * (GAME_W - 100) + rand(-24, 24), 40, GAME_W - 40),
+              x: clamp(50 + slot * (GAME_W - 100) + rand(-65, 65), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
               speed: rand(defLo, defHi),
               heading: 0,
@@ -514,6 +519,13 @@
           // Fair spawn: never on top of the runner, never on the catch spot.
           if (Math.hypot(cand.x - px, cand.y - py) < 100) continue;
           if (passTarget && Math.hypot(cand.x - passTarget.x, cand.y - passTarget.y) < 70) continue;
+          // Random spawn: keep the line from stacking two men on one spot,
+          // so the randomised positions still read as a spread-out defence.
+          var tooClose = false;
+          for (var j = 0; j < defenders.length; j++) {
+            if (Math.hypot(defenders[j].x - cand.x, defenders[j].y - cand.y) < 45) { tooClose = true; break; }
+          }
+          if (tooClose) continue;
           d = cand; break;
         }
         if (!d) continue;
@@ -595,12 +607,15 @@
       var perpX = -uy, perpY = ux; // perpendicular to the route
       var mx = (px + passTarget.x) / 2, my = (py + passTarget.y) / 2;
       var side = Math.random() < 0.5 ? -1 : 1;
-      var offShadow = side * rand(60, 75);
-      var offMan = side * rand(42, 54); // same side as the shadow: the
+      var offShadow = side * rand(55, 80);
+      var offMan = side * rand(42, 58); // same side as the shadow: the
       // bracket (opposite sides) squeezed the approach and dropped the
       // catch rate across the board in playtesting, so the contest
       // geometry stays as it was tuned. Lane discipline lives in the
-      // line holding its zones, not in the coverage pair.
+      // line holding its zones, not in the coverage pair. The offsets
+      // are drawn a little wider than before (Nov 10, Mikey: vary the
+      // defence from play to play), so the contest sits a different
+      // distance off the route each snap.
       var spots = [
         { x: mx + perpX * offShadow, y: my + perpY * offShadow },
         { x: passTarget.x + perpX * offMan, y: passTarget.y + perpY * offMan },
@@ -627,7 +642,15 @@
       // On a run the line sits closer than it used to (140-190px ahead
       // instead of the default), so the runner meets it sooner instead of
       // building a head of steam untouched.
-      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [380, 460] : [140, 190]);
+      // The line spawns randomly (Nov 10, Mikey: vary the defence from
+      // play to play). Each man takes a jittered slot and a depth drawn
+      // from a wide band, so the coverage looks different every snap
+      // instead of the same neat row. The band is anchored beyond the
+      // deepest possible catch spot (the reachability cap), so a line
+      // man can never sit on the gold X itself; the fair-spawn checks
+      // keep men off the runner and off each other.
+      var maxReach = passLimit * 160; // deepest the gold X can sit
+      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 40, maxReach + 160] : [140, 190]);
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
         passTarget = pickPassTarget();
@@ -695,11 +718,12 @@
         }
       } else {
         seriesGain += gained;
-        if (seriesGain >= 10) {
+        if (seriesGain >= 10 || flags.pi) {
           // A first down pays +10: a sustained drive is worth more than
-          // the same yards scattered across turnovers.
+          // the same yards scattered across turnovers. Pass interference
+          // is an automatic first down, whatever the yardage.
           score += 10;
-          note = ' First down! +10';
+          note = flags.pi ? ' Automatic first down!' : ' First down! +10';
           down = 1; seriesStart = yardsToGo(); seriesGain = 0;
         } else {
           down += 1;
@@ -818,7 +842,7 @@
         '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
         '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>',
         bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
-        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch, or the clock running out, is incomplete — no gain, next down. Keys: R runs, T throws.</p>'));
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete. Keys: R runs, T throws.</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
@@ -1006,7 +1030,19 @@
         }
         if (checkTackle()) {
           if (state === 'pass' && !caught) {
-            endPlay(0, 'Incomplete.', 'Tackled before the catch. No gain, next down.', { incomplete: true });
+            // Pass interference (Nov 10, Mikey: the defence may not tackle
+            // the receiver before the catch). The offence is awarded yards
+            // and the drive continues — a few free yards and a first down,
+            // not a dead drive. The spot is the greater of the yards
+            // already gained and ten free yards from the line, capped at
+            // the 1 so a penalty never scores by itself.
+            var alreadyGained = Math.max(0, playStartYards - yardsToGo());
+            var piGained = Math.max(10, alreadyGained);
+            if (playStartYards > 1) piGained = Math.min(piGained, playStartYards - 1);
+            else piGained = 0;
+            py = clamp(playStartPy - piGained * PX_PER_YARD, RUNGUN_END_Y, RUNGUN_START_Y);
+            api.showBanner('Pass interference! +' + piGained + ' yards', 2000);
+            endPlay(piGained, 'Pass interference!', '+' + piGained + ' yards — the defence tackled the receiver before the catch.', { pi: true });
           } else {
             var spotYards = Math.max(1, yardsToGo() - (caught ? RUNGUN_PASS_BONUS_YARDS : 0));
             var g = Math.max(0, playStartYards - spotYards);
