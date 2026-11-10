@@ -552,11 +552,11 @@
     // defenders in sequence — not about one wall across a squeezed field.
     // Wave reinforcements keep coming to the ball, near the runner's lane,
     // so beating the line is not a free touchdown.
-    // Wave reinforcements arrive in pairs that bracket the runner's lane
-    // (one each side, seventy pixels out), so a breakaway meets a choice
-    // instead of a single slow defender it can sidestep. The pair is a
-    // gap to thread, not a wall: ninety-odd pixels stand between them, and
-    // they still turn slowly, so a sharp cut beats either one.
+    // Wave reinforcements arrive in a varying number (2 to 4) and in a
+    // varying entry pattern, so a breakaway meets a different second
+    // line every time instead of the same pair at the same spot. The
+    // men still turn slowly, so a sharp cut beats them — the wave is
+    // a choice to thread, not a wall.
     function spawnDefenders(n, upfield, line, lineDepth, bracket) {
       // Second-half adjustment: from Q3 the defence is a step quicker,
       // so a game tightens after half time instead of playing the same
@@ -575,9 +575,21 @@
         spanX0 = 50 + rand(0, (GAME_W - 100) - spanW);
         jit = Math.min(65, (spanW / Math.max(1, n)) * 0.8);
       }
-      // Wave pairs bracket the runner's lane at a random gap (was a
-      // fixed 70px), so a breakaway meets a different gap to thread.
+      // Wave entry (Nov 10, Mikey: the second line always came in at the
+      // same spot): each wave rolls one entry pattern, so the fresh
+      // defenders arrive differently every time. Bracket is the old
+      // symmetric pair; stagger puts each man at his own depth; spread
+      // draws the men across a wide band around the runner; flank
+      // brings them in from the sidelines. The depth band is rolled
+      // per wave too, so the line can sit close or deep.
       var waveGap = rand(60, 85);
+      var wavePattern = null, waveDepthLo = 110, waveDepthHi = 200;
+      if (bracket === 'wave') {
+        var wavePatterns = ['bracket', 'stagger', 'spread', 'flank'];
+        wavePattern = wavePatterns[Math.floor(Math.random() * wavePatterns.length)];
+        waveDepthLo = rand(90, 135);
+        waveDepthHi = waveDepthLo + rand(70, 150);
+      }
       for (var i = 0; i < n; i++) {
         var d = null;
         for (var tries = 0; tries < 8; tries++) {
@@ -592,9 +604,36 @@
               heading: 0,
             };
           } else if (upfield) {
+            var wx, wy;
+            // Every wave plugs the runner's lane with its first man (a
+            // random side, a random depth in the wave band), so the fresh
+            // line always contests the run; the rest of the wave follows
+            // the rolled pattern, so the line still reads differently
+            // every time instead of the same pair at the same spot.
+            var plugSide = Math.random() < 0.5 ? -1 : 1;
+            if (wavePattern === 'bracket') {
+              wx = px + (i === 0 ? -waveGap : waveGap) + rand(-20, 20);
+              wy = py - rand(waveDepthLo, waveDepthHi);
+            } else if (wavePattern === 'stagger') {
+              // Each man at his own depth, lateral offset drawn wide,
+              // so the wave reads as a staggered second line, not a pair.
+              if (i === 0) { wx = px + plugSide * rand(50, 95); wy = py - rand(waveDepthLo, waveDepthHi); }
+              else { wx = px + rand(-200, 200); wy = py - rand(waveDepthLo + i * 55, waveDepthHi + i * 55); }
+            } else if (wavePattern === 'spread') {
+              // Men spread across a wide band around the runner.
+              if (i === 0) { wx = px + plugSide * rand(50, 95); wy = py - rand(waveDepthLo, waveDepthHi); }
+              else { wx = px + rand(-190, 190); wy = py - rand(waveDepthLo, waveDepthHi); }
+            } else if (wavePattern === 'flank') {
+              // From the sidelines: alternate sides, varied depth.
+              if (i === 0) { wx = px + plugSide * rand(50, 95); wy = py - rand(waveDepthLo, waveDepthHi); }
+              else { var flankSide = (i % 2 === 0) ? -1 : 1; wx = px + flankSide * rand(140, 210); wy = py - rand(waveDepthLo, waveDepthHi); }
+            } else {
+              wx = bracket ? px + (i === 0 ? -waveGap : waveGap) + rand(-20, 20) : px + rand(-140, 140);
+              wy = py - rand(110, 200);
+            }
             cand = {
-              x: clamp(bracket ? px + (i === 0 ? -waveGap : waveGap) + rand(-20, 20) : px + rand(-140, 140), 40, GAME_W - 40),
-              y: clamp(py - rand(110, 200), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
+              x: clamp(wx, 40, GAME_W - 40),
+              y: clamp(wy, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
               speed: spd(),
               heading: 0,
             };
@@ -1226,7 +1265,17 @@
         waveT += dt;
         if (state === 'run' && (waveT >= waveSecs || (yardsAtWave - yardsToGo()) >= 12)) {
           waveT = 0; yardsAtWave = yardsToGo();
-          if (defenders.length + 2 <= BOWL_DEFENDER_CAP) spawnDefenders(2, true, false, null, true);
+          // Wave reinforcements (Nov 10, Mikey: the second line always
+          // came in at the same spot, always the same two men): the count
+          // varies from wave to wave, 2 to 4, weighted by difficulty so
+          // Easy stays friendlier, and the entry pattern is rolled per
+          // wave inside spawnDefenders. The cap still bounds the field.
+          var waveRoom = BOWL_DEFENDER_CAP - defenders.length;
+          if (waveRoom >= 2) {
+            var wr = Math.random();
+            var waveWant = diff === 'easy' ? (wr < 0.6 ? 2 : wr < 0.85 ? 3 : 4) : diff === 'hard' ? (wr < 0.4 ? 2 : wr < 0.75 ? 3 : 4) : (wr < 0.55 ? 2 : wr < 0.85 ? 3 : 4);
+            spawnDefenders(Math.min(waveWant, waveRoom), true, false, null, 'wave');
+          }
         }
         if (state === 'pass' && passTarget && !caught) {
           var dist = Math.hypot(passTarget.x - px, passTarget.y - py);
