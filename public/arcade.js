@@ -628,7 +628,7 @@
         d.aggr = rand(0.9, 1.1);
         d.laneGive = rand(0.3, 0.5);
         d.laneWidth = rand(40, 55);
-        d.breakDelay = rand(0, 0.1);
+        d.breakDelay = rand(0, 0.05);
         d.heading = Math.atan2(py - d.y, px - d.x);
         d.lane = d.x; // assigned lane: the defender's zone to hold on a pass
         defenders.push(d);
@@ -728,7 +728,7 @@
         var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
         if (Math.hypot(x - px, y - py) < 45) return;
         if (Math.hypot(x - passTarget.x, y - passTarget.y) < 35) return;
-        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y, lane: x, aggr: rand(0.9, 1.1), laneGive: rand(0.3, 0.5), laneWidth: rand(40, 55), breakDelay: rand(0, 0.1) });
+        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y, lane: x, aggr: rand(0.9, 1.1), laneGive: rand(0.3, 0.5), laneWidth: rand(40, 55), breakDelay: rand(0, 0.05) });
       });
     }
     function startPlay(kind) {
@@ -757,7 +757,7 @@
       // itself; the fair-spawn checks keep men off the runner and off
       // each other.
       var maxReach = passLimit * 160; // deepest the gold X can sit
-      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 35, maxReach + 170] : [110, 195]);
+      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 35, maxReach + 155] : [110, 195]);
       // Blockers (Nov 10, Mikey: every once in a while, two men in front
       // of you to clear a lane — on Easy they are always there). A blocker
       // runs ahead of Father Ted and ties up the nearest defender in his
@@ -1135,13 +1135,16 @@
           ty = d.y;
           chase = 0.55;
         }
-        else if (state === 'run' && !caught && !d.cover && d.lane !== undefined) {
-          // Gap discipline on a run: the line man closes upfield but
-          // stays in his lane corridor, so the defence holds its shape
-          // instead of every man piling onto the runner's exact spot.
-          // The runner has to beat the man in his gap, not outrun a
-          // collapsing wall. After a catch the state is run too, but
-          // caught is set, so the post-catch chase is untouched.
+        else if (state === 'run' && !caught && !d.cover && d.lane !== undefined && py >= d.y) {
+          // Gap discipline on a run: while the runner is still coming
+          // at him, the line man closes upfield but stays in his lane
+          // corridor, so the defence holds its shape instead of every
+          // man piling onto the runner's exact spot. The runner has to
+          // beat the man in his gap, not outrun a collapsing wall. Once
+          // the runner is past him he turns and pursues freely, so a
+          // beaten man still chases instead of standing in his lane.
+          // After a catch the state is run too, but caught is set, so
+          // the post-catch chase is untouched.
           tx = clamp(px + pvx * 0.3, d.lane - 70, d.lane + 70);
           ty = py + pvy * 0.3;
         }
@@ -1392,6 +1395,12 @@
       // Defenders: soft shadow, a radial umber disc, a fine parchment ring.
       defenders.forEach(function (d) {
         var dy = screenY(d.y);
+        // Tied up by a blocker: dimmed with a gold ring, so the player
+        // reads him as out of the play and runs through the gap instead
+        // of around him. He cannot tackle or hold the runner up while
+        // the block lasts.
+        var tiedUp = d.blockedT > 0;
+        if (tiedUp) ctx.globalAlpha = 0.5;
         ctx.fillStyle = 'rgba(0,0,0,0.28)';
         ctx.beginPath(); ctx.ellipse(d.x, dy + 9, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
         var dg = ctx.createRadialGradient(d.x - 3, dy - 4, 2, d.x, dy, 12);
@@ -1399,9 +1408,10 @@
         dg.addColorStop(1, uniform.away.deep);
         ctx.fillStyle = dg;
         ctx.beginPath(); ctx.arc(d.x, dy, 11, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = freezeT > 0 ? '#8a8a8a' : uniform.away.ring; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = freezeT > 0 ? '#8a8a8a' : (tiedUp ? BOWL_GOLD_BRIGHT : uniform.away.ring); ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('S', d.x, dy + 3); ctx.textAlign = 'left';
+        if (tiedUp) ctx.globalAlpha = 1;
       });
       // Blockers: home-kit discs with a B, a beat smaller than Father Ted,
       // so they read as teammates clearing a lane, not a second ball
