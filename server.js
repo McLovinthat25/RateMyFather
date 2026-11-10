@@ -179,7 +179,7 @@ function glassStrip(cls = '') {
 const GLASS = glassStrip();
 
 function layout(title, body, extraHead = '') {
-  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability, shared by the faithful. Searchable by name, parish, city, state, or diocese.';
+  const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability. Searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="${description}">
@@ -192,13 +192,13 @@ function layout(title, body, extraHead = '') {
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
-    <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/saved">Saved priests</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
-  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/saved">Saved priests</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
+    <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
+  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
   <main class="wrap">${body}</main>
   <footer class="wrap site-footer">${glassStrip('gs-7')}
   <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
-  <p class="footer-tagline small">Anonymous ratings, from the congregation.</p>
-  <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a><a href="/saved">Saved priests</a></nav>
+  <p class="footer-tagline small">Anonymous ratings.</p>
+  <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
   <p>${DISCLAIMER}</p>
   <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
   <div id="chat-widget"><button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat-panel">Ask <span class="chat-toggle-long">about a priest</span></button>
@@ -495,7 +495,7 @@ app.get('/', async (req, res) => {
     if (rows.length) {
       topRated = `<section class="home-section">
     <div class="section-head">
-    <p class="eyebrow">The faithful have spoken</p>
+    <p class="eyebrow">By overall average</p>
     <h2>Highest rated</h2>
     <p class="lede">The best-reviewed priests in the directory, by overall average. Every score carries its review count.</p>
     </div>
@@ -515,7 +515,7 @@ app.get('/', async (req, res) => {
       freshHtml = `<section class="home-section">
     <div class="section-head">
     <p class="eyebrow">Just rated</p>
-    <h2>Fresh from the nave</h2>
+    <h2>Recently rated</h2>
     <p class="lede">The most recently rated priests in the directory, most recent first. Every score carries its review count.</p>
     </div>
     <div class="cards">${rows.map((p) => priestCard(p, { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability }) + `<p class="small fresh-date">Rated ${new Date(p.latest).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>`).join('')}</div>
@@ -555,7 +555,7 @@ app.get('/', async (req, res) => {
     <section class="hero">
       <div class="hero-photo">
         <div class="hero-copy">
-          <p class="hero-kicker">From the back pew</p>
+          <p class="hero-kicker">Catholic priest ratings</p>
           <h1>Find your Father.<br><span class="accent">Rate your Mass.</span></h1>
           <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
           <form action="/browse" method="get" class="hero-search">
@@ -575,7 +575,7 @@ app.get('/', async (req, res) => {
     <p class="lede">Pick a corner of the country to start, then narrow it down by state, city, or diocese.</p>
     </div>
     <ul class="regions">${regionHtml}</ul>
-    <p class="section-more"><a href="/browse">Search the whole directory &rsaquo;</a></p>
+    <p class="section-more"><a href="/browse">Search the whole directory &rsaquo;</a> &middot; <a href="/saved">Saved priests</a></p>
     </section>
     <section class="home-section">
     <div class="section-head">
@@ -593,7 +593,7 @@ app.get('/', async (req, res) => {
     <section class="home-section">
     <div class="section-head">
     <p class="eyebrow">How it works</p>
-    <h2>Three steps, from the narthex</h2>
+    <h2>Three steps</h2>
     <p class="lede">No account, no name, no email. Just the Mass you went to.</p>
     </div>
     <div class="steps">
@@ -604,7 +604,7 @@ app.get('/', async (req, res) => {
     </section>
     <section class="home-section about-center">
     <p class="eyebrow">About</p>
-    <h2>A passion project, from the choir loft</h2>
+    <h2>A passion project</h2>
     <div class="rule" aria-hidden="true"><span></span></div>
     <p class="explainer">RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Free and ad free, built to help you find a Mass you love.</p>
     <p><a href="/about">Read more about RateMyFather &rsaquo;</a></p>
@@ -1111,7 +1111,7 @@ app.get('/priest/:id', async (req, res) => {
       <dl class="profile-facts">${factRows.join('')}</dl>
       <div class="rule" aria-hidden="true"><span></span></div>
       <section class="rating-summary band" aria-label="Rating summary">
-        <p class="eyebrow">The congregation's verdict</p>
+        <p class="eyebrow">Ratings</p>
         <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
         ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : '<p class="profile-count">No published reviews yet. Be the first to rate this priest.</p>'}
         ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
@@ -1124,7 +1124,7 @@ app.get('/priest/:id', async (req, res) => {
   ${rateSection}
   <section class="reviews-section">
     <div class="section-head">
-      <p class="eyebrow">Voices from the parish</p>
+      <p class="eyebrow">Reviews</p>
       <h2>Published reviews</h2>
       ${revs.length ? `<p class="lede">${revs.length} published review${revs.length === 1 ? '' : 's'}, most recent first. Approved reviews only.</p>` : ''}
     </div>
@@ -1263,7 +1263,7 @@ app.get('/about', (req, res) => res.send(page('About', `<div class="prose about-
   <div class="section-head">
     <p class="eyebrow">About RateMyFather</p>
     <h1>About</h1>
-    <p class="lede">Anonymous ratings of pace, homily, and likability, from the parish.</p>
+    <p class="lede">Anonymous ratings of pace, homily, and likability.</p>
   </div>
   <section class="about-section"><h2>What this is</h2>
   <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p></section>
