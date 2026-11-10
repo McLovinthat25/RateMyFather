@@ -108,12 +108,19 @@ function assignmentText(p) {
   if (loc) parts.push(loc);
   return parts.join(' - ') || 'Listing details not available';
 }
+// Save button for priest cards and profiles. Saved priests live in
+// localStorage only (public/saved.js): no account, nothing leaves the
+// browser. The button sits beside the card link, never inside it.
+function saveBtn(p, label) {
+  return `<button type="button" class="save-btn" data-priest-id="${p.id}" data-priest-name="${esc(p.name)}" data-label="${esc(label || 'Save')}" aria-pressed="false" aria-label="Save ${esc(p.name)}">☆ ${esc(label || 'Save')}</button>`;
+}
 function priestCard(p, st) {
   const avg = overallAvg(st);
   const scoreBox = avg == null
     ? `<span class="score-box unrated">Not yet rated</span>`
     : `<span class="score-box"><span class="num">${avg.toFixed(1)}</span><span class="lbl">out of 5</span></span>`;
-  return `<a class="card card--ruled card-lift priest-card" href="/priest/${p.id}" title="${esc(p.name)} — ${esc(assignmentText(p))}">
+  return `<div class="card card--ruled card-lift priest-card">
+    <a class="priest-link" href="/priest/${p.id}" title="${esc(p.name)} — ${esc(assignmentText(p))}">
     ${scoreBox}
     <span class="priest-main">
       <span class="priest-name" title="${esc(p.name)}">${esc(p.name)}</span>
@@ -123,7 +130,9 @@ function priestCard(p, st) {
       ${avg == null ? '' : avgLine(st)}
     </span>
     <span class="chevron" aria-hidden="true">&rsaquo;</span>
-  </a>`;
+    </a>
+    ${saveBtn(p, 'Save')}
+  </div>`;
 }
 const DISCLAIMER = 'Reviews are individual users&rsquo; opinions, not statements of fact, and are not verified or endorsed by RateMyFather.';
 // Leaded-glass divider strip: five panes, weights 3,1,3,1,3, alternating ruby/amber.
@@ -146,13 +155,13 @@ function layout(title, body, extraHead = '') {
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
-    <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
-  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
+    <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/saved">Saved priests</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
+  </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/saved">Saved priests</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
   <main class="wrap">${body}</main>
   <footer class="wrap site-footer">${glassStrip('gs-7')}
   <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
   <p class="footer-tagline small">Anonymous ratings, from the pews.</p>
-  <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
+  <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a><a href="/saved">Saved priests</a></nav>
   <p>${DISCLAIMER}</p>
   <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
   <div id="chat-widget"><button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat-panel">Ask <span class="chat-toggle-long">about a priest</span></button>
@@ -160,7 +169,7 @@ function layout(title, body, extraHead = '') {
   <form id="chat-form"><input id="chat-input" name="message" placeholder="e.g. Who is rated for a quick Mass?" required>
   <button type="submit">Ask</button></form>
   <p class="small">Answers use approved-review averages with review counts only. Individual reviews are never quoted.</p></div></div>
-  <script src="/chat.js"></script><script src="/places.js"></script>
+  <script src="/chat.js"></script><script src="/places.js"></script><script src="/saved.js"></script>
   <script>(function(){var h=document.querySelector('.topnav');if(!h)return;h.querySelectorAll('nav a').forEach(function(a){if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});})();</script></body></html>`;
 }
 function page(title, inner, extraHead = '') { return layout(title, inner, extraHead); }
@@ -457,6 +466,54 @@ app.get('/', async (req, res) => {
     </section>`;
     }
   } catch (e) { console.error('top-rated query failed', e.message); }
+  // Fresh from the pews: the most recently rated priests, most recent
+  // first. Rendered only when at least one approved review exists.
+  let freshHtml = '';
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability, MAX(r.created_at) AS latest
+       FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved'
+       WHERE p.status='approved' GROUP BY p.id ORDER BY latest DESC LIMIT 3`);
+    if (rows.length) {
+      freshHtml = `<section class="home-section">
+    <div class="section-head">
+    <p class="eyebrow">From the pews</p>
+    <h2>Fresh from the pews</h2>
+    <p class="lede">The most recently rated priests in the directory, most recent first. Every score carries its review count.</p>
+    </div>
+    <div class="cards">${rows.map((p) => priestCard(p, { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability }) + `<p class="small fresh-date">Rated ${new Date(p.latest).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>`).join('')}</div>
+    </section>`;
+    }
+  } catch (e) { console.error('fresh-from-pews query failed', e.message); }
+  // Be the first to rate: three states with no published reviews at all,
+  // rotated by day of year so the section changes daily. One real directory
+  // priest from each. Nothing here is rated; the section is an invitation.
+  let firstHtml = '';
+  try {
+    const { rows: states } = await pool.query(
+      `SELECT p.state, COUNT(*)::int AS n FROM priests p WHERE p.status='approved' AND p.state IS NOT NULL AND p.state <> '' AND NOT EXISTS (SELECT 1 FROM reviews r JOIN priests p2 ON p2.id = r.priest_id WHERE r.status='approved' AND p2.state = p.state) GROUP BY p.state ORDER BY n DESC`);
+    if (states.length) {
+      const doy = Math.floor((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 0)) / 86400000);
+      const count = Math.min(3, states.length);
+      const picked = Array.from({ length: count }, (_, i) => states[(doy + i) % states.length]);
+      const priests = [];
+      for (const s of picked) {
+        const { rows: pr } = await pool.query(`SELECT * FROM priests WHERE status='approved' AND state=$1 ORDER BY RANDOM() LIMIT 1`, [s.state]);
+        if (pr.length) priests.push(pr[0]);
+      }
+      if (priests.length) {
+        const names = picked.map((s) => stateName(s.state)).join(', ');
+        firstHtml = `<section class="home-section">
+    <div class="section-head">
+    <p class="eyebrow">Be the first</p>
+    <h2>No ratings yet — be the first</h2>
+    <p class="lede">No priest in ${esc(names)} has a published review yet. Pick one, go to Mass, and leave the first rating.</p>
+    </div>
+    <div class="cards">${priests.map((p) => priestCard(p, null)).join('')}</div>
+    </section>`;
+      }
+    }
+  } catch (e) { console.error('be-first query failed', e.message); }
   res.send(page('Home', `
     <section class="hero">
       <div class="hero-photo">
@@ -495,7 +552,7 @@ app.get('/', async (req, res) => {
       <div class="cat-card card--ruled card-lift"><h3>Lovable priest</h3><p>Priests people would cross town to see, ranked by likability.</p><a href="/browse?filter=lovable">Browse lovable priests &rsaquo;</a></div>
     </div>
     </section>
-    ${topRated}
+    ${topRated}${freshHtml}${firstHtml}
     <section class="home-section">
     <div class="section-head">
     <p class="eyebrow">How it works</p>
@@ -576,6 +633,11 @@ const DIOCESE_NAMES = {
 };
 function dioceseName(code) { return DIOCESE_NAMES[code] || code; }
 
+// Full state names for the "Be the first to rate" section, which names the
+// states that have no published reviews yet. Codes are what the directory stores.
+const STATE_NAMES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
+function stateName(code) { return STATE_NAMES[code] || code; }
+
 // Find by place: state, then city, then diocese. Data comes from the directory.
 app.get('/api/places/states', async (req, res) => {
   try {
@@ -616,6 +678,38 @@ app.get('/games', (req, res) => res.send(page('Games', `
       root.innerHTML = '<p class="notice">The games did not load. Check your connection and try again.</p><p><button type="button" onclick="location.reload()">Try again</button></p>';
     }, 6000);
   })();</script>`)));
+
+// Saved priests: the list lives in the visitor's own browser (localStorage),
+// so this page is a shell that public/saved.js fills in. No account,
+// nothing leaves the browser.
+app.get('/saved', (req, res) => res.send(page('Saved priests', `
+    <div class="section-head">
+    <p class="eyebrow">Your list</p>
+    <h1>Saved priests</h1>
+    <p class="lede">Priests you saved while browsing. Saved only in this browser, on this device. No account, nothing leaves your browser.</p>
+    </div>
+    <div id="saved-root"><p>Loading your saved priests&hellip;</p></div>
+    <noscript><p>Saved priests need JavaScript enabled. Your list lives in this browser only.</p></noscript>`)));
+
+// Batch lookup for saved priests: full rows (with review stats) for ids
+// stored in the visitor's own browser. Public directory data only; no auth,
+// no writes.
+app.get('/api/priests/batch', async (req, res) => {
+  const ids = String(req.query.ids || '').split(',').map((s) => Number(s.trim()))
+    .filter((n) => Number.isSafeInteger(n) && n > 0 && n <= 2147483647);
+  const unique = [...new Set(ids)].slice(0, 50);
+  if (!unique.length) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.name, p.parish, p.city, p.state, p.diocese_code, p.ordination_year, p.user_added,
+              COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability,
+              COUNT(r.id) FILTER (WHERE r.church_beauty IS NOT NULL)::int AS church_n,
+              AVG(r.church_beauty) AS church_avg
+       FROM priests p LEFT JOIN reviews r ON r.priest_id = p.id AND r.status='approved'
+       WHERE p.status='approved' AND p.id = ANY($1) GROUP BY p.id ORDER BY array_position($1, p.id)`, [unique]);
+    res.json(rows.map((r) => ({ ...r, diocese_name: r.diocese_code ? dioceseName(r.diocese_code) : null })));
+  } catch (e) { console.error('batch priests failed', e.message); res.status(500).json([]); }
+});
 
 const FILTERS = { quick: 'pace', homily: 'homily', lovable: 'likability' };
 // Multi-word search helpers. A query like "Erie Saint George" is split into
@@ -920,6 +1014,7 @@ app.get('/priest/:id', async (req, res) => {
         <h1 class="profile-name">${esc(p.name)}</h1>
         <p class="profile-meta">${assignment(p)}</p>
         ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : ''}
+        <p>${saveBtn(p, 'Save this priest')}</p>
       </header>
       <dl class="profile-facts">${factRows.join('')}</dl>
       <div class="rule" aria-hidden="true"><span></span></div>

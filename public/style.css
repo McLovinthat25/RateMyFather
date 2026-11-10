@@ -1046,3 +1046,18 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
   .region-links .filter-chips-label,
   .filter-chips .filter-chips-label { flex-basis:100%; }
 }
+
+/* ---------- Saved priests ---------- */
+/* The card is a wrapper div now: the link is the flex child and the save
+   button sits beside it, never inside the link. */
+.priest-link { display:flex; gap:16px; align-items:flex-start; flex:1; min-width:0; text-decoration:none; color:inherit; }
+.save-btn { flex:none; align-self:flex-start; border:1px solid var(--border); background:var(--surface); color:var(--dim); border-radius:999px; padding:10px 14px; font-size:14px; font-weight:600; cursor:pointer; min-height:40px; white-space:nowrap; }
+.save-btn:hover { border-color:var(--gold); color:var(--accent); }
+.save-btn.is-saved { border-color:var(--gold); color:var(--accent); background:var(--surface-alt); }
+.fresh-date { margin:8px 2px 0; }
+.table-scroll { overflow-x:auto; margin-top:12px; }
+.compare-table { border-collapse:collapse; width:100%; min-width:680px; font-size:14px; }
+.compare-table th, .compare-table td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+.compare-table th { font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--dim); }
+.compare-table a { color:var(--text); }
+.saved-actions { margin-top:16px; }
