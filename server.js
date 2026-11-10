@@ -95,7 +95,10 @@ function starsHtml(avg) {
 }
 function assignment(p) {
   const parts = [];
-  if (p.parish) parts.push('Listed at ' + esc(p.parish));
+  if (p.parish) {
+    const moved = p.life_status === 'moved' || p.life_status === 'moved_out';
+    parts.push((moved ? 'Last listed 2017 at ' : 'Listed at ') + esc(p.parish));
+  }
   const loc = [p.city, p.state].filter(Boolean).join(', ');
   if (loc) parts.push(esc(loc));
   return parts.join(' &middot; ') || 'Listing details not available';
@@ -103,10 +106,44 @@ function assignment(p) {
 // Plain-text version of assignment(), for title attributes (no HTML entities).
 function assignmentText(p) {
   const parts = [];
-  if (p.parish) parts.push('Listed at ' + p.parish);
+  if (p.parish) {
+    const moved = p.life_status === 'moved' || p.life_status === 'moved_out';
+    parts.push((moved ? 'Last listed 2017 at ' : 'Listed at ') + p.parish);
+  }
   const loc = [p.city, p.state].filter(Boolean).join(', ');
   if (loc) parts.push(loc);
   return parts.join(' - ') || 'Listing details not available';
+}
+// Status notice from the Nov 8, 2026 verification sweep. Shown on a profile
+// (reachable by direct link) when the priest is not currently serving at
+// the listed parish, or has moved. Search and browse never list these
+// priests; the notice is for the historical record only.
+function lifeStatusHtml(p) {
+  const note = p.status_note ? ` ${esc(p.status_note)}` : '';
+  switch (p.life_status) {
+    case 'deceased': {
+      const d = p.death_date ? ` Died ${esc(p.death_date)}.` : '';
+      return `<p class="notice"><strong>Deceased.</strong>${d} This is a historical record; this priest no longer serves a parish.</p>`;
+    }
+    case 'retired':
+      return `<p class="notice"><strong>Retired.</strong> This priest no longer serves a parish.${note}</p>`;
+    case 'laicized':
+      return `<p class="notice"><strong>Laicized.</strong> This priest has been dismissed from the clerical state.${note}</p>`;
+    case 'removed':
+      return `<p class="notice"><strong>Removed from public ministry.</strong>${note}</p>`;
+    case 'suspended':
+      return `<p class="notice"><strong>Suspended from ministry.</strong>${note}</p>`;
+    case 'on_leave':
+      return `<p class="notice"><strong>On leave.</strong>${note}</p>`;
+    case 'moved':
+      return `<p class="notice"><strong>Moved.</strong> This priest has moved from the parish listed below; the current assignment is not confirmed.${note}</p>`;
+    case 'moved_out':
+      return `<p class="notice"><strong>Moved out of the diocese.</strong>${note}</p>`;
+    case 'bishop':
+      return `<p class="notice"><strong>Bishop.</strong>${note}</p>`;
+    default:
+      return '';
+  }
 }
 // Save button for priest cards and profiles. Saved priests live in
 // localStorage only (public/saved.js): no account, nothing leaves the
@@ -454,7 +491,7 @@ app.get('/', async (req, res) => {
       `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability,
               (AVG(r.pace) + AVG(r.homily) + AVG(r.likability)) / 3 AS overall
        FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved'
-       WHERE p.status='approved' GROUP BY p.id ORDER BY overall DESC, COUNT(r.id) DESC LIMIT 3`);
+       WHERE p.status='approved' AND ${ACTIVE_WHERE_P} GROUP BY p.id ORDER BY overall DESC, COUNT(r.id) DESC LIMIT 3`);
     if (rows.length) {
       topRated = `<section class="home-section">
     <div class="section-head">
@@ -473,7 +510,7 @@ app.get('/', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability, MAX(r.created_at) AS latest
        FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved'
-       WHERE p.status='approved' GROUP BY p.id ORDER BY latest DESC LIMIT 3`);
+       WHERE p.status='approved' AND ${ACTIVE_WHERE_P} GROUP BY p.id ORDER BY latest DESC LIMIT 3`);
     if (rows.length) {
       freshHtml = `<section class="home-section">
     <div class="section-head">
@@ -491,14 +528,14 @@ app.get('/', async (req, res) => {
   let firstHtml = '';
   try {
     const { rows: states } = await pool.query(
-      `SELECT p.state, COUNT(*)::int AS n FROM priests p WHERE p.status='approved' AND p.state IS NOT NULL AND p.state <> '' AND NOT EXISTS (SELECT 1 FROM reviews r JOIN priests p2 ON p2.id = r.priest_id WHERE r.status='approved' AND p2.state = p.state) GROUP BY p.state ORDER BY n DESC`);
+      `SELECT p.state, COUNT(*)::int AS n FROM priests p WHERE p.status='approved' AND ${ACTIVE_WHERE_P} AND p.state IS NOT NULL AND p.state <> '' AND NOT EXISTS (SELECT 1 FROM reviews r JOIN priests p2 ON p2.id = r.priest_id WHERE r.status='approved' AND p2.state = p.state) GROUP BY p.state ORDER BY n DESC`);
     if (states.length) {
       const doy = Math.floor((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 0)) / 86400000);
       const count = Math.min(3, states.length);
       const picked = Array.from({ length: count }, (_, i) => states[(doy + i) % states.length]);
       const priests = [];
       for (const s of picked) {
-        const { rows: pr } = await pool.query(`SELECT * FROM priests WHERE status='approved' AND state=$1 ORDER BY RANDOM() LIMIT 1`, [s.state]);
+        const { rows: pr } = await pool.query(`SELECT * FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state=$1 ORDER BY RANDOM() LIMIT 1`, [s.state]);
         if (pr.length) priests.push(pr[0]);
       }
       if (priests.length) {
@@ -641,7 +678,7 @@ function stateName(code) { return STATE_NAMES[code] || code; }
 // Find by place: state, then city, then diocese. Data comes from the directory.
 app.get('/api/places/states', async (req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT state, COUNT(*)::int AS n FROM priests WHERE status='approved' AND state IS NOT NULL AND state <> '' GROUP BY state ORDER BY state`);
+    const { rows } = await pool.query(`SELECT state, COUNT(*)::int AS n FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state IS NOT NULL AND state <> '' GROUP BY state ORDER BY state`);
     res.json(rows.map((r) => ({ state: r.state, n: r.n })));
   } catch (e) { res.json([]); }
 });
@@ -649,7 +686,7 @@ app.get('/api/places/cities', async (req, res) => {
   const state = String(req.query.state || '').toUpperCase();
   if (!state) return res.json([]);
   try {
-    const { rows } = await pool.query(`SELECT city, COUNT(*)::int AS n FROM priests WHERE status='approved' AND state=$1 AND city IS NOT NULL AND city <> '' GROUP BY city ORDER BY n DESC, city LIMIT 200`, [state]);
+    const { rows } = await pool.query(`SELECT city, COUNT(*)::int AS n FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state=$1 AND city IS NOT NULL AND city <> '' GROUP BY city ORDER BY n DESC, city LIMIT 200`, [state]);
     res.json(rows);
   } catch (e) { res.json([]); }
 });
@@ -657,7 +694,7 @@ app.get('/api/places/dioceses', async (req, res) => {
   const state = String(req.query.state || '').toUpperCase();
   if (!state) return res.json([]);
   try {
-    const { rows } = await pool.query(`SELECT diocese_code, COUNT(*)::int AS n FROM priests WHERE status='approved' AND state=$1 AND diocese_code IS NOT NULL AND diocese_code <> '' GROUP BY diocese_code ORDER BY n DESC, diocese_code LIMIT 200`, [state]);
+    const { rows } = await pool.query(`SELECT diocese_code, COUNT(*)::int AS n FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state=$1 AND diocese_code IS NOT NULL AND diocese_code <> '' GROUP BY diocese_code ORDER BY n DESC, diocese_code LIMIT 200`, [state]);
     res.json(rows.map((r) => ({ code: r.diocese_code, name: dioceseName(r.diocese_code), n: r.n })));
   } catch (e) { res.json([]); }
 });
@@ -711,6 +748,19 @@ app.get('/api/priests/batch', async (req, res) => {
   } catch (e) { console.error('batch priests failed', e.message); res.status(500).json([]); }
 });
 
+// Search and browse list only priests who may currently be serving.
+// life_status comes from the Nov 8, 2026 verification sweep; the parish
+// label is the 2017 directory's own status word. A priest is excluded when
+// the sweep found him deceased, retired, laicized, removed, suspended, on
+// leave, or a bishop, or when the 2017 listing itself labels the parish
+// Retired, Laicized, Suspended, or Leave of Absence. A sweep-confirmed
+// active priest is always listed, even if the 2017 parish label says
+// Retired. Priests the sweep could not verify (life_status NULL) stay
+// listed as 2017 listings.
+const INACTIVE_LIFE = `'deceased','retired','laicized','removed','suspended','on_leave','bishop'`;
+const ACTIVE_WHERE = `(COALESCE(life_status,'') NOT IN (${INACTIVE_LIFE}) AND ((parish IS DISTINCT FROM 'Retired' AND parish IS DISTINCT FROM 'Laicized' AND parish IS DISTINCT FROM 'Suspended' AND parish IS DISTINCT FROM 'Leave of Absence') OR life_status = 'active'))`;
+const ACTIVE_WHERE_P = `(COALESCE(p.life_status,'') NOT IN (${INACTIVE_LIFE}) AND ((p.parish IS DISTINCT FROM 'Retired' AND p.parish IS DISTINCT FROM 'Laicized' AND p.parish IS DISTINCT FROM 'Suspended' AND p.parish IS DISTINCT FROM 'Leave of Absence') OR p.life_status = 'active'))`;
+const INACTIVE_LIFE_SET = new Set(['deceased', 'retired', 'laicized', 'removed', 'suspended', 'on_leave', 'bishop']);
 const FILTERS = { quick: 'pace', homily: 'homily', lovable: 'likability' };
 // Multi-word search helpers. A query like "Erie Saint George" is split into
 // words; each word is matched against name, parish, or city, and rows are
@@ -731,6 +781,7 @@ function searchLikeEscape(s) {
 // Qualify bare priest column names for the FILTERS join (p.name, p.parish...).
 function qualifyPriestFragment(w) {
   return w
+    .replace(/\blife_status\b/g, 'p.life_status')
     .replace(/\bstatus\b/g, 'p.status').replace(/\bstate\b/g, 'p.state')
     .replace(/\bname\b/g, 'p.name').replace(/\bparish\b/g, 'p.parish')
     .replace(/\bcity\b/g, 'p.city').replace(/\bdiocese_code\b/g, 'p.diocese_code')
@@ -741,7 +792,7 @@ const FILTER_LABELS = { quick: 'Quick Mass (pace)', homily: 'Great homily', lova
 
 app.get('/browse', async (req, res) => {
   const { q = '', state = '', city = '', diocese = '', region = '', zip: legacyZip = '', filter = '' } = req.query;
-  const where = [`status='approved'`];
+  const where = [`status='approved'`, ACTIVE_WHERE];
   const params = [];
   let note = '';
   if (state) { params.push(state.toUpperCase()); where.push(`state = $${params.length}`); }
@@ -1006,30 +1057,11 @@ app.get('/priest/:id', async (req, res) => {
   if (p.diocese_code) factRows.push(`<div><dt>Diocese</dt><dd>${esc(dioceseName(p.diocese_code))} (${esc(p.diocese_code)})</dd></div>`);
   if (p.ordination_year) factRows.push(`<div><dt>Ordination year</dt><dd>${esc(p.ordination_year)} (as listed)</dd></div>`);
   factRows.push(`<div><dt>Source</dt><dd>${p.user_added ? 'User-added profile' : '2017 Official Catholic Directory'}</dd></div>`);
-  res.send(page(p.name, `<article class="profile-card">
-    <div class="profile-banner" aria-hidden="true"></div>
-    <div class="profile-body">
-      <header class="profile-head">
-        <p class="eyebrow">Priest profile</p>
-        <h1 class="profile-name">${esc(p.name)}</h1>
-        <p class="profile-meta">${assignment(p)}</p>
-        ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : ''}
-        <p>${saveBtn(p, 'Save this priest')}</p>
-      </header>
-      <dl class="profile-facts">${factRows.join('')}</dl>
-      <div class="rule" aria-hidden="true"><span></span></div>
-      <section class="rating-summary band" aria-label="Rating summary">
-        <p class="eyebrow">The congregation's verdict</p>
-        <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
-        ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : '<p class="profile-count">No published reviews yet. Be the first to rate this priest.</p>'}
-        ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
-        ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
-      </section>
-      ${church && church.n ? `<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
-      <p class="profile-note">${DISCLAIMER}</p>
-    </div>
-  </article>
-  <section class="rate-section">
+  // Priests who are not currently serving cannot be rated: the profile
+  // shows the status notice instead of the form.
+  const rateSection = INACTIVE_LIFE_SET.has(p.life_status)
+    ? `<p class="notice">New ratings are closed for this priest.</p>`
+    : `  <section class="rate-section">
     <div class="section-head">
       <p class="eyebrow">Your turn</p>
       <h2>Rate this priest</h2>
@@ -1064,7 +1096,32 @@ app.get('/priest/:id', async (req, res) => {
       <p><label><input type="checkbox" name="attest_honest" required> I confirm this review is my own honest opinion.</label></p>
       <button type="submit" class="btn btn--gold">Submit review</button>
     </form>
-  </section>
+  </section>`;
+  res.send(page(p.name, `<article class="profile-card">
+    <div class="profile-banner" aria-hidden="true"></div>
+    <div class="profile-body">
+      <header class="profile-head">
+        <p class="eyebrow">Priest profile</p>
+        <h1 class="profile-name">${esc(p.name)}</h1>
+        <p class="profile-meta">${assignment(p)}</p>
+        ${lifeStatusHtml(p)}
+        ${p.user_added ? '<p><span class="badge">User-added profile</span></p>' : ''}
+        <p>${saveBtn(p, 'Save this priest')}</p>
+      </header>
+      <dl class="profile-facts">${factRows.join('')}</dl>
+      <div class="rule" aria-hidden="true"><span></span></div>
+      <section class="rating-summary band" aria-label="Rating summary">
+        <p class="eyebrow">The congregation's verdict</p>
+        <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
+        ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : '<p class="profile-count">No published reviews yet. Be the first to rate this priest.</p>'}
+        ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
+        ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
+      </section>
+      ${church && church.n ? `<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
+      <p class="profile-note">${DISCLAIMER}</p>
+    </div>
+  </article>
+  ${rateSection}
   <section class="reviews-section">
     <div class="section-head">
       <p class="eyebrow">Voices from the parish</p>
@@ -1078,7 +1135,7 @@ app.get('/priest/:id', async (req, res) => {
 
 app.post('/priest/:id/review', async (req, res) => {
   const pid = Number(req.params.id);
-  const { rows } = await pool.query(`SELECT id FROM priests WHERE id=$1 AND status='approved'`, [pid]);
+  const { rows } = await pool.query(`SELECT id FROM priests WHERE id=$1 AND status='approved' AND ${ACTIVE_WHERE}`, [pid]);
   if (!rows.length) return res.status(404).send(page('Not found', '<h1>Priest not found</h1>'));
   const pace = Number(req.body.pace), homily = Number(req.body.homily), likability = Number(req.body.likability);
   const body = (req.body.body || '').trim().slice(0, 2000);
@@ -1312,7 +1369,7 @@ app.post('/api/chat', async (req, res) => {
   if (filter) {
     // Rank across ALL rated priests, not just the first 200 alphabetical rows.
     const { rows } = await pool.query(
-      `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE p.status='approved' GROUP BY p.id ORDER BY AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT 5`);
+      `SELECT p.*, COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE p.status='approved' AND ${ACTIVE_WHERE_P} GROUP BY p.id ORDER BY AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT 5`);
     priests = rows.map((p) => ({ p, st: { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability } }));
   } else {
     const words = lower.replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter((w) => w.length >= 3);
@@ -1324,7 +1381,7 @@ app.post('/api/chat', async (req, res) => {
       // in "Zzqx No Such Priest") return an unrelated priest such as
       // "Bandsuch", instead of the no-match path with the add link.
       const cond = terms.map((_, i) => `name ILIKE $${i + 1}`).join(' AND ');
-      const { rows } = await pool.query(`SELECT * FROM priests WHERE status='approved' AND (${cond}) ORDER BY name LIMIT 10`, like);
+      const { rows } = await pool.query(`SELECT * FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND (${cond}) ORDER BY name LIMIT 10`, like);
       // Rank by how many search terms the name actually contains, with a
       // bonus when the whole query phrase matches at a word boundary, so an
       // exact-name match (e.g. "Lech") outranks a mid-word substring match
