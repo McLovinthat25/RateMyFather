@@ -249,7 +249,7 @@
 
   // ---- game registry ----
   var ARCADE_GAMES = [
-    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Carry the ball for St Mary\u2019s against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
+    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father Ted carries the ball for Craggy Island against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
     { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
@@ -332,7 +332,7 @@
   }
 
   // ================= The Parish Bowl =================
-  // St Mary's vs St Swithin's. Four downs to gain ten yards, four quarters
+  // Craggy Island vs St Swithin's. Four downs to gain ten yards, four quarters
   // of 45 seconds. Run it or pass it: on a pass, reach the gold X and hold
   // still to catch, then run it in — but you have 2 seconds to get to the
   // spot, and the defence holds you up on the way, so the catch is a fight,
@@ -432,7 +432,7 @@
   var BOWL_GOLD = '#b28a2e', BOWL_GOLD_BRIGHT = '#d9b45a', BOWL_GOLD_PALE = '#f0d48a';
   var BOWL_PARCHMENT = '#f7ecd4', BOWL_INK = '#2b1d12';
   // Uniforms (Nov 10, Mikey: let the player change the kits). One scheme
-  // is a home kit (Father, St Mary's) and an away kit (St Swithin's).
+  // is a home kit (Father Ted, Craggy Island) and an away kit (St Swithin's).
   // Every disc stays dark enough for the white F/S letter, and every kit
   // stays clear of the green field and of the other kit, so the two teams
   // always read apart on the pitch. Only the on-field discs change: the
@@ -481,7 +481,7 @@
   function mountBowl(parent, onBack) {
     var api = createStage(parent, { title: 'The Parish Bowl', onBack: onBack });
     api.overlay.style.overflowY = 'auto';
-    var priestName = storeGet('rmf-parish-bowl-priest') || 'Father Murphy';
+    var priestName = storeGet('rmf-parish-bowl-priest') || 'Father Ted';
     var diff = readDiff('rungun'); // Easy / Medium / Hard; Medium is the tuned default
     var uniform = readBowlUniform(); // kit choice, remembered in the browser
     var defLo = 100, defHi = 125, covLo = 110, covHi = 130, defBase = 3;
@@ -494,7 +494,7 @@
       else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; catchDwell = BOWL_CATCH_DWELL; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; }
     }
     applyBowlDiff();
-    var parishName = storeGet('rmf-parish-bowl-parish') || 'St Mary\u2019s';
+    var parishName = storeGet('rmf-parish-bowl-parish') || 'Craggy Island';
     var opponent = 'St Swithin\u2019s';
     var state = 'ready'; // ready | choose | run | pass | result | over
     var paused = false;
@@ -859,7 +859,7 @@
     function showCustomize() {
       api.showOverlay(bowlCard('Your home parish priest', 'Who\u2019s carrying it?',
         '<p style="margin:0 0 14px;font-size:14px;line-height:1.45;">Your priest and parish run through the game: the scoreboard, the coach, and the results.</p>' +
-        '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;">Priest name<input id="rungun-priest-name" placeholder="Father Murphy" value="' + esc(storeGet('rmf-parish-bowl-priest') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>' +
+        '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;">Priest name<input id="rungun-priest-name" placeholder="Father Ted" value="' + esc(storeGet('rmf-parish-bowl-priest') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>' +
         '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:16px;">Parish name<input id="rungun-parish-name" placeholder="St Patrick\u2019s" value="' + esc(storeGet('rmf-parish-bowl-parish') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>',
         '<button type="button" class="big-btn press" id="bowl-save-names" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">Save</button>' +
         '<button type="button" class="linklike" id="bowl-forget-names">Forget my names</button>' +
@@ -870,15 +870,15 @@
         var pp = (document.getElementById('rungun-parish-name').value || '').trim();
         if (pn) storeSet('rmf-parish-bowl-priest', pn); else storeDel('rmf-parish-bowl-priest');
         if (pp) storeSet('rmf-parish-bowl-parish', pp); else storeDel('rmf-parish-bowl-parish');
-        priestName = pn || 'Father Murphy';
-        parishName = pp || 'St Mary\u2019s';
+        priestName = pn || 'Father Ted';
+        parishName = pp || 'Craggy Island';
         coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
         showStart();
       });
       var forget = document.getElementById('bowl-forget-names');
       if (forget) forget.addEventListener('click', function () {
         storeDel('rmf-parish-bowl-priest'); storeDel('rmf-parish-bowl-parish');
-        priestName = 'Father Murphy'; parishName = 'St Mary\u2019s';
+        priestName = 'Father Ted'; parishName = 'Craggy Island';
         coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
         showStart();
       });
@@ -2596,7 +2596,7 @@
     function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week]; }
     var best = readBest('pastor');
     function parishName() {
-      try { return localStorage.getItem('rmf-parish-bowl-parish') || 'St Mary\u2019s'; } catch (e) { return 'St Mary\u2019s'; }
+      try { return localStorage.getItem('rmf-parish-bowl-parish') || 'Craggy Island'; } catch (e) { return 'Craggy Island'; }
     }
     function personalise(text) {
       var name = parishName();
