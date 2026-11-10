@@ -872,6 +872,21 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
   font-size:var(--size-lede); line-height:1.55; color:var(--dim); }
 .about-center .rule { margin:26px auto 20px; }
 
+/* ---------- Verse of the day: a daily Bible verse, centered editorial block ----------
+   Sits in a tinted band just under the hero. The verse is set in Georgia
+   serif at a reading size, the reference in gold small caps, the date in
+   quiet small type, divided by the same gold diamond rule as the About
+   block. Uses only existing tokens and components. */
+.verse-of-day { text-align:center; }
+.verse-of-day .band { padding-top:clamp(24px, 4vw, 32px); padding-bottom:clamp(24px, 4vw, 32px); }
+.verse-of-day .verse-text { font-family:Georgia, "Times New Roman", Times, serif;
+  font-size:clamp(1.25rem, 1.125rem + 0.6vw, 1.625rem); line-height:1.5;
+  margin:16px auto 0; max-width:36ch; }
+.verse-of-day .verse-ref { margin-top:14px; font-size:var(--size-caption); font-weight:700;
+  text-transform:uppercase; letter-spacing:0.16em; color:var(--gold); }
+.verse-of-day .verse-date { margin-top:4px; font-size:var(--size-small); color:var(--dim); }
+.verse-of-day .rule { margin:18px auto 0; }
+
 /* ---------- Breather: the arcade invite, roomier, button-led on desktop ---------- */
 .breather--feature { padding:clamp(22px, 5vw, 32px); }
 @media (min-width:640px) {

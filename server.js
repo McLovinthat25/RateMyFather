@@ -178,6 +178,64 @@ function glassStrip(cls = '') {
 }
 const GLASS = glassStrip();
 
+// ---------- Verse of the day ----------
+// A daily Bible verse (plus a few short quotes from the saints), rotated
+// deterministically by the Eastern date, so every visitor sees the same
+// verse on a given day and a new one the next. No database, no API call:
+// the list is long enough (40 entries) that it never repeats within a
+// month. Verse wording is ESV.
+const DAILY_VERSES = [
+  { text: 'The Lord is my shepherd; I shall not want.', ref: 'Psalm 23:1' },
+  { text: 'I can do all things through him who strengthens me.', ref: 'Philippians 4:13' },
+  { text: 'Trust in the Lord with all your heart, and do not lean on your own understanding.', ref: 'Proverbs 3:5' },
+  { text: 'For God so loved the world, that he gave his only Son, that whoever believes in him should not perish but have eternal life.', ref: 'John 3:16' },
+  { text: 'God is our refuge and strength, a very present help in trouble.', ref: 'Psalm 46:1' },
+  { text: 'For I know the plans I have for you, declares the Lord, plans for welfare and not for evil, to give you a future and a hope.', ref: 'Jeremiah 29:11' },
+  { text: 'And we know that for those who love God all things work together for good, for those who are called according to his purpose.', ref: 'Romans 8:28' },
+  { text: 'Be strong and courageous. Do not be frightened, and do not be dismayed, for the Lord your God is with you wherever you go.', ref: 'Joshua 1:9' },
+  { text: 'Come to me, all who labor and are heavy laden, and I will give you rest.', ref: 'Matthew 11:28' },
+  { text: 'Your word is a lamp to my feet and a light to my path.', ref: 'Psalm 119:105' },
+  { text: 'They who wait for the Lord shall renew their strength; they shall mount up with wings like eagles.', ref: 'Isaiah 40:31' },
+  { text: 'Love is patient and kind; love does not envy or boast; it is not arrogant.', ref: '1 Corinthians 13:4' },
+  { text: 'The fruit of the Spirit is love, joy, peace, patience, kindness, goodness, faithfulness.', ref: 'Galatians 5:22' },
+  { text: 'He has told you, O man, what is good; and what does the Lord require of you but to do justice, and to love kindness, and to walk humbly with your God?', ref: 'Micah 6:8' },
+  { text: 'Let your light shine before others, so that they may see your good works and give glory to your Father who is in heaven.', ref: 'Matthew 5:16' },
+  { text: 'Now faith is the assurance of things hoped for, the conviction of things not seen.', ref: 'Hebrews 11:1' },
+  { text: 'If any of you lacks wisdom, let him ask God, who gives generously to all without reproach, and it will be given him.', ref: 'James 1:5' },
+  { text: 'The Lord is my light and my salvation; whom shall I fear?', ref: 'Psalm 27:1' },
+  { text: 'Casting all your anxieties on him, because he cares for you.', ref: '1 Peter 5:7' },
+  { text: 'Do not be anxious about anything, but in everything by prayer and supplication with thanksgiving let your requests be made known to God.', ref: 'Philippians 4:6' },
+  { text: 'The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness.', ref: 'Lamentations 3:22\u201323' },
+  { text: 'This is the day that the Lord has made; let us rejoice and be glad in it.', ref: 'Psalm 118:24' },
+  { text: 'Whatever you do, work heartily, as for the Lord and not for men.', ref: 'Colossians 3:23' },
+  { text: 'But seek first the kingdom of God and his righteousness, and all these things will be added to you.', ref: 'Matthew 6:33' },
+  { text: 'For God gave us a spirit not of fear but of power and love and self-control.', ref: '2 Timothy 1:7' },
+  { text: 'The heavens declare the glory of God, and the sky above proclaims his handiwork.', ref: 'Psalm 19:1' },
+  { text: 'Rejoice in hope, be patient in tribulation, be constant in prayer.', ref: 'Romans 12:12' },
+  { text: 'Fear not, for I am with you; be not dismayed, for I am your God.', ref: 'Isaiah 41:10' },
+  { text: 'Peace I leave with you; my peace I give to you.', ref: 'John 14:27' },
+  { text: 'Delight yourself in the Lord, and he will give you the desires of your heart.', ref: 'Psalm 37:4' },
+  { text: 'For by grace you have been saved through faith. And this is not your own doing; it is the gift of God.', ref: 'Ephesians 2:8' },
+  { text: 'We love because he first loved us.', ref: '1 John 4:19' },
+  { text: 'The name of the Lord is a strong tower; the righteous man runs into it and is safe.', ref: 'Proverbs 18:10' },
+  { text: 'Blessed are the peacemakers, for they shall be called sons of God.', ref: 'Matthew 5:9' },
+  { text: 'Oh, taste and see that the Lord is good! Blessed is the man who takes refuge in him!', ref: 'Psalm 34:8' },
+  { text: 'Jesus Christ is the same yesterday and today and forever.', ref: 'Hebrews 13:8' },
+  { text: 'You have made us for yourself, O Lord, and our heart is restless until it rests in you.', ref: 'St. Augustine, Confessions' },
+  { text: 'Let nothing disturb you, let nothing frighten you. All things pass away. God never changes.', ref: 'St. Teresa of Avila' },
+  { text: 'Not all of us can do great things. But we can do small things with great love.', ref: 'Mother Teresa' },
+  { text: 'Act as if everything depended on you; trust as if everything depended on God.', ref: 'St. Ignatius of Loyola' },
+];
+function dailyVerse() {
+  // Eastern date, so the verse turns over at midnight for the US audience
+  // and matches the date shown under it.
+  const parts = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').map(Number);
+  const dayNum = Math.floor(Date.UTC(parts[2], parts[0] - 1, parts[1]) / 86400000);
+  const verse = DAILY_VERSES[dayNum % DAILY_VERSES.length];
+  const dateStr = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  return { text: verse.text, ref: verse.ref, dateStr };
+}
+
 function layout(title, body, extraHead = '') {
   const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability. Searchable by name, parish, city, state, or diocese.';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
@@ -483,6 +541,18 @@ app.get('/', async (req, res) => {
   const regions = ['Northeast', 'Midwest', 'South', 'West', 'Other listings'];
   const regionHtml = regions.map((r) => `<li><a href="/browse?region=${encodeURIComponent(r)}">${r}</a></li>`).join('');
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
+  // Verse of the day: same verse for every visitor on a given day, a new
+  // one tomorrow. Computed from the Eastern date, no database involved.
+  const verse = dailyVerse();
+  const verseHtml = `<section class="home-section verse-of-day">
+    <div class="band">
+    <p class="eyebrow">Verse of the day</p>
+    <blockquote class="verse-text">&ldquo;${esc(verse.text)}&rdquo;</blockquote>
+    <p class="verse-ref">${esc(verse.ref)}</p>
+    <div class="rule" aria-hidden="true"><span></span></div>
+    <p class="verse-date">${esc(verse.dateStr)} &middot; A new verse every day</p>
+    </div>
+    </section>`;
   // Highest rated: real data only, top 3 by overall average among rated
   // priests. The section is omitted entirely when nobody is rated yet.
   let topRated = '';
@@ -568,6 +638,7 @@ app.get('/', async (req, res) => {
         </div>
       </div>
     </section>${GLASS}
+    ${verseHtml}
     <section class="home-section band">
     <div class="section-head">
     <p class="eyebrow">The directory</p>
