@@ -337,6 +337,10 @@
   // still to catch, then run it in — but you have 2 seconds to get to the
   // spot, and the defence holds you up on the way, so the catch is a fight,
   // not a free run. A touchdown is the yards gained plus a bonus.
+  // Half time comes after Q2, and St Swithin's are a step quicker in the
+  // second half. Their drive after each quarter starts from your field
+  // position: a turnover hands them a short field, a touchdown leaves
+  // them starting deep.
   // The defence spawns randomly (Nov 10, Mikey): each man takes a
   // jittered slot and a depth from a wide band, so the coverage looks
   // different every snap. A tackle before the catch is pass interference:
@@ -378,13 +382,13 @@
   // him.
   // Catch window scales with the throw (Nov 10, Mikey: a further pass
   // needs more time to catch than a short one). Base dwells on Medium:
-  // short 0.30s, medium 0.38s, deep 0.50s. Easy and Hard scale by the
+  // short 0.30s, medium 0.38s, deep 0.45s. Easy and Hard scale by the
   // same factor as the difficulty table, so a medium throw is still
   // 0.5s on Easy and 0.3s on Hard. startPlay sets catchDwell per throw
   // from this table; the catch fill ring reads catchDwell, so the
   // visible window scales with it automatically.
   var BOWL_CATCH_DWELL_SHORT = 0.30;
-  var BOWL_CATCH_DWELL_DEEP = 0.50;
+  var BOWL_CATCH_DWELL_DEEP = 0.45;
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
@@ -501,6 +505,7 @@
     var quarter = 1, clock = RUNGUN_QUARTER_SECONDS;
     var score = 0, best = readBest('rungun'), tds = 0, oppTds = 0;
     var bestPlay = 0, drivePlays = 0; // best single-play gain; plays in the current drive
+    var driveYards = 0, qTurnover = false, qScored = false; // yards in the current drive; whether this quarter ended in a turnover or a score, for the opponent's field position
     var down = 1, seriesStart = 80, seriesGain = 0; // four downs, ten yards for a first
     var px = GAME_W / 2, py = RUNGUN_START_Y;
     var camY = RUNGUN_WORLD_H - GAME_H; // camera: follows the runner down the world
@@ -535,6 +540,10 @@
     // gap to thread, not a wall: ninety-odd pixels stand between them, and
     // they still turn slowly, so a sharp cut beats either one.
     function spawnDefenders(n, upfield, line, lineDepth, bracket) {
+      // Second-half adjustment: from Q3 the defence is a step quicker,
+      // so a game tightens after half time instead of playing the same
+      // all four quarters.
+      var spd = function () { return rand(defLo, defHi) * (quarter >= 3 ? 1.08 : 1); };
       for (var i = 0; i < n; i++) {
         var d = null;
         for (var tries = 0; tries < 8; tries++) {
@@ -545,21 +554,21 @@
             cand = {
               x: clamp(50 + slot * (GAME_W - 100) + rand(-65, 65), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(defLo, defHi),
+              speed: spd(),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
               x: clamp(bracket ? px + (i === 0 ? -70 : 70) + rand(-15, 15) : px + rand(-140, 140), 40, GAME_W - 40),
               y: clamp(py - rand(120, 180), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(defLo, defHi),
+              speed: spd(),
               heading: 0,
             };
           } else {
             cand = {
               x: rand(40, GAME_W - 40),
               y: rand(RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
-              speed: rand(defLo, defHi),
+              speed: spd(),
               heading: 0,
             };
           }
@@ -601,14 +610,17 @@
       var lanes = [-170, -120, -75, -35, 0, 35, 75, 120, 170];
       var lat = lanes[Math.floor(Math.random() * lanes.length)];
       var baseX = clamp(px + lat, 36, GAME_W - 36);
-      var baseY = Math.max(RUNGUN_END_Y + 14, py - depth * PX_PER_YARD);
+      // The catch spot may sit just off the goal line (a fade to the end
+      // zone) when the drive is inside the five, so the route label never
+      // reads negative and a catch there scores.
+      var baseY = Math.max(RUNGUN_END_Y + 4, py - depth * PX_PER_YARD);
       // Then pick the most open nearby spot, as before, so the X lands
       // in space rather than on a defender.
       var bestSpot = null, bestScore = -1e9;
       var offsets = [[0, 0], [-25, 0], [25, 0], [0, -15], [0, 15], [-25, -15], [25, -15]];
       offsets.forEach(function (o) {
         var tx = clamp(baseX + o[0], 30, GAME_W - 30);
-        var ty = clamp(baseY + o[1], RUNGUN_END_Y + 14, RUNGUN_START_Y - 10);
+        var ty = clamp(baseY + o[1], RUNGUN_END_Y + 4, RUNGUN_START_Y - 10);
         var minD = 999;
         defenders.forEach(function (dd) { minD = Math.min(minD, Math.hypot(dd.x - tx, dd.y - ty)); });
         var s = minD - Math.hypot(tx - baseX, ty - baseY) * 0.4;
@@ -686,9 +698,10 @@
       // cover the receiver, so reaching the gold X is a fight through
       // bodies under a countdown, not a free run. On a run the line sits
       // just ahead of the runner, as usual.
-      // On a run the line sits closer than it used to (140-190px ahead
+      // On a run the line sits closer than it used to (120-170px ahead
       // instead of the default), so the runner meets it sooner instead of
-      // building a head of steam untouched.
+      // building a head of steam untouched — a first down has to be
+      // earned, and a stuffed run can actually happen.
       // The line spawns randomly (Nov 10, Mikey: vary the defence from
       // play to play). Each man takes a jittered slot and a depth drawn
       // from a wide band, so the coverage looks different every snap
@@ -697,7 +710,7 @@
       // man can never sit on the gold X itself; the fair-spawn checks
       // keep men off the runner and off each other.
       var maxReach = passLimit * 160; // deepest the gold X can sit
-      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 40, maxReach + 160] : [140, 190]);
+      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 40, maxReach + 160] : [120, 170]);
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
         passTarget = pickPassTarget();
@@ -707,7 +720,7 @@
         var rDepth = Math.round((py - passTarget.y) / PX_PER_YARD);
         var rLat = passTarget.x - px;
         passRoute = {
-          yards: rDepth,
+          yards: Math.max(1, rDepth), // never negative: the spot can sit on the goal line
           dir: rLat < -25 ? 'left' : rLat > 25 ? 'right' : 'middle',
           kind: rDepth < 10 ? 'Short' : rDepth < 18 ? 'Medium' : 'Deep',
         };
@@ -753,7 +766,7 @@
         tds += 1;
         py = RUNGUN_START_Y; px = GAME_W / 2;
         down = 1; seriesStart = 80; seriesGain = 0;
-        drivePlays = 0;
+        drivePlays = 0; driveYards = 0; qScored = true;
       } else if (flags.incomplete) {
         py = playStartPy;
         down += 1;
@@ -761,10 +774,11 @@
           note = ' Turnover on downs — back to the 80.';
           py = RUNGUN_START_Y; px = GAME_W / 2;
           down = 1; seriesStart = 80; seriesGain = 0;
-          drivePlays = 0;
+          drivePlays = 0; driveYards = 0; qTurnover = true;
         }
       } else {
         seriesGain += gained;
+        driveYards += gained;
         if (seriesGain >= 10 || flags.pi) {
           // A first down pays +10: a sustained drive is worth more than
           // the same yards scattered across turnovers. Pass interference
@@ -778,7 +792,7 @@
             note = ' Turnover on downs — back to the 80.';
             py = RUNGUN_START_Y; px = GAME_W / 2;
             down = 1; seriesStart = 80; seriesGain = 0;
-            drivePlays = 0;
+            drivePlays = 0; driveYards = 0; qTurnover = true;
           }
         }
       }
@@ -790,16 +804,46 @@
     function endQuarter() {
       // St Swithin's drive after every quarter, per the demo: the Monsignor
       // Coach sums it up and the match score moves, so the game is a match
-      // against an opponent, not a solo points tally.
-      var oppScored = Math.random() < oppChance;
+      // against an opponent, not a solo points tally. The drive starts from
+      // your field position: a turnover on downs hands them a short field,
+      // a touchdown leaves them starting deep, so your quarter shapes
+      // theirs instead of a flat coin flip.
+      var chance = oppChance;
+      if (qTurnover) chance += 0.2; else if (qScored) chance -= 0.15;
+      chance = Math.max(0.15, Math.min(0.85, chance));
+      var oppScored = Math.random() < chance;
       if (oppScored) oppTds += 1;
+      qTurnover = false; qScored = false;
       if (quarter >= 4) { gameOver(); return; }
       quarter += 1; clock = RUNGUN_QUARTER_SECONDS; timeGoneShown = false;
       py = RUNGUN_START_Y; px = GAME_W / 2;
       down = 1; seriesStart = 80; seriesGain = 0;
+      drivePlays = 0; driveYards = 0;
+      var matchLine = 'Match ' + (tds * 7) + '–' + (oppTds * 7) + '.';
+      var oppLine = oppScored
+        ? 'St Swithin\u2019s drove down and scored.'
+        : 'St Swithin\u2019s drive stalled.';
+      if (quarter === 3) {
+        // Half time: the match so far, and the warning that St Swithin's
+        // have made their adjustments — the defence is a step quicker in
+        // the second half.
+        state = 'half';
+        var halfYards = Math.max(0, score - tds * RUNGUN_TOUCHDOWN_BONUS);
+        coachLine = 'Monsignor Coach: Second half — St Swithin\u2019s have tightened up. Your ball.';
+        api.showOverlay(bowlCard('Half time', esc(parishName) + ' ' + (tds * 7) + ' — ' + esc(opponent) + ' ' + (oppTds * 7),
+          '<p style="margin:0 0 4px;font-size:15px;">' + oppLine + ' ' + matchLine + '</p>' +
+          '<p style="margin:0 0 4px;font-size:15px;">' + tds + (tds === 1 ? ' touchdown' : ' touchdowns') + ' · ' + halfYards + ' yards gained · ' + score + ' points.</p>' +
+          (bestPlay > 0 ? '<p style="margin:0 0 4px;font-size:15px;">Best play: +' + bestPlay + ' yards.</p>' : '') +
+          '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Second half: St Swithin\u2019s have made their adjustments, so the defence is a step quicker from here.</p>',
+          bowlBtn('bowl-second-half', 'Second half')));
+        var sh = document.getElementById('bowl-second-half');
+        if (sh) sh.addEventListener('click', function () { state = 'choose'; showChoose(); });
+        updateHud();
+        return;
+      }
       coachLine = oppScored
-        ? 'Monsignor Coach: St Swithin\u2019s drove down and scored. Match ' + (tds * 7) + '–' + (oppTds * 7) + '. Your ball — answer them.'
-        : 'Monsignor Coach: St Swithin\u2019s drive stalled. Match ' + (tds * 7) + '–' + (oppTds * 7) + '. Your ball — keep it rolling.';
+        ? 'Monsignor Coach: ' + oppLine + ' ' + matchLine + ' Your ball — answer them.'
+        : 'Monsignor Coach: ' + oppLine + ' ' + matchLine + ' Your ball — keep it rolling.';
       state = 'choose'; showChoose();
     }
     function gameOver() {
@@ -821,7 +865,8 @@
     }
     function resetGame() {
       quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0; tds = 0; oppTds = 0;
-      bestPlay = 0; drivePlays = 0; popYards = 0; popT = 0;
+      bestPlay = 0; drivePlays = 0; driveYards = 0; popYards = 0; popT = 0;
+      qTurnover = false; qScored = false;
       px = GAME_W / 2; py = RUNGUN_START_Y; timeGoneShown = false;
       down = 1; seriesStart = 80; seriesGain = 0;
       coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
@@ -889,7 +934,8 @@
       state = 'choose';
       api.showOverlay(bowlCard('Quarter ' + quarter + ' · ' + esc(parishName), esc(downLabel()),
         '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
-        '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>',
+        '<p style="margin:0 0 4px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>' +
+        (drivePlays > 0 ? '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">Drive: ' + drivePlays + (drivePlays === 1 ? ' play' : ' plays') + ' · +' + driveYards + ' yards</p>' : '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">&nbsp;</p>'),
         bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
         '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete. Keys: R runs, T throws.</p>'));
       var run = document.getElementById('bowl-run');
@@ -1037,7 +1083,7 @@
         // once the runner has the ball — no reinforcements dropping on the
         // receiver while a pass is in the air.
         waveT += dt;
-        if (state === 'run' && (waveT >= waveSecs || (yardsAtWave - yardsToGo()) >= 15)) {
+        if (state === 'run' && (waveT >= waveSecs || (yardsAtWave - yardsToGo()) >= 12)) {
           waveT = 0; yardsAtWave = yardsToGo();
           if (defenders.length + 2 <= BOWL_DEFENDER_CAP) spawnDefenders(2, true, false, null, true);
         }
@@ -1074,6 +1120,7 @@
           // zone, so a scoring drive is worth more than the same yards
           // gained on a tackle.
           var gained = playStartYards + RUNGUN_TOUCHDOWN_BONUS;
+          api.showBanner('Touchdown, ' + priestName + '!', 2000);
           endPlay(gained, 'Touchdown, ' + priestName + '!', parishName + ' score. +' + playStartYards + ' yards, +' + RUNGUN_TOUCHDOWN_BONUS + ' bonus.', { touchdown: true });
           return;
         }
