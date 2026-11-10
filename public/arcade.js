@@ -226,7 +226,11 @@
     var keys = {};
     function down(e) {
       var k = e.key.toLowerCase();
-      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].indexOf(k) >= 0) e.preventDefault();
+      // Never swallow keys while the player is typing in a text field:
+      // the customise screen's name fields need their spaces and arrows.
+      var t = e.target;
+      var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (!typing && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].indexOf(k) >= 0) e.preventDefault();
       keys[k] = true;
     }
     function up(e) { keys[e.key.toLowerCase()] = false; }
@@ -249,7 +253,7 @@
 
   // ---- game registry ----
   var ARCADE_GAMES = [
-    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father Ted carries the ball for Craggy Island against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
+    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father Ted carries the ball for Craggy Island against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
     { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
@@ -341,9 +345,15 @@
   // second half. Their drive after each quarter starts from your field
   // position: a turnover hands them a short field, a touchdown leaves
   // them starting deep.
-  // The defence spawns randomly (Nov 10, Mikey): each man takes a
-  // jittered slot and a depth from a wide band, so the coverage looks
-  // different every snap. A tackle before the catch is pass interference:
+  // The defence spawns randomly (Nov 10, Mikey): the line covers a
+  // random sub-span of the field at a random offset, each man takes a
+  // jittered slot and a depth from a wide band, and every man varies
+  // in pace, lane room, shade and break timing, so the coverage looks
+  // and feels different every snap. The line still holds its lanes:
+  // on a pass each man shuffles inside his own zone, and on a run
+  // each man closes upfield inside his lane corridor, so the defence
+  // reads as organised even while it is unpredictable. A tackle
+  // before the catch is pass interference:
   // +10 yards (or the yards already gained, whichever is more, capped at
   // the 1) and an automatic first down — the drive does not end.
   //
@@ -392,6 +402,9 @@
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
+  var BOWL_BLOCK_RADIUS = 26; // a blocker this close to a defender ties him up
+  var BOWL_BLOCK_SECONDS = 1.6; // how long a tied-up defender stays out of the play
+  var BOWL_BLOCKER_SPEED = 150; // blockers run ahead at a steady clip, slower than Father Ted
   var BOWL_PLAY_MAX_SECONDS = 9; // whistle: no play runs forever, no stall at 0:00
   // Pass-defence convergence (Nov 9, third pass): Mikey played the live
   // Bowl again and the defence was still nowhere near the receiver on a
@@ -490,17 +503,21 @@
     var uniform = readBowlUniform(); // kit choice, remembered in the browser
     var defLo = 100, defHi = 125, covLo = 110, covHi = 130, defBase = 3;
     var passLimit = BOWL_PASS_TIME_LIMIT, catchDwell = BOWL_CATCH_DWELL, oppChance = 0.5, waveSecs = BOWL_WAVE_SECONDS;
+    var blockerChance = 0.35, blockerCount = 2; // how often blockers line up, and how many
     function applyBowlDiff() {
-      // Easy: slower defence, more time on the catch, a kinder opponent.
-      // Hard: faster defence, less time on the catch, a sharper opponent.
-      if (diff === 'easy') { defLo = 80; defHi = 100; covLo = 90; covHi = 105; defBase = 2; passLimit = 2.6; catchDwell = 0.5; oppChance = 0.35; waveSecs = 5; }
-      else if (diff === 'hard') { defLo = 120; defHi = 150; covLo = 130; covHi = 155; defBase = 4; passLimit = 1.6; catchDwell = 0.3; oppChance = 0.65; waveSecs = 3; }
-      else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; catchDwell = BOWL_CATCH_DWELL; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; }
+      // Easy: slower defence, more time on the catch, a kinder opponent —
+      // and blockers always in front of you, so the easy game reads as the
+      // friendly one. Hard: faster defence, less time, a sharper opponent,
+      // and blockers are rare and only one man. Medium sits between.
+      if (diff === 'easy') { defLo = 80; defHi = 100; covLo = 90; covHi = 105; defBase = 2; passLimit = 2.6; catchDwell = 0.5; oppChance = 0.35; waveSecs = 5; blockerChance = 1; blockerCount = 2; }
+      else if (diff === 'hard') { defLo = 120; defHi = 150; covLo = 130; covHi = 155; defBase = 4; passLimit = 1.6; catchDwell = 0.3; oppChance = 0.65; waveSecs = 3; blockerChance = 0.2; blockerCount = 1; }
+      else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; catchDwell = BOWL_CATCH_DWELL; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; blockerChance = 0.35; blockerCount = 2; }
     }
     applyBowlDiff();
     var parishName = storeGet('rmf-parish-bowl-parish') || 'Craggy Island';
     var opponent = 'St Swithin\u2019s';
     var state = 'ready'; // ready | choose | run | pass | result | over
+    var customizing = false; // the name screen is up: keyboard play must not fire while it is
     var paused = false;
     var quarter = 1, clock = RUNGUN_QUARTER_SECONDS;
     var score = 0, best = readBest('rungun'), tds = 0, oppTds = 0;
@@ -512,6 +529,7 @@
     function screenY(wy) { return wy - camY; }
     function updateCam() { camY = clamp(py - 190, 0, RUNGUN_WORLD_H - GAME_H); }
     var defenders = [];
+    var blockers = []; // teammates who run ahead and tie up a defender each
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
     var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
   var passTimeLeft = 0, impeded = false, reachedX = false; // countdown to the catch spot; held-up flag; reached the X
@@ -544,6 +562,22 @@
       // so a game tightens after half time instead of playing the same
       // all four quarters.
       var spd = function () { return rand(defLo, defHi) * (quarter >= 3 ? 1.08 : 1); };
+      // Random front (Nov 10, Mikey: more randomness on the defence):
+      // the line covers a random sub-span of the field at a random
+      // offset, so the shape is different every snap instead of the
+      // same neat row. The span stays wide enough for the men to keep
+      // their distance from each other, and the jitter shrinks with
+      // the slot width, so a snap never loses a man to the spacing check.
+      var spanW = GAME_W - 100, spanX0 = 50, jit = 65;
+      if (line) {
+        var spanFrac = rand(Math.min(1, Math.max(0.7, (n * 50) / (GAME_W - 100))), 1);
+        spanW = (GAME_W - 100) * spanFrac;
+        spanX0 = 50 + rand(0, (GAME_W - 100) - spanW);
+        jit = Math.min(65, (spanW / Math.max(1, n)) * 0.8);
+      }
+      // Wave pairs bracket the runner's lane at a random gap (was a
+      // fixed 70px), so a breakaway meets a different gap to thread.
+      var waveGap = rand(60, 85);
       for (var i = 0; i < n; i++) {
         var d = null;
         for (var tries = 0; tries < 8; tries++) {
@@ -552,15 +586,15 @@
             var slot = (i + 0.5) / Math.max(1, n);
             var lo = lineDepth ? lineDepth[0] : 170, hi = lineDepth ? lineDepth[1] : 230;
             cand = {
-              x: clamp(50 + slot * (GAME_W - 100) + rand(-65, 65), 40, GAME_W - 40),
+              x: clamp(spanX0 + slot * spanW + rand(-jit, jit), 40, GAME_W - 40),
               y: clamp(py - rand(lo, hi), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
               speed: spd(),
               heading: 0,
             };
           } else if (upfield) {
             cand = {
-              x: clamp(bracket ? px + (i === 0 ? -70 : 70) + rand(-15, 15) : px + rand(-140, 140), 40, GAME_W - 40),
-              y: clamp(py - rand(120, 180), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
+              x: clamp(bracket ? px + (i === 0 ? -waveGap : waveGap) + rand(-20, 20) : px + rand(-140, 140), 40, GAME_W - 40),
+              y: clamp(py - rand(110, 200), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
               speed: spd(),
               heading: 0,
             };
@@ -585,6 +619,16 @@
           d = cand; break;
         }
         if (!d) continue;
+        // Per-man traits (Nov 10, Mikey: more randomness): every
+        // defender varies a little in pace, in how far he shades toward
+        // the ball inside his lane, in how much lateral room his lane
+        // gives him, and in how quickly he breaks once the receiver
+        // reaches the X. The averages are unchanged, so the difficulty
+        // stays where it was tuned — the variation is in the feel.
+        d.aggr = rand(0.9, 1.1);
+        d.laneGive = rand(0.3, 0.5);
+        d.laneWidth = rand(40, 55);
+        d.breakDelay = rand(0, 0.1);
         d.heading = Math.atan2(py - d.y, px - d.x);
         d.lane = d.x; // assigned lane: the defender's zone to hold on a pass
         defenders.push(d);
@@ -684,7 +728,7 @@
         var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
         if (Math.hypot(x - px, y - py) < 45) return;
         if (Math.hypot(x - passTarget.x, y - passTarget.y) < 35) return;
-        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y, lane: x });
+        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y, lane: x, aggr: rand(0.9, 1.1), laneGive: rand(0.3, 0.5), laneWidth: rand(40, 55), breakDelay: rand(0, 0.1) });
       });
     }
     function startPlay(kind) {
@@ -703,14 +747,46 @@
       // building a head of steam untouched — a first down has to be
       // earned, and a stuffed run can actually happen.
       // The line spawns randomly (Nov 10, Mikey: vary the defence from
-      // play to play). Each man takes a jittered slot and a depth drawn
-      // from a wide band, so the coverage looks different every snap
-      // instead of the same neat row. The band is anchored beyond the
-      // deepest possible catch spot (the reachability cap), so a line
-      // man can never sit on the gold X itself; the fair-spawn checks
-      // keep men off the runner and off each other.
+      // play to play). The front covers a random sub-span of the field
+      // at a random offset, each man takes a jittered slot and a depth
+      // drawn from a wide band, and every man carries his own pace,
+      // lane room, shade and break timing, so the coverage looks
+      // different every snap instead of the same neat row. The band is
+      // anchored beyond the deepest possible catch spot (the
+      // reachability cap), so a line man can never sit on the gold X
+      // itself; the fair-spawn checks keep men off the runner and off
+      // each other.
       var maxReach = passLimit * 160; // deepest the gold X can sit
-      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 40, maxReach + 160] : [120, 170]);
+      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 35, maxReach + 170] : [110, 195]);
+      // Blockers (Nov 10, Mikey: every once in a while, two men in front
+      // of you to clear a lane — on Easy they are always there). A blocker
+      // runs ahead of Father Ted and ties up the nearest defender in his
+      // way, so the defence has a hole in it for a beat. They only engage
+      // the line, never the coverage pair, so the contest at the catch
+      // spot stays honest.
+      blockers = [];
+      if (Math.random() < blockerChance) {
+        for (var bi = 0; bi < blockerCount; bi++) {
+          blockers.push({
+            x: clamp(px + (bi === 0 ? -45 : 45) + rand(-15, 15), 40, GAME_W - 40),
+            y: clamp(py - rand(50, 85), RUNGUN_END_Y + 10, RUNGUN_START_Y - 20),
+            speed: BOWL_BLOCKER_SPEED, target: null, engaged: null, spent: false,
+          });
+        }
+        blockers.forEach(function (b) {
+          var bestD = null, bestDist = 1e9;
+          defenders.forEach(function (d) {
+            if (d.cover) return;
+            var taken = false;
+            blockers.forEach(function (o) { if (o !== b && o.target === d) taken = true; });
+            if (taken) return;
+            var dd = Math.hypot(d.x - b.x, d.y - b.y);
+            if (dd < bestDist) { bestDist = dd; bestD = d; }
+          });
+          b.target = bestD;
+        });
+        api.showBanner('Blockers in!', 1600);
+      }
       waveT = 0; yardsAtWave = playStartYards;
       if (kind === 'pass') {
         passTarget = pickPassTarget();
@@ -835,7 +911,7 @@
           '<p style="margin:0 0 4px;font-size:15px;">' + tds + (tds === 1 ? ' touchdown' : ' touchdowns') + ' · ' + halfYards + ' yards gained · ' + score + ' points.</p>' +
           (bestPlay > 0 ? '<p style="margin:0 0 4px;font-size:15px;">Best play: +' + bestPlay + ' yards.</p>' : '') +
           '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">Second half: St Swithin\u2019s have made their adjustments, so the defence is a step quicker from here.</p>',
-          bowlBtn('bowl-second-half', 'Second half')));
+          bowlBtn('bowl-second-half', 'Second half') + keyHint('Keyboard: Space or Enter starts the second half.')));
         var sh = document.getElementById('bowl-second-half');
         if (sh) sh.addEventListener('click', function () { state = 'choose'; showChoose(); });
         updateHud();
@@ -856,7 +932,8 @@
         (bestPlay > 0 ? '<p style="margin:0 0 4px;font-size:15px;">Best play: +' + bestPlay + ' yards.</p>' : '') +
         '<p style="margin:0 0 16px;font-size:14px;">Best: ' + finalBest + '</p>',
         '<button type="button" class="big-btn press" id="bowl-again" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">Play again</button>' +
-        '<button type="button" class="linklike" id="bowl-back">Back to arcade</button>'));
+        '<button type="button" class="linklike" id="bowl-back">Back to arcade</button>' +
+        keyHint('Keyboard: Space or Enter plays again.')));
       var again = document.getElementById('bowl-again');
       if (again) again.addEventListener('click', function () { resetGame(); });
       var back = document.getElementById('bowl-back');
@@ -870,7 +947,7 @@
       px = GAME_W / 2; py = RUNGUN_START_Y; timeGoneShown = false;
       down = 1; seriesStart = 80; seriesGain = 0;
       coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
-      defenders = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0;
+      defenders = []; blockers = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0;
       state = 'choose'; showChoose();
     }
     // ---- designed overlay card: parchment panel, burgundy frame, gold rule ----
@@ -884,14 +961,25 @@
     function bowlBtn(id, label) {
       return '<button type="button" class="big-btn press" id="' + id + '" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">' + label + '</button>';
     }
+    // A key shown on the button itself, so a keyboard player sees at a
+    // glance which key picks it — no hunting through the fine print.
+    function keyChip(key) {
+      return '<span style="display:inline-block;min-width:20px;padding:2px 7px;margin-left:10px;border:1.5px solid rgba(255,244,214,.7);border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.08em;vertical-align:2px;">' + key + '</span>';
+    }
+    // One line under a big button, naming the keyboard way to press it.
+    function keyHint(text) {
+      return '<p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">' + text + '</p>';
+    }
     function showStart() {
       state = 'ready';
+      customizing = false;
       api.showOverlay(bowlCard(esc(parishName) + ' vs ' + esc(opponent), 'The Parish Bowl',
-        '<p style="margin:0 0 6px;font-size:15px;line-height:1.45;">Four quarters of 45 seconds. Run or pass your way down the field — four downs to gain ten yards, and a touchdown is worth the yards plus a hundred. St Swithin\u2019s drive after every quarter.</p>' +
+        '<p style="margin:0 0 6px;font-size:15px;line-height:1.45;">Four quarters of 45 seconds. Run or pass your way down the field — four downs to gain ten yards, and a touchdown is worth the yards plus a hundred. St Swithin\u2019s drive after every quarter. Every once in a while two blockers line up in front of you to clear a lane — on Easy they are always there.</p>' +
         '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">' + gameMark('rungun') + '</p>',
         diffPickerHtml('rungun', diff) +
         uniformPickerHtml(uniform.id) +
         bowlBtn('bowl-kickoff', 'Kick off for ' + esc(parishName)) +
+        keyHint('Keyboard: Space or Enter kicks off · R runs, T throws.') +
         '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>'));
       wireDiffButtons(api.overlay, 'rungun', function () { return diff; }, function (d) { diff = d; writeDiff('rungun', d); applyBowlDiff(); });
       wireUniformButtons(api.overlay, function () { return uniform.id; }, function (u) { uniform = bowlUniform(u); storeSet('rmf-parish-bowl-uniform', u); });
@@ -902,6 +990,7 @@
       updateHud();
     }
     function showCustomize() {
+      customizing = true;
       api.showOverlay(bowlCard('Your home parish priest', 'Who\u2019s carrying it?',
         '<p style="margin:0 0 14px;font-size:14px;line-height:1.45;">Your priest and parish run through the game: the scoreboard, the coach, and the results.</p>' +
         '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;">Priest name<input id="rungun-priest-name" placeholder="Father Ted" value="' + esc(storeGet('rmf-parish-bowl-priest') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>' +
@@ -936,7 +1025,7 @@
         '<p style="margin:0 0 4px;font-size:15px;">' + yardsToGo() + ' yards to the end zone.</p>' +
         '<p style="margin:0 0 4px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>' +
         (drivePlays > 0 ? '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">Drive: ' + drivePlays + (drivePlays === 1 ? ' play' : ' plays') + ' · +' + driveYards + ' yards</p>' : '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">&nbsp;</p>'),
-        bowlBtn('bowl-run', 'Run') + bowlBtn('bowl-pass', 'Pass') +
+        bowlBtn('bowl-run', 'Run' + keyChip('R')) + bowlBtn('bowl-pass', 'Pass' + keyChip('T')) +
         '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete. Keys: R runs, T throws.</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
@@ -978,6 +1067,7 @@
       impeded = false;
       if (state === 'pass' && !caught) {
         for (var i = 0; i < defenders.length; i++) {
+          if (defenders[i].blockedT > 0) continue; // tied up: cannot hold the runner up
           if (Math.hypot(defenders[i].x - px, defenders[i].y - py) < BOWL_IMPEDE_RADIUS) { impeded = true; break; }
         }
       }
@@ -1010,6 +1100,9 @@
       // is the hard part. The tension rises as the end zone gets closer.
       var goalBoost = yardsToGo() <= 20 ? 1.15 : 1;
       defenders.forEach(function (d) {
+        // Tied up by a blocker: out of the play for a beat — no chase,
+        // no tackle, no holding the runner up.
+        if (d.blockedT > 0) return;
         // Coverage men on a pass hold their ground until the receiver
         // reaches the X, then break on him at full pace. Holding means the
         // receiver can actually reach the spot instead of being run down
@@ -1018,7 +1111,7 @@
         if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) {
           if (Math.hypot(d.hx - d.x, d.hy - d.y) < 12) return; // holding: stay put
         }
-        var chase = (state === 'pass' && !caught) ? (d.cover ? (reachedX ? 1 : 0.75) : 0.6) : 1;
+        var chase = (state === 'pass' && !caught) ? (d.cover ? ((reachedX && catchT >= (d.breakDelay || 0)) ? 1 : 0.75) : 0.6) : 1;
         // Lead pursuit: aim at where the runner will be in a third of a
         // second, not where he is, so the defence cuts off the run instead
         // of trailing a faster man. A sharp cut still beats it, because
@@ -1031,21 +1124,33 @@
           // of collapsing on the runner. Each man shuffles laterally
           // within his own lane, shading toward the ball but never
           // abandoning the lane, and holds his depth — the line is the
-          // second level, already beyond the catch spot. The field stays
-          // structured, the passing lanes read, and the contest stays at
-          // the X with the coverage men. Once the ball is caught the
-          // state flips to run and everyone hunts at full pace, as before.
+          // second level, already beyond the catch spot. The room and
+          // the shade vary man to man, and both are tighter than before
+          // (Nov 10, Mikey: keep more lane discipline), so the field
+          // stays structured and the passing lanes read. Once the ball
+          // is caught the state flips to run and everyone hunts at full
+          // pace, as before.
           var laneX = d.lane;
-          tx = clamp(laneX + (px - laneX) * 0.5, laneX - 55, laneX + 55);
+          tx = clamp(laneX + (px - laneX) * (d.laneGive || 0.4), laneX - (d.laneWidth || 48), laneX + (d.laneWidth || 48));
           ty = d.y;
           chase = 0.55;
+        }
+        else if (state === 'run' && !caught && !d.cover && d.lane !== undefined) {
+          // Gap discipline on a run: the line man closes upfield but
+          // stays in his lane corridor, so the defence holds its shape
+          // instead of every man piling onto the runner's exact spot.
+          // The runner has to beat the man in his gap, not outrun a
+          // collapsing wall. After a catch the state is run too, but
+          // caught is set, so the post-catch chase is untouched.
+          tx = clamp(px + pvx * 0.3, d.lane - 70, d.lane + 70);
+          ty = py + pvy * 0.3;
         }
         var want = Math.atan2(ty - d.y, tx - d.x);
         var diff = want - d.heading;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         d.heading += clamp(diff, -BOWL_TURN_RATE * dt, BOWL_TURN_RATE * dt);
-        var sp = d.speed * chase * goalBoost;
+        var sp = d.speed * chase * goalBoost * (d.aggr || 1);
         d.x += Math.cos(d.heading) * sp * dt;
         d.y += Math.sin(d.heading) * sp * dt;
       });
@@ -1053,9 +1158,38 @@
     function checkTackle() {
       for (var i = 0; i < defenders.length; i++) {
         var d = defenders[i];
+        if (d.blockedT > 0) continue; // tied up: cannot tackle
         if (Math.hypot(d.x - px, d.y - py) < BOWL_TACKLE_RADIUS) return true;
       }
       return false;
+    }
+    function moveBlockers(dt) {
+      // Blockers run at their assigned defender and tie him up on contact.
+      // While tied up the defender does not move, tackle, or hold the
+      // runner up. The blocker sticks to him for the length of the block,
+      // then jogs on upfield, spent, and cannot block again this play.
+      blockers.forEach(function (b) {
+        if (b.engaged) {
+          var d = b.engaged;
+          if (d.blockedT > 0) { b.x = d.x; b.y = d.y + 14; return; }
+          b.engaged = null; b.spent = true;
+          return;
+        }
+        if (b.spent) { b.y = Math.max(RUNGUN_END_Y, b.y - 60 * dt); return; }
+        var t = b.target;
+        if (!t) { b.spent = true; return; }
+        var dx = t.x - b.x, dy = t.y - b.y;
+        var dl = Math.hypot(dx, dy);
+        if (dl < BOWL_BLOCK_RADIUS) {
+          t.blockedT = BOWL_BLOCK_SECONDS;
+          b.engaged = t;
+          return;
+        }
+        if (dl > 0) {
+          b.x = clamp(b.x + dx / dl * b.speed * dt, 16, GAME_W - 16);
+          b.y = clamp(b.y + dy / dl * b.speed * dt, RUNGUN_END_Y, RUNGUN_START_Y);
+        }
+      });
     }
     function tick(dt) {
       if (paused || destroyed) return;
@@ -1078,7 +1212,11 @@
         movePlayer(dt);
         pvx = dt > 0 ? (px - opx) / dt : 0;
         pvy = dt > 0 ? (py - opy) / dt : 0;
+        // Block timers tick down first, so a man whose block just ended
+        // can move again on this frame.
+        defenders.forEach(function (d) { if (d.blockedT > 0) d.blockedT -= dt; });
         moveDefenders(dt);
+        moveBlockers(dt);
         // Fresh legs: one defender at a time, never a wall of them. Only
         // once the runner has the ball — no reinforcements dropping on the
         // receiver while a pass is in the air.
@@ -1265,6 +1403,24 @@
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('S', d.x, dy + 3); ctx.textAlign = 'left';
       });
+      // Blockers: home-kit discs with a B, a beat smaller than Father Ted,
+      // so they read as teammates clearing a lane, not a second ball
+      // carrier. A spent blocker jogs on faded, out of the play.
+      blockers.forEach(function (b) {
+        var by = screenY(b.y);
+        if (b.spent && !b.engaged) ctx.globalAlpha = 0.45;
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.beginPath(); ctx.ellipse(b.x, by + 8, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+        var bg = ctx.createRadialGradient(b.x - 3, by - 4, 2, b.x, by, 10);
+        bg.addColorStop(0, uniform.home.bright);
+        bg.addColorStop(1, uniform.home.deep);
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.arc(b.x, by, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = uniform.home.ring; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('B', b.x, by + 3); ctx.textAlign = 'left';
+        ctx.globalAlpha = 1;
+      });
       // Player (Father): soft shadow, a radial burgundy disc, a gold ring,
       // and the ball only when carrying.
       var pyS = screenY(py);
@@ -1357,17 +1513,33 @@
     api.canvas.addEventListener('pointerup', endBowlTouch);
     api.canvas.addEventListener('pointerleave', endBowlTouch);
     api.canvas.addEventListener('pointercancel', endBowlTouch);
-    // Keyboard play-calling on the choose screen: R runs, T throws, so a
-    // desktop player is not reaching for the mouse on every down. P stays
-    // the pause key, so it is deliberately not the pass key.
-    function onChooseKey(e) {
-      if (state !== 'choose' || paused) return;
+    // Keyboard play for the whole loop, so a desktop player never has to
+    // reach for the mouse mid game: Space or Enter kicks off, continues
+    // from half time, skips the result slab and plays again at full time;
+    // R runs and T throws on the choose screen. P stays the pause key, so
+    // it is deliberately not the pass key. Keys never fire while the player
+    // is typing in a text field, or while the name screen is up.
+    function onBowlKey(e) {
+      var ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      if (customizing || paused) return;
       var k = e.key.toLowerCase();
-      if (k === 'r') startPlay('run');
-      else if (k === 't') startPlay('pass');
+      var go = (k === ' ' || k === 'enter');
+      if (state === 'choose') {
+        if (k === 'r') startPlay('run');
+        else if (k === 't') startPlay('pass');
+      } else if (state === 'ready') {
+        if (go) { state = 'choose'; showChoose(); }
+      } else if (state === 'half') {
+        if (go) { state = 'choose'; showChoose(); }
+      } else if (state === 'over') {
+        if (go) resetGame();
+      } else if (state === 'result') {
+        if (go) { if (clock <= 0) endQuarter(); else showChoose(); }
+      }
     }
-    document.addEventListener('keydown', onChooseKey);
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
+    document.addEventListener('keydown', onBowlKey);
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. Space or Enter kicks off, continues and plays again. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
     showStart();
     updateHud();
     last = performance.now();
@@ -1377,7 +1549,7 @@
       cancelAnimationFrame(raf);
       keys.cleanup();
       cleanupPause();
-      document.removeEventListener('keydown', onChooseKey);
+      document.removeEventListener('keydown', onBowlKey);
     };
   }
 
