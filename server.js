@@ -372,11 +372,12 @@ function layout(title, body, extraHead = '') {
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>${esc(title)} | RateMyFather</title>
   <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
+  <a class="skip-link" href="#main">Skip to main content</a>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
     <nav id="site-nav"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav>
   </div><div class="wrap quicknav-wrap"><nav class="quicknav" aria-label="Sections"><a href="/">Home</a><a href="/browse">Search &amp; Browse</a><a href="/games">Games</a><a href="/about">About</a><a href="/how">How ratings work</a></nav></div><div class="wrap">${glassStrip('thin')}</div></header>
-  <main class="wrap">${body}</main>
+  <main id="main" class="wrap" tabindex="-1">${body}</main>
   <footer class="wrap site-footer">${glassStrip('gs-7')}
   <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
   <p class="footer-tagline small">Anonymous ratings.</p>

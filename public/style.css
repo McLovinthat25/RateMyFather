@@ -70,6 +70,11 @@ p { margin:14px 0 0; }
 p:first-child { margin-top:0; }
 a { color:var(--accent); }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+/* Skip link: off-screen until a keyboard visitor tabs to it, then a
+   burgundy bar at the top of the page. */
+.skip-link { position:absolute; left:-9999px; top:0; z-index:100; background:var(--accent);
+  color:#fff; padding:12px 18px; font-weight:700; border-radius:0 0 12px 0; text-decoration:none; }
+.skip-link:focus { left:0; color:#fff; outline:2px solid var(--gold); outline-offset:-2px; }
 
 /* ---------- Layout: a wide centered column that uses the screen ---------- */
 .wrap { max-width:1150px; margin:0 auto; padding:0 20px; }
