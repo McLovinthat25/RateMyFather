@@ -949,6 +949,101 @@ app.get('/api/places/dioceses', async (req, res) => {
 // Arcade page shell; the games themselves live in /arcade.js, which renders
 // its own "The Arcade" heading, intro, and filters. The shell stays minimal
 // so the title is not printed twice.
+
+// ---- Parish leaderboard (arcade, optional) ----
+// A player may set a home parish (kept only in their own browser). When
+// one is set, a finished game's score counts toward that parish's total on
+// a per-game leaderboard shared across visitors. No personal information
+// is collected or stored: the parish name, city, state and the score are
+// all that is kept. A player who never sets a home parish plays exactly
+// as before, and scores are never submitted.
+const ARCADE_GAME_IDS = ['rungun', 'stack', 'maze', 'steeple', 'dash', 'flee', 'cross', 'pastor'];
+function parishKey(parish, city, state) {
+  return [parish, city, state].map((s) => String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()).join('|');
+}
+// In-memory per-visitor rate limit for score submissions (never persisted
+// or stored): one submission per game per visitor per 30 seconds, and an
+// identical repeat dropped within 60 seconds. Blunts naive farming; a
+// real player finishing games a few minutes apart is never affected.
+const scoreSubmitSeen = new Map();
+function scoreRateOk(token, game, score) {
+  const now = Date.now();
+  const k = token + ':' + game;
+  const prev = scoreSubmitSeen.get(k);
+  if (prev && now - prev.t < 30000) return false;
+  if (prev && prev.score === score && now - prev.t < 60000) return false;
+  scoreSubmitSeen.set(k, { t: now, score });
+  if (scoreSubmitSeen.size > 5000) {
+    for (const [key, v] of scoreSubmitSeen) { if (now - v.t > 60000) scoreSubmitSeen.delete(key); }
+  }
+  return true;
+}
+// Search distinct parishes by name or city, for picking a home parish.
+// Only parishes with an actively-listed priest appear.
+app.get('/api/parishes/search', async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  if (q.length < 2) return res.json([]);
+  try {
+    // Periods are ignored on both sides so "St Patrick" finds "St.
+    // Patrick" and vice versa.
+    const like = '%' + q.toLowerCase().replace(/\./g, '').replace(/[%_\\]/g, '').trim().replace(/\s+/g, ' ') + '%';
+    const { rows } = await pool.query(
+      `SELECT parish, city, state, COUNT(*)::int AS n FROM priests
+       WHERE status='approved' AND ${ACTIVE_WHERE}
+         AND parish IS NOT NULL AND parish <> ''
+         AND (REPLACE(LOWER(parish), '.', '') LIKE $1 OR REPLACE(LOWER(city), '.', '') LIKE $1)
+       GROUP BY parish, city, state ORDER BY n DESC, parish LIMIT 10`, [like]);
+    res.json(rows);
+  } catch (e) { res.json([]); }
+});
+// Top parishes for one game. ?parish=<key> also returns the caller's
+// parish row with its rank, even when it sits outside the top 10.
+app.get('/api/leaderboard/:game', async (req, res) => {
+  const game = String(req.params.game || '');
+  if (!ARCADE_GAME_IDS.includes(game)) return res.status(404).json({ error: 'unknown game' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT parish, city, state, total_score, games_played, best_score
+       FROM parish_scores WHERE game=$1 ORDER BY total_score DESC, games_played ASC LIMIT 10`, [game]);
+    const { rows: cRows } = await pool.query(`SELECT COUNT(*)::int AS n FROM parish_scores WHERE game=$1`, [game]);
+    let yours = null;
+    const key = String(req.query.parish || '').slice(0, 200);
+    if (key) {
+      const { rows: yRows } = await pool.query(
+        `SELECT parish, city, state, total_score, games_played, best_score,
+          (SELECT COUNT(*)::int + 1 FROM parish_scores WHERE game=$1 AND total_score > s.total_score) AS rank
+         FROM parish_scores s WHERE game=$1 AND parish_key=$2`, [game, key]);
+      if (yRows.length) yours = yRows[0];
+    }
+    res.json({ game, top: rows, count: cRows[0].n, yours });
+  } catch (e) { res.json({ game, top: [], count: 0, yours: null }); }
+});
+// One finished game's score for a home parish. Score is capped per
+// submission, and the rate limit above drops repeats and bursts.
+app.post('/api/leaderboard/score', async (req, res) => {
+  const game = String(req.body.game || '');
+  const parish = String(req.body.parish || '').trim().slice(0, 120);
+  const city = String(req.body.city || '').trim().slice(0, 80);
+  const state = String(req.body.state || '').trim().slice(0, 80);
+  const score = Number(req.body.score);
+  if (!ARCADE_GAME_IDS.includes(game) || !parish || !Number.isInteger(score) || score <= 0 || score > 100000) {
+    return res.status(400).json({ error: 'bad submission' });
+  }
+  if (!scoreRateOk(sourceTokenHash(req), game, score)) return res.status(429).json({ error: 'too fast' });
+  const key = parishKey(parish, city, state);
+  try {
+    await pool.query(
+      `INSERT INTO parish_scores (game, parish_key, parish, city, state, total_score, games_played, best_score)
+       VALUES ($1,$2,$3,$4,$5,$6::bigint,1,$6::integer)
+       ON CONFLICT (game, parish_key) DO UPDATE SET
+         total_score = parish_scores.total_score + EXCLUDED.total_score,
+         games_played = parish_scores.games_played + 1,
+         best_score = GREATEST(parish_scores.best_score, EXCLUDED.best_score),
+         updated_at = NOW()`, [game, key, parish, city, state, score]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'save failed' }); }
+});
+
 app.get('/games', (req, res) => res.send(page('Games', `
   <div id="arcade-root"><p class="small">Loading games&hellip;</p><div class="skeleton" style="height:120px;margin-top:12px"></div><div class="skeleton" style="height:120px;margin-top:12px"></div></div>
   <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>

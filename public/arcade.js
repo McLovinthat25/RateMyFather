@@ -62,6 +62,40 @@
   function storeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
   function storeDel(key) { try { localStorage.removeItem(key); } catch (e) {} }
 
+  // ---- home parish (optional) ----
+  // A player may pick a home parish from the site's parish data. It lives
+  // only in their own browser, it is never required, and it can be cleared
+  // at any time. When one is set, finished-game scores count toward that
+  // parish on the country leaderboard; without one, nothing is submitted
+  // and the games play exactly as before.
+  var HOME_PARISH_KEY = 'rmf-home-parish';
+  function readHomeParish() { try { var v = storeGet(HOME_PARISH_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function writeHomeParish(p) { try { storeSet(HOME_PARISH_KEY, JSON.stringify(p)); } catch (e) {} }
+  function clearHomeParish() { storeDel(HOME_PARISH_KEY); }
+  function homeParishLabel(p) { return p ? p.parish + (p.city ? ', ' + p.city : '') + (p.state ? ', ' + p.state : '') : ''; }
+  function homeParishKey(p) { return p ? [p.parish, p.city, p.state].map(function (s) { return String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim(); }).join('|') : ''; }
+
+  // ---- parish leaderboard: one score per finished game ----
+  // Fire-and-forget: the game-over screen never waits on it, and a failed
+  // post is silently dropped — the local best score is the record that
+  // matters to the player. The per-game flag stops a double submit for
+  // one finished game; each game's start function clears it for the
+  // next game.
+  var parishSubmitted = {};
+  function submitParishScore(gameId, score) {
+    var hp = readHomeParish();
+    if (!hp || !hp.parish || !(score > 0)) return;
+    if (parishSubmitted[gameId]) return;
+    parishSubmitted[gameId] = true;
+    if (typeof fetch !== 'function') return;
+    try {
+      fetch('/api/leaderboard/score', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game: gameId, parish: hp.parish, city: hp.city || '', state: hp.state || '', score: Math.round(score) }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   // Canvas point: converts a pointer event on a game canvas to canvas
   // coordinates, accounting for the canvas being scaled by CSS on a phone.
   // Shared by the direct-touch controls: the player touches the play area
@@ -257,11 +291,32 @@
   // Run / Pass buttons. Styled for the gold overlay buttons and the
   // Pastor choice buttons (dark text on light); the Bowl's burgundy
   // buttons carry their own chip.
+  // Devices with a real keyboard get the keyboard hints; phones and
+  // tablets get only the touch controls. The check is the standard
+  // fine-pointer-plus-hover one: a touchscreen laptop still has a
+  // keyboard, so its hints stay. Where matchMedia is missing (old
+  // browsers, the test harness) the hints show, as before. Read once
+  // and remembered: the canvas hints call this every frame.
+  var _hasKeyboard = null;
+  function hasKeyboard() {
+    if (_hasKeyboard === null) {
+      try {
+        _hasKeyboard = (typeof matchMedia === 'function') ? matchMedia('(pointer: fine) and (hover: hover)').matches : true;
+      } catch (e) { _hasKeyboard = true; }
+    }
+    return _hasKeyboard;
+  }
+  // One line of instructions with a desktop version (keyboard + touch)
+  // and a touch-only version. Phones and tablets see only the touch
+  // controls; computers see the full line.
+  function gameNote(desktop, touch) { return hasKeyboard() ? desktop : touch; }
   function kbdChip(key) {
+    if (!hasKeyboard()) return '';
     return '<span style="display:inline-block;min-width:20px;padding:2px 7px;margin-left:10px;border:1.5px solid rgba(46,34,5,.55);border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.08em;vertical-align:2px;">' + key + '</span>';
   }
   // One line under a big button, naming the keyboard way to press it.
   function kbdHint(text) {
+    if (!hasKeyboard()) return '';
     return '<p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">' + text + '</p>';
   }
   // Never swallow keys while the player is typing in a text field, and
@@ -281,14 +336,14 @@
 
   // ---- game registry ----
   var ARCADE_GAMES = [
-    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father carries the ball for Your Parish against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
-    { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
-    { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', mount: mountMaze },
-    { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
-    { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
-    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', mount: mountFlee },
-    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
-    { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger.', mount: mountPastor },
+    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father carries the ball for Your Parish against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', howTouch: 'Touch and drag on the field to move. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
+    { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', howTouch: 'Drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
+    { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', howTouch: 'Swipe and drag on the field to steer. Father walks on his own.', mount: mountMaze },
+    { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', howTouch: 'Tap to drop a stone on the tower.', mount: mountSteeple },
+    { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', howTouch: 'Tap to jump. Hold to keep hopping.', mount: mountDash },
+    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', howTouch: 'Drag on the floor to run, tap to dash.', mount: mountFlee },
+    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', howTouch: 'Touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
+    { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger.', howTouch: 'Tap a choice each week. Watch the ledger.', mount: mountPastor },
   ];
 
   // ---- arcade shelf ----
@@ -300,6 +355,135 @@
   function setChatVisible(v) {
     var w = document.getElementById('chat-widget');
     if (w) w.style.display = v ? '' : 'none';
+  }
+
+  // ---- home parish panel (optional) ----
+  // Search the site's parish data by name or city, pick one, and finished
+  // game scores count toward it on the leaderboard. Entirely optional:
+  // nothing is set until the player picks, and Clear removes it.
+  function homeParishPanel() {
+    var hp = readHomeParish();
+    var panel = el('div', 'game-card home-parish');
+    panel.style.marginBottom = '14px';
+    panel.appendChild(el('h3', '', 'Your home parish'));
+    if (hp) {
+      var line = el('p', 'blurb', 'Playing for <strong>' + esc(homeParishLabel(hp)) + '</strong>. Your scores count toward your parish on the leaderboard below.');
+      panel.appendChild(line);
+      var row = el('div', 'play-row');
+      var change = el('button', 'press', 'Change'); change.type = 'button';
+      change.addEventListener('click', function () { showParishSearch(panel, true); });
+      var clear = el('button', 'press', 'Clear'); clear.type = 'button';
+      clear.addEventListener('click', function () { clearHomeParish(); renderShelf(); });
+      row.appendChild(change); row.appendChild(clear);
+      panel.appendChild(row);
+    } else {
+      panel.appendChild(el('p', 'blurb', 'Optional: pick your home parish and your scores count toward it on the country leaderboard. Nothing is set until you pick one.'));
+      showParishSearch(panel, false);
+    }
+    return panel;
+  }
+  function showParishSearch(panel, changing) {
+    var old = panel.querySelector('.parish-search');
+    if (old) old.parentNode.removeChild(old);
+    var wrap = el('div', 'parish-search');
+    wrap.style.marginTop = '10px';
+    var input = document.createElement('input');
+    input.type = 'search';
+    input.placeholder = 'Search parish name or city';
+    input.setAttribute('aria-label', 'Search for your home parish');
+    input.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:10px 12px;border:2px solid #6e1a26;border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;';
+    var results = el('div', 'parish-results');
+    wrap.appendChild(input); wrap.appendChild(results);
+    panel.appendChild(wrap);
+    var timer = null;
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { results.innerHTML = ''; return; }
+      timer = setTimeout(function () { parishSearch(q, results, panel); }, 250);
+    });
+    if (input.focus) input.focus();
+    if (changing) {
+      var cancel = el('button', 'press', 'Cancel'); cancel.type = 'button';
+      cancel.style.marginTop = '8px';
+      cancel.addEventListener('click', function () { renderShelf(); });
+      wrap.appendChild(cancel);
+    }
+  }
+  function parishSearch(q, results, panel) {
+    if (typeof fetch !== 'function') { results.innerHTML = '<p class="small">Search needs a connection.</p>'; return; }
+    fetch('/api/parishes/search?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (rows) {
+      results.innerHTML = '';
+      if (!rows || !rows.length) { results.appendChild(el('p', 'small', 'No parish found by that name or city. Try a shorter search.')); return; }
+      rows.forEach(function (r) {
+        var b = el('button', 'chip', esc(r.parish) + ', ' + esc(r.city) + (r.state ? ', ' + esc(r.state) : '') + ' <span class="small">(' + r.n + ' priest' + (r.n === 1 ? '' : 's') + ')</span>');
+        b.type = 'button';
+        b.style.cssText = 'display:block;width:100%;text-align:left;margin-top:6px;';
+        b.addEventListener('click', function () {
+          writeHomeParish({ parish: r.parish, city: r.city || '', state: r.state || '' });
+          renderShelf();
+        });
+        results.appendChild(b);
+      });
+    }).catch(function () { results.innerHTML = '<p class="small">Search did not load. Try again.</p>'; });
+  }
+
+  // ---- parish leaderboard panel ----
+  // Top parishes across the country, per game. The player's home parish
+  // row is marked when it is on the board.
+  var currentBoardGame = 'rungun';
+  var BOARD_GAME_LABELS = { rungun: 'Parish Bowl', stack: 'Blocks', maze: 'Candle Maze', steeple: 'Steeple Stack', dash: 'Sanctuary Dash', flee: 'Flee the Sins', cross: 'Crossing', pastor: 'Parish Pastor' };
+  function leaderboardPanel() {
+    var panel = el('div', 'game-card');
+    panel.style.marginTop = '14px';
+    panel.appendChild(el('h3', '', 'Parish leaderboard'));
+    panel.appendChild(el('p', 'blurb', 'Top parishes across the country, by game. Set a home parish above and your scores count toward it.'));
+    var chips = el('div', 'chip-row');
+    chips.style.marginTop = '4px';
+    ARCADE_GAMES.forEach(function (g) {
+      var chip = el('button', 'chip', BOARD_GAME_LABELS[g.id] || g.title); chip.type = 'button';
+      chip.setAttribute('aria-pressed', currentBoardGame === g.id ? 'true' : 'false');
+      chip.addEventListener('click', function () { currentBoardGame = g.id; renderShelf(); });
+      chips.appendChild(chip);
+    });
+    panel.appendChild(chips);
+    var list = el('div', 'board-list');
+    list.style.marginTop = '10px';
+    list.appendChild(el('p', 'small', 'Loading the board…'));
+    panel.appendChild(list);
+    loadBoard(list);
+    return panel;
+  }
+  function loadBoard(list) {
+    if (typeof fetch !== 'function') { list.innerHTML = '<p class="small">The leaderboard needs a connection.</p>'; return; }
+    var hp = readHomeParish();
+    var url = '/api/leaderboard/' + currentBoardGame + (hp ? '?parish=' + encodeURIComponent(homeParishKey(hp)) : '');
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      list.innerHTML = '';
+      var rows = (data && data.top) || [];
+      if (!rows.length) {
+        list.appendChild(el('p', 'small', 'No scores yet for this game — set a home parish above and be the first.'));
+        return;
+      }
+      var hpKey = homeParishKey(hp);
+      rows.forEach(function (r, i) {
+        var mine = hpKey && [r.parish, r.city, r.state].map(function (s) { return String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim(); }).join('|') === hpKey;
+        var row = el('p', 'board-row');
+        row.style.cssText = 'margin:0 0 6px;font-size:15px;' + (mine ? 'font-weight:700;' : '');
+        row.innerHTML = '<strong>#' + (i + 1) + '</strong> ' + esc(r.parish) + ', ' + esc(r.city) + (r.state ? ', ' + esc(r.state) : '') +
+          ' — <strong>' + Number(r.total_score).toLocaleString() + ' pts</strong> <span class="small">· ' + r.games_played + ' game' + (r.games_played === 1 ? '' : 's') + ' · best ' + Number(r.best_score).toLocaleString() + '</span>' +
+          (mine ? ' <span class="small" style="color:#6e1a26;font-weight:700;">Your parish</span>' : '');
+        list.appendChild(row);
+      });
+      if (data.yours && data.yours.rank > rows.length) {
+        var y = data.yours;
+        var yours = el('p', 'board-row');
+        yours.style.cssText = 'margin:10px 0 0;font-size:15px;font-weight:700;';
+        yours.innerHTML = '<strong>#' + y.rank + '</strong> ' + esc(y.parish) + ', ' + esc(y.city) + (y.state ? ', ' + esc(y.state) : '') +
+          ' — <strong>' + Number(y.total_score).toLocaleString() + ' pts</strong> <span class="small">· ' + y.games_played + ' game' + (y.games_played === 1 ? '' : 's') + ' · best ' + Number(y.best_score).toLocaleString() + '</span> <span class="small" style="color:#6e1a26;font-weight:700;">Your parish</span>';
+        list.appendChild(yours);
+      }
+    }).catch(function () { list.innerHTML = '<p class="small">The board did not load. Try again.</p>'; });
   }
 
   function renderShelf() {
@@ -339,13 +523,16 @@
       play.addEventListener('click', function () { openGame(g.id); });
       row.appendChild(play);
       card.appendChild(row);
-      card.appendChild(el('p', 'meta', '<strong>' + esc(g.verdict) + '</strong> ' + esc(g.how)));
+      card.appendChild(el('p', 'meta', '<strong>' + esc(g.verdict) + '</strong> ' + esc(hasKeyboard() ? g.how : (g.howTouch || g.how))));
       shelf.appendChild(card);
     });
     if (!shelf.children.length) {
       shelf.appendChild(el('p', 'small', currentFilter === 'trophies' ? 'No trophies yet. Play a game to earn your first best score.' : 'You have played them all.'));
     }
-    root.appendChild(head); root.appendChild(tools); root.appendChild(shelf);
+    root.appendChild(head); root.appendChild(tools);
+    root.appendChild(homeParishPanel());
+    root.appendChild(shelf);
+    root.appendChild(leaderboardPanel());
   }
 
   function openGame(id) {
@@ -548,7 +735,8 @@
       else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; catchDwell = BOWL_CATCH_DWELL; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; blockerChance = 0.35; blockerCount = 2; }
     }
     applyBowlDiff();
-    var parishName = storeGet('rmf-parish-bowl-parish') || 'Your Parish';
+    var _homeParish0 = readHomeParish();
+    var parishName = storeGet('rmf-parish-bowl-parish') || (_homeParish0 ? _homeParish0.parish : '') || 'Your Parish';
     var opponent = 'St Swithin\u2019s';
     var state = 'ready'; // ready | choose | run | pass | result | over
     var customizing = false; // the name screen is up: keyboard play must not fire while it is
@@ -566,6 +754,7 @@
     var blockers = []; // teammates who run ahead and tie up a defender each
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
     var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
+  var ballFlight = null; // the throw in the air: launch spot, target, flight time, arrived
   var passTimeLeft = 0, impeded = false, reachedX = false; // countdown to the catch spot; held-up flag; reached the X
   var passRoute = null; // what kind of throw this is (depth + direction), for the HUD
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
@@ -883,12 +1072,16 @@
         var dwellBase = passRoute.kind === 'Short' ? BOWL_CATCH_DWELL_SHORT : passRoute.kind === 'Deep' ? BOWL_CATCH_DWELL_DEEP : BOWL_CATCH_DWELL;
         var dwellFactor = diff === 'easy' ? 0.5 / BOWL_CATCH_DWELL : diff === 'hard' ? 0.3 / BOWL_CATCH_DWELL : 1;
         catchDwell = dwellBase * dwellFactor;
+        // Run and gun: the ball leaves Father's hands on an arc to the X,
+        // so the receiver watches it coming and times the catch. Flight
+        // time scales with the throw: short is quick, deep hangs.
+        ballFlight = { x0: px, y0: py, x1: passTarget.x, y1: passTarget.y, t: 0, dur: passRoute.kind === 'Short' ? 0.55 : passRoute.kind === 'Deep' ? 0.95 : 0.75, arrived: false };
         passTimeLeft = passLimit;
         impeded = false; reachedX = false;
         hasBall = false;
         state = 'pass';
       } else {
-        passTarget = null; passRoute = null;
+        passTarget = null; passRoute = null; ballFlight = null;
         hasBall = true;
         state = 'run';
       }
@@ -998,6 +1191,7 @@
     function gameOver() {
       state = 'over';
       var finalBest = writeBest('rungun', score);
+      submitParishScore('rungun', score);
       best = finalBest;
       var yardsGained = Math.max(0, score - tds * RUNGUN_TOUCHDOWN_BONUS);
       api.showOverlay(bowlCard('Full time', esc(parishName) + ' ' + (tds * 7) + ' — ' + esc(opponent) + ' ' + (oppTds * 7),
@@ -1014,13 +1208,14 @@
       updateHud();
     }
     function resetGame() {
+      parishSubmitted['rungun'] = false;
       quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0; tds = 0; oppTds = 0;
       bestPlay = 0; drivePlays = 0; driveYards = 0; popYards = 0; popT = 0;
       qTurnover = false; qScored = false;
       px = GAME_W / 2; py = RUNGUN_START_Y; timeGoneShown = false;
       down = 1; seriesStart = 80; seriesGain = 0;
       coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
-      defenders = []; blockers = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0;
+      defenders = []; blockers = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0; ballFlight = null;
       state = 'choose'; showChoose();
     }
     // ---- designed overlay card: parchment panel, burgundy frame, gold rule ----
@@ -1037,10 +1232,12 @@
     // A key shown on the button itself, so a keyboard player sees at a
     // glance which key picks it — no hunting through the fine print.
     function keyChip(key) {
+      if (!hasKeyboard()) return '';
       return '<span style="display:inline-block;min-width:20px;padding:2px 7px;margin-left:10px;border:1.5px solid rgba(255,244,214,.7);border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.08em;vertical-align:2px;">' + key + '</span>';
     }
     // One line under a big button, naming the keyboard way to press it.
     function keyHint(text) {
+      if (!hasKeyboard()) return '';
       return '<p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">' + text + '</p>';
     }
     function showStart() {
@@ -1067,7 +1264,7 @@
       api.showOverlay(bowlCard('Your home parish priest', 'Who\u2019s carrying it?',
         '<p style="margin:0 0 14px;font-size:14px;line-height:1.45;">Your priest and parish run through the game: the scoreboard, the coach, and the results.</p>' +
         '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;">Priest name<input id="rungun-priest-name" placeholder="Father" value="' + esc(storeGet('rmf-parish-bowl-priest') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>' +
-        '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:16px;">Parish name<input id="rungun-parish-name" placeholder="St Patrick\u2019s" value="' + esc(storeGet('rmf-parish-bowl-parish') || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>',
+        '<label style="display:block;text-align:left;font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;margin-bottom:16px;">Parish name<input id="rungun-parish-name" placeholder="St Patrick\u2019s" value="' + esc(storeGet('rmf-parish-bowl-parish') || (readHomeParish() || {}).parish || '') + '" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:2px solid ' + BOWL_BURGUNDY + ';border-radius:8px;background:#fff;font-family:Georgia,serif;font-size:15px;letter-spacing:0;text-transform:none;font-weight:400;"></label>',
         '<button type="button" class="big-btn press" id="bowl-save-names" style="background:' + BOWL_BURGUNDY + ';color:' + BOWL_PARCHMENT + ';letter-spacing:.14em;text-transform:uppercase;">Save</button>' +
         '<button type="button" class="linklike" id="bowl-forget-names">Forget my names</button>' +
         '<button type="button" class="linklike" id="bowl-custom-back">Back</button>'));
@@ -1099,7 +1296,7 @@
         '<p style="margin:0 0 4px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>' +
         (drivePlays > 0 ? '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">Drive: ' + drivePlays + (drivePlays === 1 ? ' play' : ' plays') + ' · +' + driveYards + ' yards</p>' : '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">&nbsp;</p>'),
         bowlBtn('bowl-run', 'Run' + keyChip('R')) + bowlBtn('bowl-pass', 'Pass' + keyChip('T')) +
-        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete. Keys: R runs, T throws.</p>'));
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete.' + (hasKeyboard() ? ' Keys: R runs, T throws.' : '') + '</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
@@ -1312,14 +1509,24 @@
           }
         }
         if (state === 'pass' && passTarget && !caught) {
+          // The ball flies while the receiver runs: it lands at the X
+          // before it can be caught, so a receiver who beats the throw
+          // to the spot waits for the ball instead of catching air.
+          if (ballFlight && !ballFlight.arrived) {
+            ballFlight.t += dt;
+            if (ballFlight.t >= ballFlight.dur) ballFlight.arrived = true;
+          }
           var dist = Math.hypot(passTarget.x - px, passTarget.y - py);
           if (dist <= BOWL_CATCH_RADIUS) {
             reachedX = true; // made the spot: the clock stops, the catch is the fight now
-            catchT += dt;
-            if (catchT >= catchDwell) {
-              caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
-              api.showBanner('Caught!', 1600);
-              state = 'run'; // carry on running with the ball
+            if (!ballFlight || ballFlight.arrived) {
+              catchT += dt;
+              if (catchT >= catchDwell) {
+                caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
+                ballFlight = null;
+                api.showBanner('Caught!', 1600);
+                state = 'run'; // carry on running with the ball
+              }
             }
           } else {
             // Demo catch: standing off the mark lets the catch slip away
@@ -1532,6 +1739,40 @@
         ctx.beginPath(); ctx.arc(px + 10, pyS - 6, 4, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = 'rgba(46,34,5,0.6)'; ctx.lineWidth = 1; ctx.stroke();
       }
+      // The ball in the air: on a pass the throw arcs from Father to the
+      // gold X, so the receiver watches it coming and times the catch.
+      // The dotted arc shows where it is going, the shadow tracks its
+      // ground position, and the ball itself rides the arc, growing as
+      // it climbs. Once it lands it sits at the X until the catch.
+      if (state === 'pass' && ballFlight && !caught) {
+        var bp = clamp(ballFlight.t / ballFlight.dur, 0, 1);
+        var bGX = ballFlight.x0 + (ballFlight.x1 - ballFlight.x0) * bp;
+        var bGY = ballFlight.y0 + (ballFlight.y1 - ballFlight.y0) * bp;
+        var bDist = Math.hypot(ballFlight.x1 - ballFlight.x0, ballFlight.y1 - ballFlight.y0);
+        var bPeak = 26 + bDist * 0.09;
+        var bH = 4 * bPeak * bp * (1 - bp);
+        var bSX = bGX, bSY = screenY(bGY);
+        if (!ballFlight.arrived) {
+          ctx.strokeStyle = 'rgba(217,180,90,0.55)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]);
+          ctx.beginPath();
+          for (var bi = 0; bi <= 16; bi++) {
+            var bq = bi / 16;
+            var aqx = ballFlight.x0 + (ballFlight.x1 - ballFlight.x0) * bq;
+            var aqy = ballFlight.y0 + (ballFlight.y1 - ballFlight.y0) * bq;
+            var aqh = 4 * bPeak * bq * (1 - bq);
+            if (bi === 0) ctx.moveTo(aqx, screenY(aqy) - aqh); else ctx.lineTo(aqx, screenY(aqy) - aqh);
+          }
+          ctx.stroke(); ctx.setLineDash([]);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.30)';
+        ctx.beginPath(); ctx.ellipse(bSX, bSY + 8, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+        var bR = 5 + bH * 0.03;
+        ctx.fillStyle = '#8a5a2b';
+        ctx.beginPath(); ctx.ellipse(bSX, bSY - bH, bR + 2, bR, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#f0d48a'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(bSX, bSY - bH, bR + 2, bR, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bSX - 3, bSY - bH); ctx.lineTo(bSX + 3, bSY - bH); ctx.stroke();
+      }
       // Held up: a defender in your face, so the player can see why the
       // run to the X has gone slow.
       if (impeded) {
@@ -1568,7 +1809,7 @@
       if (paused) {
         ctx.fillStyle = 'rgba(82,18,25,0.88)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = BOWL_PARCHMENT; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused \u2014 press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused \u2014 press P to resume' : 'Paused \u2014 tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function loop(t) {
@@ -1632,7 +1873,7 @@
       }
     }
     document.addEventListener('keydown', onBowlKey);
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. Space or Enter kicks off, continues and plays again. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to move. Space or Enter kicks off, continues and plays again. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.', 'Touch and drag on the field to run; drag to the gold X and hold still to catch. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there.')));
     showStart();
     updateHud();
     last = performance.now();
@@ -1744,6 +1985,7 @@
     function gameOver() {
       state = 'over';
       var fb = writeBest('stack', score); best = fb;
+      submitParishScore('stack', score);
       api.showOverlay('<h3>The window is full</h3><p>Score: ' + score + ' &middot; Lines: ' + lines + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="stack-again">Play again</button>' +
         kbdHint('Keyboard: Space or Enter plays again.') +
@@ -1756,6 +1998,7 @@
     }
     function startGame() {
       applyStackDiff();
+      parishSubmitted['stack'] = false;
       resetGrid(); bag = []; held = null; canHold = true; score = 0; lines = 0; level = 1; combo = 0; dropT = 0;
       state = 'playing'; api.hideOverlay(); spawn(); updateHud();
     }
@@ -1846,7 +2089,7 @@
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused — press P to resume' : 'Paused — tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function tick(dt) {
@@ -1942,7 +2185,7 @@
     touchRow.appendChild(makeTouchButton('↓', softDrop));
     touchRow.appendChild(makeTouchButton('Hold', holdCur, { repeat: false }));
     touchRow.appendChild(makeTouchButton('Slam', slam, { repeat: false, wide: true }));
-    api.actions.appendChild(el('p', 'game-note', 'Space or Enter starts and plays again. Left and right to move, Up to turn, Down to drop faster, Space to slam it down, C to hold a pane for later. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Space or Enter starts and plays again. Left and right to move, Up to turn, Down to drop faster, Space to slam it down, C to hold a pane for later. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.', 'Drag on the window to slide a pane, tap to turn it, or use the buttons below.')));
     api.showOverlay('<h3>Stained-Glass Blocks</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
       diffPickerHtml('stack', diff) +
       '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>' +
@@ -1987,6 +2230,7 @@
     }
     function startGame() {
       applySteepleDiff();
+      parishSubmitted['steeple'] = false;
       tower = []; score = 0; wind = 0; camOff = 0; state = 'playing';
       api.hideOverlay(); newStone(); updateHud();
     }
@@ -2034,6 +2278,7 @@
     function gameOver() {
       state = 'over';
       var fb = writeBest('steeple', score); best = fb;
+      submitParishScore('steeple', score);
       api.showOverlay('<h3>The steeple toppled</h3><p>Height: ' + tower.length + (tower.length === 1 ? ' stone' : ' stones') + ' &middot; Score: ' + score + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="steeple-again">Build again</button>' +
         kbdHint('Keyboard: Space or Enter builds again.') +
@@ -2082,7 +2327,7 @@
         ctx.beginPath(); ctx.moveTo(moving.x + moving.w / 2, 48); ctx.lineTo(moving.x + moving.w / 2, topY - 18); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = '#6f6259'; ctx.font = '12px Georgia';
-        ctx.fillText('Tap or press Space to drop', 12, 20);
+        ctx.fillText(hasKeyboard() ? 'Tap or press Space to drop' : 'Tap to drop', 12, 20);
       }
       if (perfectT > 0) {
         ctx.globalAlpha = Math.min(1, perfectT);
@@ -2109,7 +2354,7 @@
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused — press P to resume' : 'Paused — tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function tick(dt) {
@@ -2139,7 +2384,7 @@
       if (go && state === 'playing' && !paused && !kbdOnButton(e)) { e.preventDefault(); drop(); }
     }
     api.canvas.addEventListener('pointerdown', function () { drop(); });
-    api.actions.appendChild(el('p', 'game-note', 'Tap the field or press Space to drop the stone. Space or Enter starts and builds again. The wind picks up once the tower grows tall.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Tap the field or press Space to drop the stone. Space or Enter starts and builds again. The wind picks up once the tower grows tall.', 'Tap the field to drop the stone. The wind picks up once the tower grows tall.')));
     api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples. ' + gameMark('steeple') + '</p>' +
       diffPickerHtml('steeple', diff) +
       '<button type="button" class="big-btn press" id="steeple-start">Start building</button>' +
@@ -2205,6 +2450,7 @@
     var dpadVec = { x: 0, y: 0 };
     function startGame() {
       applyFleeDiff();
+      parishSubmitted['flee'] = false;
       px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = bellFirst; warmupT = warmupSecs;
       bellCount = 0; nearCd = 0;
       // The first bell rings after 30 seconds, not 60, so a casual player
@@ -2230,6 +2476,7 @@
       state = 'over';
       var finalScore = Math.floor(score);
       var fb = writeBest('flee', finalScore); best = fb;
+      submitParishScore('flee', finalScore);
       api.showOverlay('<h3>The sins caught up</h3><p>Score: ' + finalScore + ' &middot; Survived: ' + Math.floor(elapsed) + 's<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="flee-again">Run again</button>' +
         kbdHint('Keyboard: Space or Enter runs again.') +
@@ -2288,12 +2535,12 @@
         // Dash is ready: say so at a glance, so the player knows the
         // grace-dash is available without having to remember the cooldown.
         ctx.fillStyle = '#b28a2e'; ctx.font = 'bold 11px Georgia';
-        ctx.fillText('Dash ready — Space', 12, 20);
+        ctx.fillText(hasKeyboard() ? 'Dash ready — Space' : 'Dash ready — tap', 12, 20);
       }
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused — press P to resume' : 'Paused — tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function tick(dt) {
@@ -2429,12 +2676,12 @@
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
-    var dashBtn = el('button', 'press', 'Grace-dash (Space)'); dashBtn.type = 'button';
+    var dashBtn = el('button', 'press', 'Grace-dash' + (hasKeyboard() ? ' (Space)' : '')); dashBtn.type = 'button';
     dashBtn.addEventListener('click', function () {
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Halos are +25. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.', 'Halos are +25. The bell rings and drives the sins back \u2014 survive until it rings. Drag on the floor to run, tap to dash.')));
     api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. ' + gameMark('flee') + '</p>' +
       diffPickerHtml('flee', diff) +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>' +
@@ -2506,6 +2753,7 @@
     }
     function startGame() {
       applyCrossDiff();
+      parishSubmitted['cross'] = false;
       px = GAME_W / 2; py = GAME_H - 18; lives = livesStart; score = 0; level = 1; bellT = bellStart;
       buildLevel(); state = 'playing'; api.hideOverlay(); updateHud();
     }
@@ -2519,6 +2767,7 @@
     function gameOver(why) {
       state = 'over';
       var fb = writeBest('cross', score); best = fb;
+      submitParishScore('cross', score);
       api.showOverlay('<h3>' + esc(why) + '</h3><p>Score: ' + score + ' &middot; Level: ' + level + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="cross-again">Cross again</button>' +
         kbdHint('Keyboard: Space or Enter crosses again.') +
@@ -2615,7 +2864,7 @@
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused — press P to resume' : 'Paused — tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function onRiver() { return py > RIVER_TOP && py < RIVER_BOT; }
@@ -2731,7 +2980,7 @@
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. Space or Enter starts and crosses again. Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. On touch, hold the field to walk toward your finger.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to move. Space or Enter starts and crosses again. Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. On touch, hold the field to walk toward your finger.', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. Hold the field to walk toward your finger.')));
     api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Every step forward is +10. Follow the moth to the right door. ' + gameMark('cross') + '</p>' +
       diffPickerHtml('cross', diff) +
       '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>' +
@@ -2950,7 +3199,10 @@
     function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week]; }
     var best = readBest('pastor');
     function parishName() {
-      try { return localStorage.getItem('rmf-parish-bowl-parish') || 'Your Parish'; } catch (e) { return 'Your Parish'; }
+      try {
+        var hp = readHomeParish();
+        return localStorage.getItem('rmf-parish-bowl-parish') || (hp ? hp.parish : '') || 'Your Parish';
+      } catch (e) { return 'Your Parish'; }
     }
     function personalise(text) {
       var name = parishName();
@@ -3011,6 +3263,7 @@
       over = true;
       var score = Math.max(0, Math.round(cong + happy + Math.max(0, funds) / 10));
       var fb = writeBest('pastor', score); best = fb;
+      submitParishScore('pastor', score);
       // A verdict for the season, so the ending lands and the player has a
       // title to chase next season.
       var verdict = score >= 700 ? 'A flourishing parish — the pews are full and the books balance.' :
@@ -3071,6 +3324,7 @@
     }
     function startSeason() {
       applyPastorDiff();
+      parishSubmitted['pastor'] = false;
       deck = PASTOR_DECK.slice();
       for (var i = deck.length - 1; i > 0; i--) { var j = randInt(0, i); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
       deck = deck.slice(0, PASTOR_WEEKS);
@@ -3215,6 +3469,7 @@
     }
     function startGame() {
       applyMazeDiff();
+      parishSubmitted['maze'] = false;
       score = 0; level = 1; lives = livesStart; flawless = true;
       extraGiven = { 10000: false, 30000: false };
       buildMaze(); resetPositions();
@@ -3245,6 +3500,7 @@
     function gameOver() {
       state = 'over';
       var fb = writeBest('maze', score); best = fb;
+      submitParishScore('maze', score);
       api.showOverlay('<h3>The candles go dark</h3><p>Grace: ' + score + ' &middot; Vigil reached: ' + level + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="maze-again">Light the candles again</button>' +
         kbdHint('Keyboard: Space or Enter lights the candles again · R restarts too.') +
@@ -3470,7 +3726,7 @@
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused — press P to resume' : 'Paused — tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function tick(dt) {
@@ -3593,7 +3849,7 @@
       if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? 1 : -1, 0);
       else steer(0, dy > 0 ? 1 : -1);
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible. Space or Enter starts, begins the next vigil and restarts. R restarts.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible. Space or Enter starts, begins the next vigil and restarts. R restarts.', 'Swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible.')));
     api.showOverlay('<h3>Candle Maze</h3><p>Light the candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
       diffPickerHtml('maze', diff) +
       '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>' +
@@ -3734,6 +3990,7 @@
     function screenX(wx) { return wx - dist + 120; }
     function startRun(newSeed) {
       applyDashDiff();
+      parishSubmitted['dash'] = false;
       if (typeof newSeed === 'number') { seed = newSeed; layout = genDashLayout(seed, dashDens); }
       dist = 0; y = DASH_FLOOR - DASH_CUBE / 2; vy = 0; grounded = true;
       gateIdx = -1; gateMult = 1; bonus = 0; chain = 0;
@@ -3754,6 +4011,7 @@
       var fb = best, newDepth = bestDepth;
       if (!practice) {
         fb = writeBest('dash', sc); best = fb;
+        submitParishScore('dash', sc);
         if (pct > bestDepth) {
           newDepth = pct; bestDepth = pct;
           try { localStorage.setItem('rmf-dash-depth', String(pct)); } catch (e) { /* ignore */ }
@@ -3971,7 +4229,7 @@
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('Paused — press P to resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+        ctx.fillText(hasKeyboard() ? 'Paused — press P to resume' : 'Paused — tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
       }
     }
     function tick(dt) {
@@ -4165,7 +4423,7 @@
     api.canvas.addEventListener('pointerup', function () { holding = false; });
     api.canvas.addEventListener('pointerleave', function () { holding = false; });
     api.canvas.addEventListener('pointercancel', function () { holding = false; });
-    api.actions.appendChild(el('p', 'game-note', 'Space, Up, W, click or tap to jump. Hold to keep hopping; in dove stretches hold to rise and release to fall. Space or Enter retries this course, R runs a new one.'));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Space, Up, W, click or tap to jump. Hold to keep hopping; in dove stretches hold to rise and release to fall. Space or Enter retries this course, R runs a new one.', 'Tap to jump. Hold to keep hopping; in dove stretches hold to rise and release to fall.')));
     var practiceWrap = el('label', 'game-note', '');
     var practiceBox = document.createElement('input');
     practiceBox.type = 'checkbox';
