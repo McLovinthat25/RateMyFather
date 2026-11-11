@@ -336,7 +336,7 @@
 
   // ---- game registry ----
   var ARCADE_GAMES = [
-    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father carries the ball for Your Parish against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', howTouch: 'Touch and drag on the field to move. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
+    { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father carries the ball for Your Parish against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then be in the gold circle as the ball arrives to catch it. The ball arcs in slowly enough to track, so watch it and time your run — the defence will hold you up on the way.', howTouch: 'Touch and drag on the field to move. Choose RUN or PASS, then be in the gold circle as the ball arrives to catch it. The ball arcs in slowly enough to track, so watch it and time your run — the defence will hold you up on the way.', mount: mountBowl },
     { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', howTouch: 'Drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
     { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', howTouch: 'Swipe and drag on the field to steer. Father walks on his own.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', howTouch: 'Tap to drop a stone on the tower.', mount: mountSteeple },
@@ -552,10 +552,11 @@
 
   // ================= The Parish Bowl =================
   // Your Parish vs St Swithin's. Four downs to gain ten yards, four quarters
-  // of 45 seconds. Run it or pass it: on a pass, reach the gold X and hold
-  // still to catch, then run it in — but you have 2 seconds to get to the
-  // spot, and the defence holds you up on the way, so the catch is a fight,
-  // not a free run. A touchdown is the yards gained plus a bonus.
+  // of 45 seconds. Run it or pass it: on a pass, be in the gold circle
+  // as the ball arrives to catch it, then run it in — the ball takes its
+  // time arcing in, so watch it and time your run, and the defence holds
+  // you up on the way, so getting to the spot is the fight, not a free
+  // run. A touchdown is the yards gained plus a bonus.
   // Half time comes after Q2, and St Swithin's are a step quicker in the
   // second half. Their drive after each quarter starts from your field
   // position: a turnover hands them a short field, a touchdown leaves
@@ -588,32 +589,29 @@
   // running, exactly like a run play. A completed pass is no windfall.
   var RUNGUN_PASS_STUN_SECONDS = 0; // No free step after the catch: the
   // defence is already closing, so the catch is immediately contested.
-  var BOWL_PASS_TIME_LIMIT = 2.0; // Seconds to reach the gold X once the
-  // pass is thrown: get to the spot before the clock runs out, or the pass
-  // fails. The countdown is on the scoreboard and the X. Once the receiver
-  // reaches the X, the clock stops and the catch itself is the fight.
+  var BOWL_PASS_TIME_LIMIT = 3.0; // Seconds to reach the gold X once the
+  // pass is thrown (Medium): get to the spot before the clock runs out,
+  // or the pass fails. The countdown is on the scoreboard and the X.
+  // Once the receiver reaches the X, the clock stops. Easy gives 3.4s,
+  // Hard 2.6s. The clock is a backstop — the ball landing is the real
+  // deadline (see the flight times below), so the limit always clears
+  // the longest throw plus the grace window.
   var BOWL_IMPEDE_RADIUS = 36; // A defender this close holds the runner up
   // on a pass: the route to the X is a fight through bodies, not a free run.
   var BOWL_IMPEDE_SLOW = 0.4; // Runner's pace while held up.
   var PX_PER_YARD = (RUNGUN_START_Y - RUNGUN_END_Y) / 80; // 9.8
-  var BOWL_CATCH_DWELL = 0.38; // Medium throw on Medium difficulty: hold
-  // still briefly to catch. The catch itself is quick, because the
-  // defence is right there — a clean, fast route to the spot completes
-  // the catch, and the man on the receiver is on him the instant after,
-  // so the catch buys position and then the runner has to beat the
-  // tackle. The hold is long enough that a man closing from a step away
-  // can break the catch up, so reaching the spot is not enough on its
-  // own: the receiver has to arrive with the defender still a step off
-  // him.
-  // Catch window scales with the throw (Nov 10, Mikey: a further pass
-  // needs more time to catch than a short one). Base dwells on Medium:
-  // short 0.30s, medium 0.38s, deep 0.45s. Easy and Hard scale by the
-  // same factor as the difficulty table, so a medium throw is still
-  // 0.5s on Easy and 0.3s on Hard. startPlay sets catchDwell per throw
-  // from this table; the catch fill ring reads catchDwell, so the
-  // visible window scales with it automatically.
-  var BOWL_CATCH_DWELL_SHORT = 0.30;
-  var BOWL_CATCH_DWELL_DEEP = 0.45;
+  // The catch rule (Nov 10, Mikey: if you are in the circle when the
+  // ball is arriving, you catch the ball — no dwell, no standing in
+  // the circle for a set time). The ball flies slowly enough to track
+  // and to run to: short 1.0s, medium 1.5s, deep 2.0s in the air, so
+  // the receiver and the ball converge on the X together. Once the ball
+  // lands it sits at the X for a short grace window, and arriving in
+  // the circle inside that window still catches it. After the grace
+  // the ball is dead and the pass is incomplete.
+  var BOWL_FLIGHT_SHORT = 1.0;
+  var BOWL_FLIGHT_MEDIUM = 1.5;
+  var BOWL_FLIGHT_DEEP = 2.0;
+  var BOWL_CATCH_GRACE = 0.6; // Seconds the landed ball waits at the X.
   var BOWL_CATCH_RADIUS = 26;
   var RUNGUN_TOUCHDOWN_BONUS = 100; // demo: yards + 100 points on a touchdown
   var BOWL_TACKLE_RADIUS = 20; // was 21: a tackle has to actually reach the runner
@@ -625,18 +623,14 @@
   // Bowl again and the defence was still nowhere near the receiver on a
   // pass. Measured on the previous build, the nearest man was 61-74px
   // from the runner when he reached the X, and the catch mostly failed
-  // during a long 0.7s hold while the defence closed from a distance —
-  // it read as the catch being stolen, not contested. So the coverage
-  // now holds its ground ON the receiver (a man on the spot 43-54px from
-  // the X, a shadow 60-75px off the route) and breaks on him at full
-  // pace the instant he reaches the X, and the hold scales with the
-  // throw (short 0.30s, medium 0.38s, deep 0.50s on Medium). Measured
-  // with a straight-line driver over 16 pass plays: the nearest man is
-  // 49-63px away when the receiver reaches the X (median 54) and 22-24px
-  // away at the catch (median 24), the simple run-to-the-X strategy
-  // catches 4 of 16 and scores 0 touchdowns, and the run play is
-  // untouched (about 10 yards a carry). The pass is a gamble now, not a
-  // free score, and a defender is right there on it.
+  // while the defence closed from a distance — it read as the catch
+  // being stolen, not contested. So the coverage now holds its ground
+  // ON the receiver (a man on the spot 43-54px from the X, a shadow
+  // 60-75px off the route) and breaks on him at full pace the instant
+  // he reaches the X. The catch itself is instant on arrival (Nov 10:
+  // no dwell), so the contest is the route to the X and the tackle
+  // after the catch, not a hold at the spot. The pass is a gamble now,
+  // not a free score, and a defender is right there on it.
   // Human-first defence tuning (Nov 9, second pass): Mikey played the live
   // Bowl again and the defence was still far too fast. The bots scored
   // easily, but a human reacts in 600-800ms and plays on a dpad, so the
@@ -654,9 +648,9 @@
   // lead pursuit of 0.3s so defenders cut off the run instead of trailing
   // it, and a 1.15x goal-line stand inside twenty yards. A perfect player
   // still scores; a casual player gains steadily without feeling swarmed.
-  // Passes were verified separately with exact coordinates: the catch
-  // registers in 1.38s from the snap when the runner reaches the gold X
-  // and holds still, so the pass game is intact.
+  // Passes were verified separately with a human-like driver: the catch
+  // registers the frame the receiver reaches the circle as the ball
+  // arrives, on every difficulty, so the pass game is intact.
   var BOWL_WAVE_SECONDS = 3; // was 4: fresh legs arrive sooner on a breakaway, so a long run meets reinforcements
   var BOWL_DEFENDER_CAP = 11; // was 7: at 7 the cap left no room for a wave
   // in Q3/Q4 on Medium and Hard (the opening line alone fills it), so
@@ -723,16 +717,16 @@
     var diff = readDiff('rungun'); // Easy / Medium / Hard; Medium is the tuned default
     var uniform = readBowlUniform(); // kit choice, remembered in the browser
     var defLo = 100, defHi = 125, covLo = 110, covHi = 130, defBase = 3;
-    var passLimit = BOWL_PASS_TIME_LIMIT, catchDwell = BOWL_CATCH_DWELL, oppChance = 0.5, waveSecs = BOWL_WAVE_SECONDS;
+    var passLimit = BOWL_PASS_TIME_LIMIT, oppChance = 0.5, waveSecs = BOWL_WAVE_SECONDS;
     var blockerChance = 0.35, blockerCount = 2; // how often blockers line up, and how many
     function applyBowlDiff() {
-      // Easy: slower defence, more time on the catch, a kinder opponent —
+      // Easy: slower defence, more time to reach the spot, a kinder opponent —
       // and blockers always in front of you, so the easy game reads as the
       // friendly one. Hard: faster defence, less time, a sharper opponent,
       // and blockers are rare and only one man. Medium sits between.
-      if (diff === 'easy') { defLo = 80; defHi = 100; covLo = 90; covHi = 105; defBase = 2; passLimit = 2.6; catchDwell = 0.5; oppChance = 0.35; waveSecs = 5; blockerChance = 1; blockerCount = 2; }
-      else if (diff === 'hard') { defLo = 120; defHi = 150; covLo = 130; covHi = 155; defBase = 4; passLimit = 1.6; catchDwell = 0.3; oppChance = 0.65; waveSecs = 3; blockerChance = 0.2; blockerCount = 1; }
-      else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; catchDwell = BOWL_CATCH_DWELL; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; blockerChance = 0.35; blockerCount = 2; }
+      if (diff === 'easy') { defLo = 80; defHi = 100; covLo = 90; covHi = 105; defBase = 2; passLimit = 3.4; oppChance = 0.35; waveSecs = 5; blockerChance = 1; blockerCount = 2; }
+      else if (diff === 'hard') { defLo = 120; defHi = 150; covLo = 130; covHi = 155; defBase = 4; passLimit = 2.6; oppChance = 0.65; waveSecs = 3; blockerChance = 0.2; blockerCount = 1; }
+      else { defLo = 100; defHi = 125; covLo = 110; covHi = 130; defBase = 3; passLimit = BOWL_PASS_TIME_LIMIT; oppChance = 0.5; waveSecs = BOWL_WAVE_SECONDS; blockerChance = 0.35; blockerCount = 2; }
     }
     applyBowlDiff();
     var _homeParish0 = readHomeParish();
@@ -753,9 +747,9 @@
     var defenders = [];
     var blockers = []; // teammates who run ahead and tie up a defender each
     var waveT = 0, yardsAtWave = 80, playStartYards = 80, playStartPy = RUNGUN_START_Y, playT = 0;
-    var passTarget = null, catchT = 0, caught = false, hasBall = false, freezeT = 0;
+    var passTarget = null, caught = false, hasBall = false, freezeT = 0;
   var ballFlight = null; // the throw in the air: launch spot, target, flight time, arrived
-  var passTimeLeft = 0, impeded = false, reachedX = false; // countdown to the catch spot; held-up flag; reached the X
+  var passTimeLeft = 0, passTimeMax = 0, impeded = false, reachedX = false, reachedXT = 0, graceT = 0; // countdown to the catch spot and its full length; held-up flag; reached the X; time since reaching it (coverage breaks then); time left in the grace window after the ball lands
   var passRoute = null; // what kind of throw this is (depth + direction), for the HUD
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
@@ -998,7 +992,7 @@
       playStartYards = yardsToGo();
       playStartPy = py;
       playT = 0;
-      caught = false; catchT = 0; freezeT = 0;
+      caught = false; graceT = 0; reachedXT = 0; freezeT = 0;
       defenders = [];
       // On a pass the deep line drops beyond the catch spot, and two men
       // cover the receiver, so reaching the gold X is a fight through
@@ -1063,21 +1057,17 @@
           kind: rDepth < 10 ? 'Short' : rDepth < 18 ? 'Medium' : 'Deep',
         };
         spawnCoverage();
-        // Catch window scales with the throw: a further pass gives the
-        // receiver a longer hold at the catch spot than a short one.
-        // Base dwells are the Medium values; Easy and Hard scale by the
-        // same factor as the difficulty table, so a medium throw is still
-        // 0.5s on Easy and 0.3s on Hard. The catch fill ring and the
-        // countdown read catchDwell, so the visible window scales too.
-        var dwellBase = passRoute.kind === 'Short' ? BOWL_CATCH_DWELL_SHORT : passRoute.kind === 'Deep' ? BOWL_CATCH_DWELL_DEEP : BOWL_CATCH_DWELL;
-        var dwellFactor = diff === 'easy' ? 0.5 / BOWL_CATCH_DWELL : diff === 'hard' ? 0.3 / BOWL_CATCH_DWELL : 1;
-        catchDwell = dwellBase * dwellFactor;
         // Run and gun: the ball leaves Father's hands on an arc to the X,
         // so the receiver watches it coming and times the catch. Flight
-        // time scales with the throw: short is quick, deep hangs.
-        ballFlight = { x0: px, y0: py, x1: passTarget.x, y1: passTarget.y, t: 0, dur: passRoute.kind === 'Short' ? 0.55 : passRoute.kind === 'Deep' ? 0.95 : 0.75, arrived: false };
-        passTimeLeft = passLimit;
-        impeded = false; reachedX = false;
+        // time scales with the throw and is long enough to run to: short
+        // 1.0s, medium 1.5s, deep 2.0s, so the ball and the receiver
+        // converge on the X together. The countdown is the time until the
+        // ball is gone (flight plus the grace window), capped by the
+        // difficulty's pass limit.
+        ballFlight = { x0: px, y0: py, x1: passTarget.x, y1: passTarget.y, t: 0, dur: passRoute.kind === 'Short' ? BOWL_FLIGHT_SHORT : passRoute.kind === 'Deep' ? BOWL_FLIGHT_DEEP : BOWL_FLIGHT_MEDIUM, arrived: false };
+        passTimeLeft = Math.min(passLimit, ballFlight.dur + BOWL_CATCH_GRACE);
+        passTimeMax = passTimeLeft;
+        impeded = false; reachedX = false; reachedXT = 0; graceT = 0;
         hasBall = false;
         state = 'pass';
       } else {
@@ -1381,7 +1371,7 @@
         if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) {
           if (Math.hypot(d.hx - d.x, d.hy - d.y) < 12) return; // holding: stay put
         }
-        var chase = (state === 'pass' && !caught) ? (d.cover ? ((reachedX && catchT >= (d.breakDelay || 0)) ? 1 : 0.75) : 0.6) : 1;
+        var chase = (state === 'pass' && !caught) ? (d.cover ? ((reachedX && reachedXT >= (d.breakDelay || 0)) ? 1 : 0.75) : 0.6) : 1;
         // Lead pursuit: aim at where the runner will be in a third of a
         // second, not where he is, so the defence cuts off the run instead
         // of trailing a faster man. A sharp cut still beats it, because
@@ -1509,35 +1499,45 @@
           }
         }
         if (state === 'pass' && passTarget && !caught) {
-          // The ball flies while the receiver runs: it lands at the X
-          // before it can be caught, so a receiver who beats the throw
-          // to the spot waits for the ball instead of catching air.
+          // The catch rule (Nov 10, Mikey): if you are in the circle
+          // when the ball is arriving, you catch the ball. No dwell,
+          // no standing in the circle for a set time. The ball flies
+          // while the receiver runs, so the two converge on the X; a
+          // receiver who beats the throw to the spot waits for the ball
+          // instead of catching air, and one who arrives just after it
+          // lands still catches it inside the grace window.
           if (ballFlight && !ballFlight.arrived) {
             ballFlight.t += dt;
-            if (ballFlight.t >= ballFlight.dur) ballFlight.arrived = true;
+            if (ballFlight.t >= ballFlight.dur) { ballFlight.arrived = true; graceT = BOWL_CATCH_GRACE; }
           }
           var dist = Math.hypot(passTarget.x - px, passTarget.y - py);
           if (dist <= BOWL_CATCH_RADIUS) {
-            reachedX = true; // made the spot: the clock stops, the catch is the fight now
+            reachedX = true; // made the spot: the clock stops
+            reachedXT += dt;
             if (!ballFlight || ballFlight.arrived) {
-              catchT += dt;
-              if (catchT >= catchDwell) {
-                caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
-                ballFlight = null;
-                api.showBanner('Caught!', 1600);
-                state = 'run'; // carry on running with the ball
-              }
+              caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
+              ballFlight = null;
+              api.showBanner('Caught!', 1600);
+              state = 'run'; // carry on running with the ball
             }
-          } else {
-            // Demo catch: standing off the mark lets the catch slip away
-            // gradually instead of resetting it to zero in one frame.
-            catchT = Math.max(0, catchT - dt);
+          } else if (reachedX) {
+            reachedXT += dt;
+          }
+          // The landed ball waits at the X for the grace window, then
+          // it is dead: a receiver who never got to the spot in time
+          // watches it hit the ground.
+          if (ballFlight && ballFlight.arrived && !caught) {
+            graceT -= dt;
+            if (graceT <= 0) {
+              endPlay(0, 'Incomplete.', 'The ball hit the ground — no one was there to catch it. No gain, next down.', { incomplete: true });
+              return;
+            }
           }
         }
         // The clock on the catch spot: once the pass is thrown, the receiver
-        // has a few seconds to reach the X. If the defence holds him up
-        // until the clock runs out, the pass fails. Once he reaches the X,
-        // the clock stops and the catch itself is the fight.
+        // has until the ball is gone to reach the X. If the defence holds
+        // him up until the clock runs out, the pass fails. Once he reaches
+        // the X, the clock stops.
         if (state === 'pass' && !caught && !reachedX) {
           passTimeLeft -= dt;
           if (passTimeLeft <= 0) {
@@ -1664,16 +1664,17 @@
         ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
         ctx.fillText(ballHere ? 'CATCH IT!' : 'CATCH HERE', tx, ty - 22);
         ctx.textAlign = 'left';
-        if (catchT > 0) {
+        // Grace window: once the ball has landed, the circle drains as
+        // the grace runs out — get there before it is empty.
+        if (ballFlight && ballFlight.arrived && !caught) {
           ctx.fillStyle = 'rgba(217,180,90,0.55)';
-          ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS * (catchT / catchDwell), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS * Math.max(0, graceT / BOWL_CATCH_GRACE), 0, Math.PI * 2); ctx.fill();
         }
         // Countdown ring: the time left to reach the X, shrinking as it
         // runs out, red in the last second. The seconds sit under it. Once
-        // the receiver reaches the X the ring is gone and the catch fill
-        // shows the hold instead.
+        // the receiver reaches the X the ring is gone.
         if (!reachedX) {
-          var frac = Math.max(0, passTimeLeft / passLimit);
+          var frac = Math.max(0, passTimeLeft / Math.max(passTimeMax, 0.01));
           ctx.strokeStyle = passTimeLeft <= 1 ? '#ff6b5e' : BOWL_GOLD_BRIGHT;
           ctx.lineWidth = 4;
           ctx.beginPath();
