@@ -1130,3 +1130,23 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .trivia-feedback p { margin:8px 0; }
 .trivia-time { color:var(--dim); }
 .trivia-best-update { font-weight:600; }
+/* Kahoot countdown: a draining gold bar plus the points on offer, so the
+   player can see the value of a fast answer fall in real time. */
+.trivia-countdown { height:8px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); overflow:hidden; max-width:640px; margin:0 0 14px; }
+.trivia-countdown span { display:block; height:100%; width:100%; background:var(--gold); transition:width .1s linear; }
+.trivia-running { color:var(--dim); font-size:14px; margin:14px 0 0; }
+.trivia-earned { font-weight:700; color:var(--text); }
+/* Name for the leaderboard: a short label and input beside the Start
+   button, kept plain so it reads as part of the game, not a form. */
+.trivia-name-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0; }
+.trivia-name-row label { font-weight:600; }
+.trivia-name-row input { font:inherit; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); max-width:220px; }
+.trivia-name-row input:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+/* Daily board: top five names and points for the day. */
+.trivia-board { list-style:none; margin:0 0 12px; padding:0; max-width:560px; }
+.trivia-board li { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); margin-bottom:8px; }
+.trivia-board li:first-child { border-color:var(--gold); }
+.trivia-rank { flex:none; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; background:var(--surface-alt); border:1px solid var(--border); color:var(--dim); font-size:13px; font-weight:700; }
+.trivia-board li:first-child .trivia-rank { background:var(--gold); border-color:var(--gold); color:#fff; }
+.trivia-board-name { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trivia-board-points { flex:none; font-weight:700; font-variant-numeric:tabular-nums; }

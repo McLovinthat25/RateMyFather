@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 const { screenBody, sourceTokenHash, BURST_LIMIT, SPIKE_THRESHOLD } = require('./lib/screening');
+const { cleanTriviaName } = require('./lib/profanity');
 const { REGIONS, regionOf, areaForZip } = require('./lib/regions');
 const { TRIVIA_QUESTIONS, easternDateStr, dailyTriviaQuestions } = require('./lib/trivia');
 // Arcade trivia game pools: 30 questions per difficulty (Easy, Medium,
@@ -911,24 +912,30 @@ app.get('/', async (req, res) => {
   } catch (e) { console.error('be-first query failed', e.message); }
   // Daily trivia: three questions drawn from the pool by the Eastern
   // date, so every visitor gets the same round today and a new one
-  // tomorrow. The day's best score comes from trivia_daily_best; when
-  // nobody has played yet the section says so instead of showing a 0.
+  // tomorrow. The day's board comes from trivia_daily_scores: the top
+  // five names and points, most points first, fastest time breaking
+  // ties. When nobody has played yet the section says so instead of
+  // showing a 0.
   const triviaRound = dailyTriviaQuestions();
-  let triviaBest = null;
+  let triviaTop = [];
   try {
-    const { rows: tb } = await pool.query(`SELECT best_score, best_ms FROM trivia_daily_best WHERE day=$1`, [triviaRound.date]);
-    if (tb.length && tb[0].best_score > 0) triviaBest = { score: tb[0].best_score, ms: tb[0].best_ms };
-  } catch (e) { console.error('trivia best query failed', e.message); }
+    const { rows: tt } = await pool.query(`SELECT name, points, correct, ms FROM trivia_daily_scores WHERE day=$1 ORDER BY points DESC, ms ASC LIMIT 5`, [triviaRound.date]);
+    triviaTop = tt;
+  } catch (e) { console.error('trivia board query failed', e.message); }
+  const triviaBest = triviaTop[0] || null;
   const triviaBestLine = triviaBest
-    ? `Today's best: ${triviaBest.score} out of 3 in ${Math.round(triviaBest.ms / 1000)} seconds.`
+    ? `Today's best: ${triviaBest.name} — ${triviaBest.points.toLocaleString()} points (${triviaBest.correct} of 3 right, ${Math.round(triviaBest.ms / 1000)} seconds).`
     : 'No one has played today yet. Be the first.';
+  const triviaBoardHtml = `<ol class="trivia-board" id="trivia-board">${triviaTop.map((r, i) => `<li><span class="trivia-rank">${i + 1}</span><span class="trivia-board-name">${esc(r.name)}</span><span class="trivia-board-points">${r.points.toLocaleString()} pts</span></li>`).join('')}</ol>`;
   const triviaSectionHtml = `<section class="home-section" id="trivia">
     <div class="section-head">
     <p class="eyebrow">Daily trivia</p>
     <h2>Test your faith, three questions</h2>
-    <p class="lede">Three questions on saints, scripture, Church history, liturgy, and the sacraments. A new round every day, and one shared best score for the day.</p>
+    <p class="lede">Three questions on saints, scripture, Church history, liturgy, and the sacraments. A new round every day. Answer fast: each right answer is worth up to 1,000 points, and the quicker you answer, the more you earn. One shared leaderboard for the day.</p>
     </div>
     <p class="trivia-best" id="trivia-best">${esc(triviaBestLine)}</p>
+    ${triviaBoardHtml}
+    <p class="trivia-name-row"><label for="trivia-name">Your name for the leaderboard</label><input id="trivia-name" type="text" maxlength="20" autocomplete="off" placeholder="First name or nickname"></p>
     <p><button type="button" class="btn btn--gold btn-pill press" id="trivia-start">Start the trivia</button></p>
     <div id="trivia-panel" aria-live="polite"></div>
     <script>window.RMF_TRIVIA = ${JSON.stringify(triviaRound).replace(/</g, '\\u003c')};</script>
@@ -1321,36 +1328,68 @@ app.post('/api/leaderboard/score', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'save failed' }); }
 });
 
-// ---- Daily trivia high score (homepage, shared) ----
-// A finished round posts its score (0-3) and total time. The day's best
-// is the highest score; among equal scores the fastest time wins, so a
-// perfect round still has a record to beat. One row per day, anonymous:
-// no name, no email, no account, no IP stored — only the best score and
-// the time it took. Rate-limited per visitor like the leaderboard, so a
-// perfect round cannot be farmed by spamming the endpoint.
+// ---- Daily trivia leaderboard (homepage, shared) ----
+// A finished round posts its Kahoot-style points (0-3000: up to 1,000
+// per question, faster right answers worth more), how many were right
+// (0-3), total time, and an optional display name for the day's board.
+// One best row per (day, name), case-insensitive, so one player cannot
+// flood the board under the same name. The day's best is the most
+// points; among equal points the fastest time wins. The name is only a
+// display name for the board: no account, no email, no IP is stored
+// with it. Names are validated server side (length, characters, and the
+// shared profanity filter) before anything is saved, so a blocked name
+// never reaches the table and the score is not saved under it.
+// Rate-limited per visitor like the leaderboard, so a round cannot be
+// farmed by spamming the endpoint. Points are sanity-checked against
+// the correct count (500-1,000 per right answer, 0 per wrong one), so
+// a forged total does not land on the board. Replaces the old anonymous
+// trivia_daily_best (one best per day, no names); that table is left in
+// place, no longer written.
 app.post('/api/trivia/score', async (req, res) => {
-  const score = Number(req.body.score);
+  let points = Number(req.body.points);
+  let correct = Number(req.body.correct);
   const ms = Number(req.body.ms);
-  if (!Number.isInteger(score) || score < 0 || score > 3 || !Number.isFinite(ms) || ms < 0 || ms > 3600000) {
+  // One-day legacy bridge: a stale cached page posts {score} 0-3.
+  if (!Number.isFinite(points) && Number.isInteger(Number(req.body.score))) {
+    correct = Number(req.body.score);
+    points = correct * 500;
+  }
+  if (!Number.isInteger(points) || points < 0 || points > 3000
+    || !Number.isInteger(correct) || correct < 0 || correct > 3
+    || !Number.isFinite(ms) || ms < 0 || ms > 3600000
+    || points > correct * 1000 || points < correct * 500
+    || ms < correct * 200) {
     return res.status(400).json({ error: 'bad submission' });
   }
-  if (!scoreRateOk(sourceTokenHash(req), 'trivia', score)) return res.status(429).json({ error: 'too fast' });
+  const checked = cleanTriviaName(req.body.name);
+  if (!checked.ok) {
+    return res.status(400).json({ error: 'bad name', message: 'Please choose a different name for the leaderboard.' });
+  }
+  const name = checked.name;
+  if (!scoreRateOk(sourceTokenHash(req), 'trivia', points)) return res.status(429).json({ error: 'too fast' });
   const day = easternDateStr();
   try {
-    const { rows } = await pool.query(
-      `INSERT INTO trivia_daily_best (day, best_score, best_ms)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (day) DO UPDATE SET
-         best_score = GREATEST(trivia_daily_best.best_score, EXCLUDED.best_score),
-         best_ms = CASE WHEN EXCLUDED.best_score > trivia_daily_best.best_score THEN EXCLUDED.best_ms
-                        WHEN EXCLUDED.best_score = trivia_daily_best.best_score THEN LEAST(NULLIF(trivia_daily_best.best_ms, 0), EXCLUDED.best_ms)
-                        ELSE trivia_daily_best.best_ms END,
-         updated_at = NOW()
-       RETURNING best_score, best_ms`,
-      [day, score, Math.round(ms)]);
-    const best = rows[0];
-    const isNewBest = best && best.best_score === score && best.best_ms === Math.round(ms);
-    res.json({ ok: true, best: { score: best.best_score, ms: best.best_ms }, isNewBest: !!isNewBest });
+    await pool.query(
+      `INSERT INTO trivia_daily_scores (day, name, points, correct, ms)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (day, lower(name)) DO UPDATE SET
+         points = GREATEST(trivia_daily_scores.points, EXCLUDED.points),
+         correct = CASE WHEN EXCLUDED.points > trivia_daily_scores.points THEN EXCLUDED.correct ELSE trivia_daily_scores.correct END,
+         ms = CASE WHEN EXCLUDED.points > trivia_daily_scores.points THEN EXCLUDED.ms
+                   WHEN EXCLUDED.points = trivia_daily_scores.points THEN LEAST(trivia_daily_scores.ms, EXCLUDED.ms)
+                   ELSE trivia_daily_scores.ms END,
+         name = EXCLUDED.name,
+         updated_at = NOW()`,
+      [day, name, points, correct, Math.round(ms)]);
+    const { rows: top } = await pool.query(
+      `SELECT name, points, correct, ms FROM trivia_daily_scores WHERE day=$1 ORDER BY points DESC, ms ASC LIMIT 5`,
+      [day]);
+    const { rows: rk } = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM trivia_daily_scores WHERE day=$1 AND (points > $2 OR (points = $2 AND ms < $3))`,
+      [day, points, Math.round(ms)]);
+    const rank = rk[0].n + 1;
+    const best = top[0] || { name, points, correct, ms: Math.round(ms) };
+    res.json({ ok: true, best: { name: best.name, points: best.points, correct: best.correct, ms: best.ms, score: best.correct }, isNewBest: rank === 1 && points > 0, rank, top: top.map((r) => ({ name: r.name, points: r.points, correct: r.correct, ms: r.ms })) });
   } catch (e) { res.status(500).json({ error: 'save failed' }); }
 });
 
@@ -1953,7 +1992,10 @@ app.post('/priest/:id/review', async (req, res) => {
   const token = sourceTokenHash(req);
   const screen = screenBody(body);
   if (screen.outcome === 'refuse') {
-    return res.status(400).send(page('Review refused', '<h1>Review refused</h1><p>Reviews containing private contact details such as phone numbers or email addresses are not accepted. Nothing was published and nothing is held.</p>'));
+    const msg = screen.reason === 'profanity'
+      ? 'Reviews with bad language are not accepted. Please reword your review without the bad language. Nothing was published and nothing is held.'
+      : 'Reviews containing private contact details such as phone numbers or email addresses are not accepted. Nothing was published and nothing is held.';
+    return res.status(400).send(page('Review refused', `<h1>Review refused</h1><p>${msg}</p>`));
   }
   // Duplicate check: same priest, same source token (any non-rejected review).
   const dup = await pool.query(`SELECT id FROM reviews WHERE priest_id=$1 AND source_token_hash=$2 AND status <> 'rejected' LIMIT 1`, [pid, token]);
@@ -2121,6 +2163,7 @@ app.get('/how', (req, res) => res.send(page('How ratings work', `<div class="pro
     <li>Borderline reviews wait in the moderation queue.</li>
     <li>Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag and never auto-approved.</li>
     <li>Reviews containing phone numbers or email addresses are refused outright.</li>
+    <li>Reviews containing bad language are refused outright.</li>
     <li>A repeat review of the same priest from the same source is refused.</li>
     <li>After 5 reviews in an hour from one source, further reviews are refused.</li>
     <li>If 10 or more reviews of one priest arrive in 24 hours, further reviews of that priest are force-held.</li>
@@ -2140,6 +2183,7 @@ app.get('/terms', (req, res) => res.send(infoPage('Terms of Use', `<p>Reviews ar
   <p>This site does not claim that the site or its owner is immune from suit.</p>`)));
 app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What is collected:</p>
   <ul><li><strong>Reviews:</strong> the three 1-5 ratings, how long you have attended the parish or known the priest, optional Mass context, and optional written review text you submit. No name or email is collected with reviews.</li>
+  <li><strong>Daily trivia:</strong> an optional display name you type for the day's leaderboard, plus your points. No account, no email.</li>
   <li><strong>Abuse-prevention token:</strong> a SHA-256 hash derived from request data (IP address plus user agent). Only the hash is stored, never the raw IP address or user agent string. It is used only to refuse duplicates, enforce the hourly review limit, and detect review spikes.</li>
   <li><strong>Moderation submissions:</strong> reports, corrections, right-of-reply and removal requests, and legal notices, including any optional contact details you choose to provide. Contact details are never published.</li>
   <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time and a signature, nothing else.</li>
@@ -2147,7 +2191,7 @@ app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What i
   <p>Nothing else is collected. There is no advertising on this site.</p>
   <p>To request removal of personal information you submitted, use the <a href="/legal">Legal notices</a> page. Contact details you provide in a legal notice are never published.</p>`)));
 app.get('/moderation', (req, res) => res.send(infoPage('Content & Moderation Policy', `<p>All moderation is owner-only and enforced on the server. Public buttons (report, correction, legal notice) only flag the queue; they never approve, reject, or delete anything.</p>
-  <p>Star-only and clearly clean reviews may auto-approve. Borderline reviews wait for a human owner decision. Possible unverified factual allegations are force-held with an abuse flag and never auto-approved. Reviews with private contact details are refused. Repeat reviews of the same priest from the same source are refused. Hourly bursts (over 5 per source) are refused. 24-hour spikes (10 or more per priest) are force-held.</p>
+  <p>Star-only and clearly clean reviews may auto-approve. Borderline reviews wait for a human owner decision. Possible unverified factual allegations are force-held with an abuse flag and never auto-approved. Reviews with private contact details are refused. Reviews with bad language are refused. Repeat reviews of the same priest from the same source are refused. Hourly bursts (over 5 per source) are refused. 24-hour spikes (10 or more per priest) are force-held.</p>
   <p>The owner can approve or reject pending reviews and user-added profiles, delete reviews and user-added profiles, and resolve reports, corrections, and legal notices. Directory profiles are never deleted.</p>
   <p>Review of reviews and deletion are owner-only functions, enforced server side, not merely hidden in the interface.</p>`)));
 
