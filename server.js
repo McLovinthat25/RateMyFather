@@ -1435,7 +1435,7 @@ app.get('/api/priests/batch', async (req, res) => {
               COUNT(r.id) FILTER (WHERE r.church_beauty IS NOT NULL)::int AS church_n,
               AVG(r.church_beauty) AS church_avg
        FROM priests p LEFT JOIN reviews r ON r.priest_id = p.id AND r.status='approved'
-       WHERE p.status='approved' AND p.id = ANY($1) GROUP BY p.id ORDER BY array_position($1, p.id)`, [unique]);
+       WHERE p.status='approved' AND COALESCE(p.life_status,'') <> 'deceased' AND p.id = ANY($1) GROUP BY p.id ORDER BY array_position($1, p.id)`, [unique]);
     res.json(rows.map((r) => ({ ...r, diocese_name: r.diocese_code ? dioceseName(r.diocese_code) : null })));
   } catch (e) { console.error('batch priests failed', e.message); res.status(500).json([]); }
 });
@@ -1579,6 +1579,12 @@ app.get('/browse', async (req, res) => {
     }
     where.push(`(${matchParts.join(' OR ')})`);
     relevance = `(${relParts.join(' + ')})`;
+    // The place phrase this query resolved to, if any: the full phrase
+    // when the whole query is a place, a subsequence when a place hides
+    // inside a longer query, or the single word when it names a city.
+    // Used by place resolution below.
+    let placePhrase = null;
+    let placeRaw = null;
     if (rawWords.length >= 2) {
       // A multi-word query that matches a city or parish as a phrase is a
       // place query, not a name query: restrict to rows matching the phrase
@@ -1605,10 +1611,108 @@ app.get('/browse', async (req, res) => {
         params.push(phraseLike);
         const pph = `$${params.length}`;
         where.push(`(${searchNormField('city')} ILIKE ${pph} OR ${searchNormField('parish')} ILIKE ${pph})`);
+        placePhrase = phrase;
+        placeRaw = rawWords.join(' ');
       } else {
         const nameAll = wordPhs.map((ph) => `${searchNormField('name')} ILIKE ${ph}`).join(' AND ');
         relevance += ` + (CASE WHEN (${nameAll}) THEN 6 ELSE 0 END)`;
       }
+      // A place phrase can hide inside a longer query ("San Diego CA",
+      // "St Paul Minnesota", "Fort Worth Texas"): the full-phrase gate
+      // above only fires when the whole query is the place, so the extra
+      // word lets the place words split across fields again and the
+      // result set explodes (15,609 for "St Paul Minnesota" against 416
+      // for "St. Paul" alone). Try contiguous subsequences of the query,
+      // longest first, against the city field only. A city phrase is
+      // never part of a priest's name, so this cannot gate a name search
+      // the way a parish phrase ("John Paul") could. The first city
+      // phrase found restricts results to that place, exactly like the
+      // full-phrase gate. Capped at 6 existence checks.
+      if (!phraseIsPlace && rawWords.length >= 3) {
+        const normWords = rawWords.map(searchNormWord);
+        let subGate = null;
+        let subGateRaw = null;
+        let checks = 0;
+        outer: for (let len = normWords.length - 1; len >= 2 && checks < 6; len--) {
+          for (let i = 0; i + len <= normWords.length && checks < 6; i++) {
+            const sub = normWords.slice(i, i + len).join(' ');
+            checks++;
+            try {
+              const ex = await pool.query(
+                `SELECT EXISTS(SELECT 1 FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND ${searchNormField('city')} ILIKE $1) AS yes`,
+                [`%${searchLikeEscape(sub)}%`]);
+              if (ex.rows[0]?.yes) { subGate = sub; subGateRaw = rawWords.slice(i, i + len).join(' '); break outer; }
+            } catch (e) { console.error(e.message); }
+          }
+        }
+        if (subGate) {
+          params.push(`%${searchLikeEscape(subGate)}%`);
+          const sph = `$${params.length}`;
+          where.push(`(${searchNormField('city')} ILIKE ${sph} OR ${searchNormField('parish')} ILIKE ${sph})`);
+          placePhrase = subGate;
+          placeRaw = subGateRaw;
+        }
+      }
+    } else if (rawWords.length === 1) {
+      // A single word can still be a place ("Erie"). The word-level
+      // matching already ran; place resolution below tests it against
+      // the city list.
+      placePhrase = searchNormWord(rawWords[0]);
+      placeRaw = rawWords[0];
+    }
+    // Place resolution: a place name can be ambiguous in two ways the
+    // phrase gates above do not fix. (1) Wrong field: a single word
+    // matches as a substring where it does not belong, so "Erie" pulls
+    // in "Deaneries" (parish), "Valerie" and "Ceriello" (names), and
+    // "Cemeteries" (parish). (2) Wrong place: a name shared by several
+    // cities, so "Erie" mixes Erie, PA with Erie, MI and Erie, KS.
+    // When the query resolved to a place phrase, test whether the place
+    // interpretation clearly dominates: C is the priest count in the
+    // largest city exactly by that name, P is every other priest
+    // matching the phrase in city or parish, N is priests with the
+    // phrase as a whole word in their name. Resolve to the largest city
+    // only when C beats both P and N, so a parish name ("St. George",
+    // "St. Paul") and a personal name ("George", "Lawrence") keep their
+    // current behavior, and a fragmented name ("Springfield", thirteen
+    // cities, none dominant) stays mixed. Only for a bare place search:
+    // an explicit state, city, region, or ZIP is the visitor's own
+    // disambiguation, so it is left alone.
+    if (placePhrase && !state && !city && !region && !/^\d{5}$/.test(zip)) {
+      try {
+        const normCityExpr = `BTRIM(${searchNormField('city')})`;
+        // Group by the normalized city, not the raw spelling, so
+        // "St. Louis" and "Saint Louis" count as one place instead of
+        // the note pointing at a spelling twin as a different city.
+        const cityRows = (await pool.query(
+          `SELECT MAX(city) AS city, state, COUNT(*)::int AS n FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND ${normCityExpr} ILIKE $1 GROUP BY ${normCityExpr}, state ORDER BY n DESC`,
+          [placePhrase])).rows;
+        if (cityRows.length) {
+          const dom = cityRows[0];
+          const C = dom.n;
+          const tRow = await pool.query(
+            `SELECT COUNT(*)::int AS n FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND (${searchNormField('city')} ILIKE $1 OR ${searchNormField('parish')} ILIKE $1)`,
+            [`%${searchLikeEscape(placePhrase)}%`]);
+          const T = tRow.rows[0]?.n || 0;
+          const namePhrase = placePhrase.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+          const nRow = await pool.query(
+            `SELECT COUNT(*)::int AS n FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND (' ' || regexp_replace(${searchNormField('name')}, '[^a-z0-9]+', ' ', 'gi') || ' ') ILIKE $1`,
+            [`% ${namePhrase} %`]);
+          const N = nRow.rows[0]?.n || 0;
+          const P = T - C;
+          if (C > P && C > N) {
+            params.push(placePhrase);
+            const cph = `$${params.length}`;
+            params.push(dom.state);
+            const sph = `$${params.length}`;
+            where.push(`(${normCityExpr} ILIKE ${cph} AND state = ${sph})`);
+            const others = cityRows.slice(1);
+            if (others.length) {
+              const links = others.map((o) => `<a href="/browse?q=${encodeURIComponent(placeRaw)}&amp;state=${esc(o.state)}">${esc(o.city)}, ${esc(o.state)} (${o.n} priest${o.n === 1 ? '' : 's'})</a>`).join(', ');
+              note += `<p class="notice">Showing priests in ${esc(dom.city)}, ${esc(dom.state)}. Also listed under this name: ${links}.</p>`;
+            }
+          }
+        }
+      } catch (e) { console.error('place resolution failed', e.message); }
     }
   }
   if (/^\d{5}$/.test(zip)) {
@@ -1855,6 +1959,12 @@ app.get('/priest/:id', async (req, res) => {
   const { rows } = await pool.query(`SELECT * FROM priests WHERE id=$1 AND status='approved'`, [req.params.id]);
   if (!rows.length) return res.status(404).send(notFoundPage());
   const p = rows[0];
+  // Deceased priests are not served at all: no profile, no link to one
+  // anywhere on the site, and a direct URL returns the 404 page exactly
+  // as if the profile did not exist. The row and its memorial note stay
+  // in the database for the record; only the page stops being served.
+  // Retired priests are unaffected: their profiles still load.
+  if (p.life_status === 'deceased') return res.status(404).send(notFoundPage());
   const stats = await statsFor([p.id]);
   const st = stats[p.id];
   const revs = (await pool.query(`SELECT id, pace, homily, likability, church_beauty, mass_context, attendance_duration, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
