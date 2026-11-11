@@ -266,6 +266,23 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
 .notice { background:var(--accent-soft); border:1px solid var(--border);
   padding:8px 12px; border-radius:var(--radius); font-size:14px; }
 
+/* ---------- Pager: previous / next and page numbers under browse results ----------
+   Burgundy buttons with a gold current page, roomy tap targets on mobile. */
+.pager { display:flex; align-items:center; justify-content:center; gap:10px;
+  flex-wrap:wrap; margin:28px 0 8px; }
+.pager-btn { display:inline-block; padding:9px 16px; border:1px solid var(--border);
+  border-radius:var(--radius); background:var(--surface); color:var(--accent);
+  font-weight:600; font-size:14px; text-decoration:none; }
+@media (hover:hover) { .pager-btn:hover { border-color:var(--accent); } }
+.pager-disabled { color:var(--dim); opacity:0.55; }
+.pager-pages { display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center; }
+.pager-num { display:inline-block; min-width:36px; min-height:36px; line-height:36px;
+  text-align:center; padding:0 8px; border-radius:var(--radius); font-size:14px;
+  font-weight:600; color:var(--text); text-decoration:none; }
+@media (hover:hover) { .pager-num:hover { background:var(--accent-soft); } }
+.pager-current { background:var(--accent); color:#fff; }
+.pager-ellipsis { color:var(--dim); padding:0 2px; }
+
 /* ---------- Regions and Find by place ---------- */
 .regions { list-style:none; padding:0; margin:12px 0 0; display:grid;
   grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }

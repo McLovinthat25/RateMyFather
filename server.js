@@ -182,7 +182,7 @@ const GLASS = glassStrip();
 // A daily Bible verse (plus a few short quotes from the saints), rotated
 // deterministically by the Eastern date, so every visitor sees the same
 // verse on a given day and a new one the next. No database, no API call:
-// the list is long enough (124 entries) that it never repeats within a
+// the list is long enough (164 entries) that it never repeats within a
 // month. Verse wording is ESV.
 const DAILY_VERSES = [
   { text: 'The Lord is my shepherd; I shall not want.', ref: 'Psalm 23:1' },
@@ -309,6 +309,46 @@ const DAILY_VERSES = [
   { text: 'Prayer is the best weapon we have; it is the key to God\u2019s heart.', ref: 'St. Padre Pio' },
   { text: 'It is Jesus who stirs in you the desire to do something great with your lives.', ref: 'St. John Paul II' },
   { text: 'In the evening of life, we will be judged on love alone.', ref: 'St. John of the Cross' },
+  { text: 'You prepare a table before me in the presence of my enemies; you anoint my head with oil; my cup overflows.', ref: 'Psalm 23:5' },
+  { text: 'One thing have I asked of the Lord, that will I seek after: that I may dwell in the house of the Lord all the days of my life, to gaze upon the beauty of the Lord and to inquire in his temple.', ref: 'Psalm 27:4' },
+  { text: 'I sought the Lord, and he answered me and delivered me from all my fears.', ref: 'Psalm 34:4' },
+  { text: 'As a deer pants for flowing streams, so pants my soul for you, O God.', ref: 'Psalm 42:1' },
+  { text: 'For God alone my soul waits in silence; from him comes my salvation.', ref: 'Psalm 62:1' },
+  { text: 'For a day in your courts is better than a thousand elsewhere. I would rather be a doorkeeper in the house of my God than dwell in the tents of wickedness.', ref: 'Psalm 84:10' },
+  { text: 'Search me, O God, and know my heart! Try me and know my thoughts!', ref: 'Psalm 139:23' },
+  { text: 'Let me hear in the morning of your steadfast love, for in you I trust. Make me know the way I should go, for to you I lift up my soul.', ref: 'Psalm 143:8' },
+  { text: 'Whoever brings blessing will be enriched, and one who waters will himself be watered.', ref: 'Proverbs 11:25' },
+  { text: 'A man of many companions may come to ruin, but there is a friend who sticks closer than a brother.', ref: 'Proverbs 18:24' },
+  { text: 'And the Lord will guide you continually and satisfy your desire in scorched places and make your bones strong; and you shall be like a watered garden, like a spring of water, whose waters do not fail.', ref: 'Isaiah 58:11' },
+  { text: 'The Spirit of the Lord God is upon me, because the Lord has anointed me to bring good news to the poor; he has sent me to bind up the brokenhearted, to proclaim liberty to the captives, and the opening of the prison to those who are bound.', ref: 'Isaiah 61:1' },
+  { text: 'I have loved you with an everlasting love; therefore I have continued my faithfulness to you.', ref: 'Jeremiah 31:3' },
+  { text: 'It is good that one should wait quietly for the salvation of the Lord.', ref: 'Lamentations 3:26' },
+  { text: 'Let us know; let us press on to know the Lord; his going out is sure as the dawn; he will come to us as the showers, as the spring rains that water the earth.', ref: 'Hosea 6:3' },
+  { text: 'Blessed are those who mourn, for they shall be comforted.', ref: 'Matthew 5:4' },
+  { text: 'Blessed are the merciful, for they shall receive mercy.', ref: 'Matthew 5:7' },
+  { text: 'Take my yoke upon you, and learn from me, for I am gentle and lowly in heart, and you will find rest for your souls.', ref: 'Matthew 11:29' },
+  { text: 'And you shall love the Lord your God with all your heart and with all your soul and with all your mind and with all your strength.', ref: 'Mark 12:30' },
+  { text: 'Give, and it will be given to you. Good measure, pressed down, shaken together, running over, will be put into your lap. For with the measure you use it will be measured back to you.', ref: 'Luke 6:38' },
+  { text: 'He must increase, but I must decrease.', ref: 'John 3:30' },
+  { text: 'Let not your hearts be troubled. Believe in God; believe also in me.', ref: 'John 14:1' },
+  { text: 'I am the way, and the truth, and the life. No one comes to the Father except through me.', ref: 'John 14:6' },
+  { text: 'These things I have spoken to you, that my joy may be in you, and that your joy may be full.', ref: 'John 15:11' },
+  { text: 'For I consider that the sufferings of this present time are not worth comparing with the glory that is to be revealed to us.', ref: 'Romans 8:18' },
+  { text: 'For I am sure that neither death nor life, nor angels nor rulers, nor things present nor things to come, nor powers, nor height nor depth, nor anything else in all creation, will be able to separate us from the love of God in Christ Jesus our Lord.', ref: 'Romans 8:38\u201339' },
+  { text: 'Therefore, my beloved brothers, be steadfast, immovable, always abounding in the work of the Lord, knowing that in the Lord your labor is not in vain.', ref: '1 Corinthians 15:58' },
+  { text: 'But he said to me, \u2018My grace is sufficient for you, for my power is made perfect in weakness.\u2019 Therefore I will boast all the more gladly of my weaknesses, so that the power of Christ may rest upon me.', ref: '2 Corinthians 12:9' },
+  { text: 'Finally, be strong in the Lord and in the strength of his might.', ref: 'Ephesians 6:10' },
+  { text: 'And I am sure of this, that he who began a good work in you will bring it to completion at the day of Jesus Christ.', ref: 'Philippians 1:6' },
+  { text: 'And my God will supply every need of yours according to his riches in glory in Christ Jesus.', ref: 'Philippians 4:19' },
+  { text: 'For the word of God is living and active, sharper than any two-edged sword, piercing to the division of soul and of spirit, of joints and of marrow, and discerning the thoughts and intentions of the heart.', ref: 'Hebrews 4:12' },
+  { text: 'To one who has faith, no explanation is necessary. To one without faith, no explanation is possible.', ref: 'St. Thomas Aquinas' },
+  { text: 'Listen carefully, my child, to the master\u2019s instructions, and attend to them with the ear of your heart.', ref: 'St. Benedict' },
+  { text: 'Consult not your fears but your hopes and your dreams.', ref: 'St. John XXIII' },
+  { text: 'Nothing is far from God.', ref: 'St. Monica' },
+  { text: 'Be sure that you first preach by the way you live.', ref: 'St. Charles Borromeo' },
+  { text: 'Let us love God, my brothers, let us love God, but let it be with the strength of our arms and the sweat of our brows.', ref: 'St. Vincent de Paul' },
+  { text: 'We become what we love and who we love shapes what we become.', ref: 'St. Clare of Assisi' },
+  { text: 'Prayer is the place of refuge for every worry, a foundation for cheerfulness, a source of constant happiness, a protection against sadness.', ref: 'St. John Chrysostom' },
 ];
 function dailyVerse() {
   // Eastern date, so the verse turns over at midnight for the US audience
@@ -1022,6 +1062,12 @@ const FILTER_LABELS = { quick: 'Quick Mass (pace)', homily: 'Great homily', lova
 
 app.get('/browse', async (req, res) => {
   const { q = '', state = '', city = '', diocese = '', region = '', zip: legacyZip = '', filter = '' } = req.query;
+  // Pagination: 50 priests a page. A page past the end redirects to the
+  // last page instead of showing an empty list.
+  const PAGE_SIZE = 50;
+  const pageReq = parseInt(req.query.page, 10);
+  const pageNum = Number.isFinite(pageReq) && pageReq > 0 ? pageReq : 1;
+  const offset = (pageNum - 1) * PAGE_SIZE;
   const where = [`status='approved'`, ACTIVE_WHERE];
   const params = [];
   let note = '';
@@ -1147,7 +1193,7 @@ app.get('/browse', async (req, res) => {
     const col = FILTERS[filter];
     const whereP = where.map(qualifyPriestFragment);
     const relP = relevance ? qualifyPriestFragment(relevance) : null;
-    const fsql = `SELECT p.*, ${relP ? `${relP} AS relevance, ` : ''}COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE ${whereP.join(' AND ')} GROUP BY p.id ORDER BY ${relP ? 'relevance DESC, ' : ''}AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT 200`;
+    const fsql = `SELECT p.*, ${relP ? `${relP} AS relevance, ` : ''}COUNT(r.id)::int AS n, AVG(r.pace) AS pace, AVG(r.homily) AS homily, AVG(r.likability) AS likability FROM priests p JOIN reviews r ON r.priest_id = p.id AND r.status='approved' WHERE ${whereP.join(' AND ')} GROUP BY p.id ORDER BY ${relP ? 'relevance DESC, ' : ''}AVG(r.${col}) DESC, COUNT(r.id) DESC LIMIT ${PAGE_SIZE} OFFSET ${offset}`;
     try {
       const frows = (await pool.query(fsql, params)).rows;
       cards = frows.map((p) => ({ p, st: { n: p.n, pace: p.pace, homily: p.homily, likability: p.likability } }));
@@ -1156,8 +1202,8 @@ app.get('/browse', async (req, res) => {
     } catch (e) { console.error(e.message); }
   } else {
     let sql = relevance
-      ? `SELECT *, ${relevance} AS relevance FROM priests WHERE ${where.join(' AND ')} ORDER BY relevance DESC, name LIMIT 200`
-      : `SELECT * FROM priests WHERE ${where.join(' AND ')} ORDER BY name LIMIT 200`;
+      ? `SELECT *, ${relevance} AS relevance FROM priests WHERE ${where.join(' AND ')} ORDER BY relevance DESC, name LIMIT ${PAGE_SIZE} OFFSET ${offset}`
+      : `SELECT * FROM priests WHERE ${where.join(' AND ')} ORDER BY name LIMIT ${PAGE_SIZE} OFFSET ${offset}`;
     let rows = [];
     try { rows = (await pool.query(sql, params)).rows; } catch (e) { console.error(e.message); }
     const stats = await statsFor(rows.map((r) => r.id));
@@ -1165,6 +1211,21 @@ app.get('/browse', async (req, res) => {
     try { totalCount = (await pool.query(`SELECT COUNT(*)::int AS n FROM priests WHERE ${where.join(' AND ')}`, params)).rows[0].n; } catch (e) { console.error(e.message); }
   }
   const heading = filter ? FILTER_LABELS[filter] : 'Search & Browse';
+  // Pagination bookkeeping. A page past the end redirects to the last
+  // page, so a stale or hand-typed ?page= never shows an empty list.
+  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageQs = (p) => {
+    const parts = [];
+    if (q) parts.push(`q=${encodeURIComponent(q)}`);
+    if (state) parts.push(`state=${encodeURIComponent(state)}`);
+    if (city) parts.push(`city=${encodeURIComponent(city)}`);
+    if (diocese) parts.push(`diocese=${encodeURIComponent(diocese)}`);
+    if (region) parts.push(`region=${encodeURIComponent(region)}`);
+    if (FILTERS[filter]) parts.push(`filter=${encodeURIComponent(filter)}`);
+    if (p > 1) parts.push(`page=${p}`);
+    return parts.length ? '/browse?' + parts.join('&') : '/browse';
+  };
+  if (pageNum > pageCount && totalCount > 0) return res.redirect(pageQs(pageCount));
   // A category filter with no results means nobody has been rated yet
   // (production has no reviews), not a broken search: say so plainly.
   const emptyHtml = FILTERS[filter]
@@ -1173,11 +1234,34 @@ app.get('/browse', async (req, res) => {
   const body = cards.length
     ? cards.map((c) => priestCard(c.p, c.st)).join('')
     : emptyHtml;
+  const firstShown = totalCount ? offset + 1 : 0;
+  const lastShown = Math.min(totalCount, offset + PAGE_SIZE);
+  // A one-priest page reads "Showing 3,101 of 3,101", not "3,101–3,101".
+  const shownRange = firstShown === lastShown ? firstShown.toLocaleString() : `${firstShown.toLocaleString()}&ndash;${lastShown.toLocaleString()}`;
   const matchLine = cards.length
-    ? (totalCount > 200
-      ? `<p class="match-count">Showing the first 200 of ${totalCount.toLocaleString()} priests${words.length ? ' &middot; best matches first' : ''}</p>`
-      : `<p class="match-count">${totalCount.toLocaleString()} priest${totalCount === 1 ? '' : 's'}${words.length ? ' &middot; best matches first' : ''}</p>`)
+    ? `<p class="match-count">Showing ${shownRange} of ${totalCount.toLocaleString()} priest${totalCount === 1 ? '' : 's'}${words.length ? ' &middot; best matches first' : ''}${pageCount > 1 ? ` &middot; page ${pageNum} of ${pageCount}` : ''}</p>`
     : '';
+  // Pager: previous / next plus a small window of page numbers around the
+  // current page, so a common search (John: 3,101 priests, 63 pages) can
+  // actually be walked through instead of stopping at the first 50.
+  let pagerHtml = '';
+  if (pageCount > 1) {
+    const winStart = Math.max(1, Math.min(pageNum - 2, pageCount - 4));
+    const winEnd = Math.min(pageCount, winStart + 4);
+    const nums = [];
+    for (let p = winStart; p <= winEnd; p++) {
+      nums.push(p === pageNum ? `<span class="pager-num pager-current" aria-current="page">${p}</span>` : `<a class="pager-num" href="${pageQs(p)}">${p}</a>`);
+    }
+    if (winStart > 2) nums.unshift('<span class="pager-ellipsis" aria-hidden="true">&hellip;</span>');
+    if (winStart > 1) nums.unshift(`<a class="pager-num" href="${pageQs(1)}">1</a>`);
+    if (winEnd < pageCount - 1) nums.push('<span class="pager-ellipsis" aria-hidden="true">&hellip;</span>');
+    if (winEnd < pageCount) nums.push(`<a class="pager-num" href="${pageQs(pageCount)}">${pageCount}</a>`);
+    pagerHtml = `<nav class="pager" aria-label="More priests">
+      ${pageNum > 1 ? `<a class="pager-btn" href="${pageQs(pageNum - 1)}">&larr; Previous</a>` : '<span class="pager-btn pager-disabled" aria-hidden="true">&larr; Previous</span>'}
+      <span class="pager-pages">${nums.join('')}</span>
+      ${pageNum < pageCount ? `<a class="pager-btn" href="${pageQs(pageNum + 1)}">Next &rarr;</a>` : '<span class="pager-btn pager-disabled" aria-hidden="true">Next &rarr;</span>'}
+    </nav>`;
+  }
   // The page lede: what this list is, in one line.
   const browseLede = filter === 'quick'
     ? 'Priests whose Sunday Mass moves briskly, ranked by pace, highest first. Pace is speed only, never a quality grade.'
@@ -1248,7 +1332,7 @@ app.get('/browse', async (req, res) => {
     </form>
     ${chipsHtml}${regionLinks}${note}${matchLine}
     ${cards.length ? '<div class="rule" aria-hidden="true"><span></span></div>' : ''}
-    <div class="cards">${body}</div>`));
+    <div class="cards">${body}</div>${pagerHtml}`));
 });
 
 // Attendance-duration answers for the review form (required dropdown).
