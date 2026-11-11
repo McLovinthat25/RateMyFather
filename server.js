@@ -182,7 +182,7 @@ const GLASS = glassStrip();
 // A daily Bible verse (plus a few short quotes from the saints), rotated
 // deterministically by the Eastern date, so every visitor sees the same
 // verse on a given day and a new one the next. No database, no API call:
-// the list is long enough (84 entries) that it never repeats within a
+// the list is long enough (124 entries) that it never repeats within a
 // month. Verse wording is ESV.
 const DAILY_VERSES = [
   { text: 'The Lord is my shepherd; I shall not want.', ref: 'Psalm 23:1' },
@@ -269,6 +269,46 @@ const DAILY_VERSES = [
   { text: 'Do not be afraid. Open wide the doors for Christ.', ref: 'St. John Paul II' },
   { text: 'Pray, hope, and don\'t worry.', ref: 'St. Padre Pio' },
   { text: 'Be who you are and be that well.', ref: 'St. Francis de Sales' },
+  { text: 'He makes me lie down in green pastures. He leads me beside still waters.', ref: 'Psalm 23:2' },
+  { text: 'He restores my soul. He leads me in paths of righteousness for his name\u2019s sake.', ref: 'Psalm 23:3' },
+  { text: 'Even though I walk through the valley of the shadow of death, I will fear no evil, for you are with me; your rod and your staff, they comfort me.', ref: 'Psalm 23:4' },
+  { text: 'Surely goodness and mercy shall follow me all the days of my life, and I shall dwell in the house of the Lord forever.', ref: 'Psalm 23:6' },
+  { text: 'So teach us to number our days that we may get a heart of wisdom.', ref: 'Psalm 90:12' },
+  { text: 'For the Lord is good; his steadfast love endures forever, and his faithfulness to all generations.', ref: 'Psalm 100:5' },
+  { text: 'I have stored up your word in my heart, that I might not sin against you.', ref: 'Psalm 119:11' },
+  { text: 'I was glad when they said to me, \u2018Let us go to the house of the Lord!\u2019', ref: 'Psalm 122:1' },
+  { text: 'In all your ways acknowledge him, and he will make straight your paths.', ref: 'Proverbs 3:6' },
+  { text: 'A soft answer turns away wrath, but a harsh word stirs up anger.', ref: 'Proverbs 15:1' },
+  { text: 'A joyful heart is good medicine, but a crushed spirit dries up the bones.', ref: 'Proverbs 17:22' },
+  { text: 'For to us a child is born, to us a son is given; and the government shall be upon his shoulder, and his name shall be called Wonderful Counselor, Mighty God, Everlasting Father, Prince of Peace.', ref: 'Isaiah 9:6' },
+  { text: 'He gives power to the faint, and to him who has no might he increases strength.', ref: 'Isaiah 40:29' },
+  { text: 'Seek the Lord while he may be found; call upon him while he is near.', ref: 'Isaiah 55:6' },
+  { text: 'Blessed is the man who trusts in the Lord, whose trust is the Lord.', ref: 'Jeremiah 17:7' },
+  { text: 'The Lord is good to those who wait for him, to the soul who seeks him.', ref: 'Lamentations 3:25' },
+  { text: 'Not by might, nor by power, but by my Spirit, says the Lord of hosts.', ref: 'Zechariah 4:6' },
+  { text: 'Blessed are the pure in heart, for they shall see God.', ref: 'Matthew 5:8' },
+  { text: 'For where your treasure is, there your heart will be also.', ref: 'Matthew 6:21' },
+  { text: 'For where two or three are gathered in my name, there am I among them.', ref: 'Matthew 18:20' },
+  { text: 'With man this is impossible, but with God all things are possible.', ref: 'Matthew 19:26' },
+  { text: 'Therefore I tell you, whatever you ask in prayer, believe that you have received it, and it will be yours.', ref: 'Mark 11:24' },
+  { text: 'For God did not send his Son into the world to condemn the world, but in order that the world might be saved through him.', ref: 'John 3:17' },
+  { text: 'Jesus said to them, \u2018I am the bread of life; whoever comes to me shall not hunger, and whoever believes in me shall never thirst.\u2019', ref: 'John 6:35' },
+  { text: 'A new commandment I give to you, that you love one another: just as I have loved you, you also are to love one another.', ref: 'John 13:34' },
+  { text: 'I have said these things to you, that in me you may have peace. In the world you will have tribulation. But take heart; I have overcome the world.', ref: 'John 16:33' },
+  { text: 'For the wages of sin is death, but the free gift of God is eternal life in Christ Jesus our Lord.', ref: 'Romans 6:23' },
+  { text: 'Do not be conformed to this world, but be transformed by the renewal of your mind, that by testing you may discern what is the will of God, what is good and acceptable and perfect.', ref: 'Romans 12:2' },
+  { text: 'So, whether you eat or drink, or whatever you do, do all to the glory of God.', ref: '1 Corinthians 10:31' },
+  { text: 'So now faith, hope, and love abide, these three; but the greatest of these is love.', ref: '1 Corinthians 13:13' },
+  { text: 'I have been crucified with Christ. It is no longer I who live, but Christ who lives in me. And the life I now live in the flesh I live by faith in the Son of God, who loved me and gave himself for me.', ref: 'Galatians 2:20' },
+  { text: 'Now to him who is able to do far more abundantly than all that we ask or think, according to the power at work within us.', ref: 'Ephesians 3:20' },
+  { text: 'Start by doing what is necessary; then do what is possible; and suddenly you are doing the impossible.', ref: 'St. Francis of Assisi' },
+  { text: 'If you are what you should be, you will set the whole world ablaze.', ref: 'St. Catherine of Siena' },
+  { text: 'Do not abandon yourselves to despair. We are the Easter people and hallelujah is our song.', ref: 'St. John Paul II' },
+  { text: 'Holiness consists simply in doing God\u2019s will, and being just what God wants us to be.', ref: 'St. Th\u00e9r\u00e8se of Lisieux' },
+  { text: 'Miss no single opportunity of making some small sacrifice, here by a smiling look, there by a kindly word; always doing the smallest right and doing it all for love.', ref: 'St. Th\u00e9r\u00e8se of Lisieux' },
+  { text: 'Prayer is the best weapon we have; it is the key to God\u2019s heart.', ref: 'St. Padre Pio' },
+  { text: 'It is Jesus who stirs in you the desire to do something great with your lives.', ref: 'St. John Paul II' },
+  { text: 'In the evening of life, we will be judged on love alone.', ref: 'St. John of the Cross' },
 ];
 function dailyVerse() {
   // Eastern date, so the verse turns over at midnight for the US audience
@@ -760,41 +800,44 @@ app.get('/', async (req, res) => {
 // Diocese codes (2017 directory) to full names, for the Find by place filters.
 // Codes not listed here are religious-order or eparchy codes that do not map
 // to a single geographic diocese; the UI shows the code itself for those.
+// Single-letter codes are real diocese codes in this data: B is Boise, E is
+// Erie, L is Louisville, P is Portland (Oregon; PRT is Portland, Maine),
+// R is Raleigh, Y is Youngstown. BO is Boston, SD is San Diego.
 const DIOCESE_NAMES = {
   AGN: 'Agaña', ALB: 'Albany', ALN: 'Allentown', ALT: 'Altoona-Johnstown', ALX: 'Alexandria',
   AMA: 'Amarillo', ANC: 'Anchorage', ARE: 'Arecibo', ARL: 'Arlington', ATL: 'Atlanta',
   AUS: 'Austin', B: 'Boise', BAK: 'Baker', BAL: 'Baltimore', BEA: 'Beaumont', BEL: 'Belleville',
-  BGP: 'Bridgeport', BIR: 'Birmingham', BIS: 'Bismarck', BLX: 'Biloxi', BR: 'Baton Rouge',
+  BGP: 'Bridgeport', BIR: 'Birmingham', BIS: 'Bismarck', BLX: 'Biloxi', BO: 'Boston', BR: 'Baton Rouge',
   BRK: 'Brooklyn', BUF: 'Buffalo', BUR: 'Burlington', BWN: 'Brownsville', CAM: 'Camden',
   CC: 'Corpus Christi', CGS: 'Caguas', CHI: 'Chicago', CHK: 'Chalan Kanoa', CHL: 'Charlotte',
   CHR: 'Charleston', CHY: 'Cheyenne', CIN: 'Cincinnati', CLV: 'Cleveland', COL: 'Columbus',
   COS: 'Colorado Springs', COV: 'Covington', CR: 'Crookston', DAL: 'Dallas', DAV: 'Davenport',
   DEN: 'Denver', DET: 'Detroit', DM: 'Des Moines', DOD: 'Dodge City', DUB: 'Dubuque',
-  DUL: 'Duluth', ELP: 'El Paso', EVN: 'Evansville', FAJ: 'Fajardo-Humacao', FAR: 'Fargo',
+  DUL: 'Duluth', E: 'Erie', ELP: 'El Paso', EVN: 'Evansville', FAJ: 'Fajardo-Humacao', FAR: 'Fargo',
   FBK: 'Fairbanks', FR: 'Fall River', FRS: 'Fresno', FTW: 'Fort Wayne-South Bend',
   FWT: 'Fort Worth', GAL: 'Galveston-Houston', GB: 'Green Bay', GBG: 'Greensburg',
   GF: 'Great Falls', GI: 'Grand Island', GLP: 'Gallup', GR: 'Grand Rapids', GRY: 'Gary',
   HBG: 'Harrisburg', HEL: 'Helena', HON: 'Honolulu', HRT: 'Hartford', HT: 'Houma-Thibodaux',
   IND: 'Indianapolis', JC: 'Jefferson City', JKS: 'Jackson', JOL: 'Joliet', JUN: 'Juneau',
   KAL: 'Kalamazoo', KC: 'Kansas City', KCK: 'Kansas City in Kansas', KNX: 'Knoxville',
-  LA: 'Los Angeles', LAF: 'Lafayette', LAN: 'Lansing', LAR: 'Laredo', LC: 'La Crosse',
-  LEX: 'Lexington', LFT: 'Lafayette in Indiana', LIN: 'Lincoln', LKC: 'Lake Charles',
+  LA: 'Los Angeles', LAF: 'Lafayette', LAN: 'Lansing', LAR: 'Laredo', LAV: 'Las Vegas', LC: 'La Crosse',
+  LEX: 'Lexington', LFT: 'Lafayette in Indiana', LIN: 'Lincoln', LKC: 'Lake Charles', L: 'Louisville',
   LR: 'Little Rock', LSC: 'Las Cruces', LUB: 'Lubbock', MAD: 'Madison', MAN: 'Manchester',
-  MAR: 'Marquette', MEM: 'Memphis', MET: 'Metuchen', MIA: 'Miami', MIL: 'Milwaukee',
+  MAR: 'Marquette', MEM: 'Memphis', MET: 'Metuchen', MGZ: 'Mayagüez', MIA: 'Miami', MIL: 'Milwaukee',
   MOB: 'Mobile', MRY: 'Monterey', NEW: 'Newark', NO: 'New Orleans', NOR: 'Norwich',
   NSH: 'Nashville', NU: 'New Ulm', NY: 'New York', OAK: 'Oakland', OG: 'Ogdensburg',
-  OKL: 'Oklahoma City', OM: 'Omaha', ORG: 'Orange', ORL: 'Orlando', OWN: 'Owensboro',
+  OKL: 'Oklahoma City', OM: 'Omaha', ORG: 'Orange', ORL: 'Orlando', OWN: 'Owensboro', P: 'Portland',
   PAT: 'Paterson', PBL: 'Pueblo', PEO: 'Peoria', PH: 'Philadelphia', PHX: 'Phoenix',
   PIT: 'Pittsburgh', PMB: 'Palm Beach', PCE: 'Ponce', PRO: 'Providence', PRT: 'Portland',
-  PSC: 'Pensacola', RC: 'Rapid City', RCK: 'Rockford', RIC: 'Richmond', RNO: 'Reno',
+  PSC: 'Pensacola', RC: 'Rapid City', RCK: 'Rockford', R: 'Raleigh', RIC: 'Richmond', RNO: 'Reno',
   ROC: 'Rochester', RVC: 'Rockville Centre', SAC: 'Sacramento', SAG: 'Saginaw', SAL: 'Salina',
   SAN: 'San Angelo', SAT: 'San Antonio', SAV: 'Savannah', SB: 'San Bernardino',
-  SC: 'Sioux City', SCL: 'Saint Cloud', SCR: 'Scranton', SEA: 'Seattle', SFD: 'Springfield in Illinois',
+  SC: 'Sioux City', SCL: 'Saint Cloud', SCR: 'Scranton', SD: 'San Diego', SEA: 'Seattle', SFD: 'Springfield in Illinois',
   SFE: 'Santa Fe', SFR: 'San Francisco', SFS: 'Sioux Falls', SHP: 'Shreveport', SJ: 'San Jose',
   SJN: 'San Juan', SLC: 'Salt Lake City', SP: 'Saint Petersburg', SPC: 'Springfield-Cape Girardeau',
   SPK: 'Spokane', SPP: 'Samoa-Pago Pago', SPR: 'Springfield in Massachusetts', SR: 'Santa Rosa',
   STA: 'Saint Augustine', STL: 'St. Louis', STN: 'Steubenville', STO: 'Stockton',
-  STP: 'Saint Paul', SUP: 'Superior', SY: 'Syracuse', TLS: 'Tulsa', TOL: 'Toledo',
+  STP: 'Saint Paul', STV: 'Saint Thomas', SUP: 'Superior', SY: 'Syracuse', TLS: 'Tulsa', TOL: 'Toledo',
   TR: 'Trenton', TUC: 'Tucson', TYL: 'Tyler', VEN: 'Venice', VIC: 'Victoria', WCH: 'Wichita',
   WDC: 'Washington', WH: 'Wheeling-Charleston', WIL: 'Wilmington', WIN: 'Winona-Rochester',
   WOR: 'Worcester', Y: 'Youngstown', YAK: 'Yakima',
@@ -886,8 +929,7 @@ app.get('/saved', (req, res) => res.send(page('Saved priests', `
     <p class="lede">Priests you saved while browsing. Saved only in this browser, on this device. No account, nothing leaves your browser.</p>
     </div>
     <div id="saved-root"><p>Loading your saved priests&hellip;</p><div class="skeleton" style="height:96px;margin-top:12px"></div><div class="skeleton" style="height:96px;margin-top:12px"></div></div>
-    <noscript><p class="notice">Saved priests live in this browser, so this page needs JavaScript to show them.</p></noscript>
-    <noscript><p>Saved priests need JavaScript enabled. Your list lives in this browser only.</p></noscript>`)));
+    <noscript><p class="notice">Saved priests live in this browser, so this page needs JavaScript to show them.</p></noscript>`)));
 
 // Batch lookup for saved priests: full rows (with review stats) for ids
 // stored in the visitor's own browser. Public directory data only; no auth,
@@ -992,6 +1034,11 @@ app.get('/browse', async (req, res) => {
     else if (region === 'Other listings') {
       const all = Object.values(REGIONS).flat();
       params.push(all); where.push(`NOT (state = ANY($${params.length}))`);
+    } else {
+      // An unknown region used to be silently ignored, which returned the
+      // whole directory with no explanation. Say so and show nothing.
+      note = `<p class="notice">We do not have a region called &ldquo;${esc(region)}&rdquo;. Try Northeast, Midwest, South, West, or Other listings.</p>`;
+      where.push('false');
     }
   }
   // Multi-word search: each word is matched against name, parish, or city.
@@ -1006,7 +1053,15 @@ app.get('/browse', async (req, res) => {
   // old links keep working.
   const zipMatch = q.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : legacyZip;
-  const words = q.trim().split(/\s+/).filter(Boolean).filter((t) => !/^\d{5}$/.test(t)).slice(0, 10).map(searchNormWord);
+  // Words shorter than 3 letters, and a few filler words, are dropped before
+  // matching: as substrings they match nearly everything ("no" alone matched
+  // 3,323 priests, "of" 9,217), so a nonsense query like "Zzqx No Such"
+  // returned thousands of results. "St" still works because it normalizes
+  // to "saint" first; real place phrases ("El Paso", "De La Salle") still
+  // work because the remaining word carries them.
+  const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'from']);
+  const rawWords = q.trim().split(/\s+/).filter(Boolean).filter((t) => !/^\d{5}$/.test(t)).slice(0, 10);
+  const words = rawWords.map(searchNormWord).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
   let relevance = null;
   if (words.length) {
     const matchParts = [];
@@ -1029,7 +1084,7 @@ app.get('/browse', async (req, res) => {
     }
     where.push(`(${matchParts.join(' OR ')})`);
     relevance = `(${relParts.join(' + ')})`;
-    if (words.length >= 2) {
+    if (rawWords.length >= 2) {
       // A multi-word query that matches a city or parish as a phrase is a
       // place query, not a name query: restrict to rows matching the phrase
       // in city or parish, so priests who merely share a word of the place
@@ -1039,7 +1094,10 @@ app.get('/browse', async (req, res) => {
       // ("Michael DeMartinis", stored "DeMartinis, Michael") still ranks
       // first. The name bonus reuses the word params already pushed, so
       // the count query's parameter list stays in sync.
-      const phrase = words.join(' ');
+      // The phrase is built from the raw words, not the filtered ones:
+      // short words are dropped from matching, but "De La Salle" is still
+      // a parish phrase, and "El Paso" is still a city phrase.
+      const phrase = rawWords.map(searchNormWord).join(' ');
       const phraseLike = `%${searchLikeEscape(phrase)}%`;
       let phraseIsPlace = false;
       try {
@@ -1070,6 +1128,14 @@ app.get('/browse', async (req, res) => {
       note = `<p class="notice">We could not match that number to a known area, so no results are shown. Try a name, parish, or city search instead.</p>`;
       where.push('false');
     }
+  }
+  // The visitor typed words, but every one was too short or a filler word to
+  // match on (and no ZIP resolved to an area): show nothing with a plain
+  // explanation instead of the whole directory, which is what an empty
+  // search used to return here.
+  if (rawWords.length && !words.length && !/^\d{5}$/.test(zip)) {
+    note = `<p class="notice">That search was too general to match anything. Try a full name, parish, or city.</p>`;
+    where.push('false');
   }
   let cards = [];
   let totalCount = 0;
