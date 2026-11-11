@@ -28,10 +28,94 @@ const EXTRA_NT_VERSES = require('./lib/verses-extra-nt');
 
 const PORT = process.env.PORT || 3000;
 const OWNER_SECRET = process.env.OWNER_SECRET || '';
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 10, connectionTimeoutMillis: 5000 });
 const app = express();
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.disable('x-powered-by');
+// Security headers (audit F-01/F-02, Iteration 1). One middleware at the
+// top, before express.static, so every response — pages and API alike —
+// carries them. CSP is Report-Only for now: the site depends on inline
+// scripts and styles, so enforcement waits until the inline inventory is
+// moved or nonced; report-only cannot break anything.
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "script-src 'self' https://www.googletagmanager.com https://www.google-analytics.com",
+  "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com",
+  "img-src 'self' https://www.google-analytics.com",
+  "style-src 'self' 'unsafe-inline'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+app.use((req, res, next) => {
+  // HSTS without includeSubDomains: subdomain HTTPS status is unverified.
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
+  next();
+});
+// Hand-rolled in-memory per-IP rate limiter (audit F-08, Iteration 1).
+// No new dependency. Single-instance caveat: state lives in this process
+// and resets on deploy/restart, and a second Render instance would keep
+// its own counters. Acceptable for a one-instance deployment; move to a
+// shared store (database) if the site ever scales past one instance.
+// Keyed on req.ip, the server-determined client IP via trust proxy, never
+// on a client-supplied header.
+function makeRateLimiter({ windowMs, max, message }) {
+  const hits = new Map(); // ip -> { count, resetAt }
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip = req.ip || 'unknown';
+    let entry = hits.get(ip);
+    if (!entry || now >= entry.resetAt) {
+      entry = { count: 0, resetAt: now + windowMs };
+      hits.set(ip, entry);
+    }
+    entry.count += 1;
+    if (entry.count > max) {
+      res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+      return res.status(429).send(message || 'Too many requests. Please try again later.');
+    }
+    next();
+  };
+}
+// Global ceiling: 300 requests / 15 min / IP, reads included. Tight
+// per-endpoint limits below cover the public write endpoints.
+app.use(makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 300 }));
+// 5 submissions / hour / IP on each public write endpoint.
+const submitLimiter = makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many submissions. Please try again later.' });
+// 30 chat messages / hour / IP.
+const chatLimiter = makeRateLimiter({ windowMs: 60 * 60 * 1000, max: 30, message: 'Too many messages. Please try again later.' });
+// Owner-login brute-force protection (audit F-03): 5 failed attempts per
+// IP per 15 minutes, then 429 with a growing back-off. A successful login
+// resets the counter. Failed attempts are logged server-side with a hash
+// of the IP only — never the supplied secret.
+const loginAttempts = new Map(); // ip -> { count, firstAt, blockedUntil }
+function loginBlocked(ip) {
+  const rec = loginAttempts.get(ip);
+  return !!(rec && rec.blockedUntil && Date.now() < rec.blockedUntil);
+}
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  let rec = loginAttempts.get(ip);
+  if (!rec || (now >= rec.blockedUntil && now - rec.firstAt > 15 * 60 * 1000)) {
+    rec = { count: 0, firstAt: now, blockedUntil: 0 };
+  }
+  rec.count += 1;
+  const ipHash = crypto.createHash('sha256').update(ip).digest('hex').slice(0, 12);
+  console.error(`owner login failed ip_hash=${ipHash} count=${rec.count} at=${new Date(now).toISOString()}`);
+  if (rec.count >= 5) {
+    // Growing back-off: 15 min, doubling per further failure, capped at 4 h.
+    const backoffMs = Math.min(15 * 60 * 1000 * Math.pow(2, rec.count - 5), 4 * 60 * 60 * 1000);
+    rec.blockedUntil = now + backoffMs;
+  }
+  loginAttempts.set(ip, rec);
+}
+function resetLoginAttempts(ip) { loginAttempts.delete(ip); }
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
+app.use(express.json({ limit: '50kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1);
 
@@ -756,7 +840,7 @@ const LOST_SHEEP_SCRIPT = `
 function errorPage(opts) {
   var body = '<header class="wrap"><a class="brand" href="/">Rate<span>My</span>Father</a>'
     + '<div class="glass" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></header>'
-    + '<main class="wrap"><h1>' + opts.heading + '</h1><p>' + opts.message + '</p>'
+    + '<main class="wrap"><h1>' + esc(opts.heading) + '</h1><p>' + esc(opts.message) + '</p>'
     + opts.actions
     + '<section class="card" aria-label="The Lost Sheep game">'
     + '<div class="game-head"><h2>The Lost Sheep</h2><span class="game-score">Sheep: <span id="sheep-score">0</span> &middot; Best: <span id="sheep-best">0</span> &middot; Streak: <span id="sheep-streak" class="game-streak">0</span></span><span class="game-time" id="sheep-time">0:45</span></div>'
@@ -771,7 +855,7 @@ function errorPage(opts) {
     + '<script>' + LOST_SHEEP_SCRIPT + '</script>';
   return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
     + '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-    + '<title>' + opts.title + ' | RateMyFather</title>'
+    + '<title>' + esc(opts.title) + ' | RateMyFather</title>'
     + '<meta name="description" content="RateMyFather — anonymous ratings of Catholic priests.">'
     + '<style>' + ERROR_CSS + '</style></head><body>' + body + '</body></html>';
 }
@@ -801,7 +885,7 @@ function signSession(payload) {
 }
 function verifySession(cookieHeader) {
   if (!OWNER_SECRET || !cookieHeader) return false;
-  const m = /(?:^|;\s*)rmf_owner=([^;]+)/.exec(cookieHeader);
+  const m = /(?:^|;\s*)__Host-rmf_owner=([^;]+)/.exec(cookieHeader);
   if (!m) return false;
   const [b, sig] = m[1].split('.');
   if (!b || !sig) return false;
@@ -1358,7 +1442,10 @@ app.post('/api/trivia/score', async (req, res) => {
     || !Number.isInteger(correct) || correct < 0 || correct > 3
     || !Number.isFinite(ms) || ms < 0 || ms > 3600000
     || points > correct * 1000 || points < correct * 500
-    || ms < correct * 200) {
+    // Sanity bounds for a 3-question round (audit F-10, cheap half): at
+    // least 2 s per correct answer to have read and answered it, and no
+    // more than 30 s total (3 questions x 10 s each).
+    || ms < correct * 2000 || ms > 30000) {
     return res.status(400).json({ error: 'bad submission' });
   }
   const checked = cleanTriviaName(req.body.name);
@@ -1521,7 +1608,7 @@ app.get('/browse', async (req, res) => {
   const params = [];
   let note = '';
   if (state) { params.push(state.toUpperCase()); where.push(`state = $${params.length}`); }
-  if (city) { params.push(city); where.push(`city ILIKE $${params.length}`); }
+  if (city) { params.push(searchLikeEscape(city)); where.push(`city ILIKE $${params.length}`); }
   if (diocese) { params.push(diocese.toUpperCase()); where.push(`diocese_code = $${params.length}`); }
   if (region) {
     const states = REGIONS[region];
@@ -2072,7 +2159,7 @@ app.get('/priest/:id', async (req, res) => {
     </div>
     ${reviewHtml}
     <p class="correction-row"><a class="btn btn--ghost btn--sm" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>
-  </section>`, '<script>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS) + ';</script><script src="/review.js"></script>'));
+  </section>`, '<script>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS).replace(/</g, '\\u003c') + ';</script><script src="/review.js"></script>'));
 });
 
 app.post('/priest/:id/review', async (req, res) => {
@@ -2145,12 +2232,16 @@ app.get('/add-priest', (req, res) => res.send(page('Add a priest', `<h1>Add a pr
     <p><label>State: <input name="state" maxlength="2"></label></p>
     <p><label>ZIP (optional, only used for exact-ZIP matching of this user-added profile): <input name="zip" pattern="\\d{5}"></label></p>
     <button type="submit">Submit for moderation</button></form>`)));
-app.post('/add-priest', async (req, res) => {
+app.post('/add-priest', submitLimiter, async (req, res) => {
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>A name is required.</p>'));
+  if (name.length > 200) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>A name must be 200 characters or fewer.</p>'));
+  const parish = (req.body.parish || '').trim().slice(0, 200) || null;
+  const city = (req.body.city || '').trim().slice(0, 100) || null;
+  const state = (req.body.state || '').trim().toUpperCase().slice(0, 2) || null;
   await pool.query(`INSERT INTO priests (name, parish, city, state, zip, source, user_added, status)
     VALUES ($1,$2,$3,$4,$5,'user_submitted',true,'pending')`,
-    [name, req.body.parish || null, req.body.city || null, (req.body.state || '').toUpperCase() || null, /^\d{5}$/.test(req.body.zip || '') ? req.body.zip : null]);
+    [name, parish, city, state, /^\d{5}$/.test(req.body.zip || '') ? req.body.zip : null]);
   await audit('priest_submitted', 'priest', null, name);
   res.send(page('Submitted', '<h1>Thank you</h1><p>This priest has been submitted and is held for moderation. It will not appear publicly until an owner approves it.</p>'));
 });
@@ -2165,10 +2256,13 @@ app.get('/report', async (req, res) => res.send(page('Report a review', `<h1>Rep
       <option>Private information</option><option>Spam</option><option>Other</option></select></label></p>
     <p><label>Details (optional):<br><textarea name="details" rows="4" maxlength="2000"></textarea></label></p>
     <button type="submit">Submit report</button></form>`)));
-app.post('/report', async (req, res) => {
+const REPORT_REASONS = ['Contains a factual allegation', 'Abusive or harassing', 'Private information', 'Spam', 'Other'];
+app.post('/report', submitLimiter, async (req, res) => {
+  const reason = REPORT_REASONS.includes(req.body.reason) ? req.body.reason : 'Other';
+  const details = (req.body.details || '').trim().slice(0, 2000) || null;
   await pool.query(`INSERT INTO reports (review_id, priest_id, reason, details) VALUES ($1,$2,$3,$4)`,
-    [numOrNull(req.body.review_id), numOrNull(req.body.priest_id), req.body.reason || 'Other', req.body.details || null]);
-  await audit('report_submitted', 'report', null, req.body.reason || '');
+    [numOrNull(req.body.review_id), numOrNull(req.body.priest_id), reason, details]);
+  await audit('report_submitted', 'report', null, reason);
   res.send(page('Report received', '<h1>Report received</h1><p>Thank you. The report has been flagged for the moderation queue. Nothing has been removed by this report alone.</p>'));
 });
 
@@ -2180,12 +2274,16 @@ app.get('/priest/:id/correct', async (req, res) => res.send(page('Correction or 
     <p><label>Details (required):<br><textarea name="details" rows="5" maxlength="3000" required></textarea></label></p>
     <p><label>Contact (optional, never published): <input name="contact" maxlength="200"></label></p>
     <button type="submit">Submit</button></form>`)));
-app.post('/correction', async (req, res) => {
+app.post('/correction', submitLimiter, async (req, res) => {
   const priestId = numOrNull(req.body.priest_id);
-  if (!req.body.details || !priestId) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Details and a priest are required.</p>'));
+  const details = (req.body.details || '').trim();
+  if (!details || !priestId) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Details and a priest are required.</p>'));
+  if (details.length > 3000) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Details must be 3000 characters or fewer.</p>'));
+  const type = ['correction', 'reply', 'removal'].includes(req.body.type) ? req.body.type : 'correction';
+  const contact = (req.body.contact || '').trim().slice(0, 200) || null;
   await pool.query(`INSERT INTO corrections (priest_id, type, details, contact) VALUES ($1,$2,$3,$4)`,
-    [priestId, req.body.type || 'correction', req.body.details, req.body.contact || null]);
-  await audit('correction_submitted', 'correction', null, req.body.type || '');
+    [priestId, type, details, contact]);
+  await audit('correction_submitted', 'correction', null, type);
   res.send(page('Request received', '<h1>Request received</h1><p>Thank you. Your request has been flagged for the moderation queue.</p>'));
 });
 
@@ -2195,9 +2293,12 @@ app.get('/legal', (req, res) => res.send(page('Legal notices', `<h1>Legal notice
     <p><label>Notice (required):<br><textarea name="details" rows="6" maxlength="5000" required></textarea></label></p>
     <p><label>Contact (optional, never published): <input name="contact" maxlength="200"></label></p>
     <button type="submit">Submit notice</button></form>`)));
-app.post('/legal', async (req, res) => {
-  if (!req.body.details) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Notice text is required.</p>'));
-  await pool.query(`INSERT INTO legal_notices (details, contact) VALUES ($1,$2)`, [req.body.details, req.body.contact || null]);
+app.post('/legal', submitLimiter, async (req, res) => {
+  const details = (req.body.details || '').trim();
+  if (!details) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Notice text is required.</p>'));
+  if (details.length > 5000) return res.status(400).send(page('Not submitted', '<h1>Not submitted</h1><p>Notice text must be 5000 characters or fewer.</p>'));
+  const contact = (req.body.contact || '').trim().slice(0, 200) || null;
+  await pool.query(`INSERT INTO legal_notices (details, contact) VALUES ($1,$2)`, [details, contact]);
   await audit('legal_notice_submitted', 'legal_notice', null, '');
   res.send(page('Notice received', '<h1>Notice received</h1><p>Thank you. Your notice has been flagged for the moderation queue.</p>'));
 });
@@ -2306,7 +2407,7 @@ app.get('/moderation', (req, res) => res.send(infoPage('Content & Moderation Pol
   <p>Review of reviews and deletion are owner-only functions, enforced server side, not merely hidden in the interface.</p>`)));
 
 // ---------- chatbot: site data only, aggregated approved scores with counts ----------
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', chatLimiter, async (req, res) => {
   const msg = String(req.body.message || '').trim();
   const lower = msg.toLowerCase();
   const filterMap = [['quick', 'quick'], ['quick mass', 'quick'], ['great homily', 'homily'], ['homily', 'homily'], ['lovable', 'lovable'], ['likable', 'lovable'], ['likeable', 'lovable']];
@@ -2378,17 +2479,29 @@ app.get('/owner/login', (req, res) => res.send(page('Owner sign-in', `<h1>Owner 
     <button type="submit">Sign in</button></form>`)));
 app.post('/owner/login', (req, res) => {
   if (!OWNER_SECRET) return res.status(403).send(page('Forbidden', '<h1>Owner moderation is not configured.</h1>'));
+  const ip = req.ip || 'unknown';
+  if (loginBlocked(ip)) {
+    return res.status(429).send('Too many failed sign-in attempts. Please wait and try again later.');
+  }
   const supplied = String(req.body.secret || '');
   // Timing-safe comparison against the env secret (hash both first so lengths match).
   const a = crypto.createHash('sha256').update(supplied).digest();
   const b = crypto.createHash('sha256').update(OWNER_SECRET).digest();
-  if (!crypto.timingSafeEqual(a, b)) return res.status(403).send(page('Sign-in failed', '<h1>Sign-in failed</h1><p>The secret did not match.</p>'));
+  if (!crypto.timingSafeEqual(a, b)) {
+    recordLoginFailure(ip);
+    return res.status(403).send(page('Sign-in failed', '<h1>Sign-in failed</h1><p>The secret did not match.</p>'));
+  }
+  resetLoginAttempts(ip);
   const cookie = signSession({ exp: Date.now() + 12 * 60 * 60 * 1000 });
-  res.setHeader('Set-Cookie', `rmf_owner=${cookie}; HttpOnly; SameSite=Lax; Path=/; Max-Age=43200`);
+  // __Host- prefix + Secure: the cookie is only ever sent over HTTPS and
+  // cannot be shadowed by a subdomain cookie. This signs the owner out
+  // once (the old rmf_owner cookie is no longer read); he must sign in
+  // again with the secret saved in his password manager.
+  res.setHeader('Set-Cookie', `__Host-rmf_owner=${cookie}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=43200`);
   res.redirect('/owner');
 });
 app.post('/owner/logout', (req, res) => {
-  res.setHeader('Set-Cookie', 'rmf_owner=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', '__Host-rmf_owner=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
   res.redirect('/');
 });
 
@@ -2427,7 +2540,7 @@ app.get('/owner', requireOwner, async (req, res) => {
 });
 app.get('/owner/audit', requireOwner, async (req, res) => {
   const rows = (await pool.query(`SELECT * FROM moderation_audit ORDER BY created_at DESC LIMIT 200`)).rows;
-  const list = rows.map((r) => `<li>${esc(r.created_at.toISOString())} ${esc(r.action)} ${esc(r.target_type)} ${r.target_id || ''} ${esc(r.detail || '')}</li>`).join('') || '<li>No audit entries yet.</li>';
+  const list = rows.map((r) => `<li>${esc(r.created_at.toISOString())} ${esc(r.action)} ${esc(r.target_type)} ${esc(r.target_id == null ? '' : String(r.target_id))} ${esc(r.detail || '')}</li>`).join('') || '<li>No audit entries yet.</li>';
   res.send(page('Moderation audit', `<h1>Moderation audit</h1><p>Includes auto-approved reviews.</p><ul>${list}</ul><p><a href="/owner">Back to queue</a></p>`));
 });
 
@@ -2512,7 +2625,9 @@ async function boot() {
   // database is slow to wake (Neon free tier suspends when idle). Then run
   // migrations in the background; all are idempotent (IF NOT EXISTS), so
   // re-running them on boot is safe.
-  app.listen(PORT, () => console.log(`RateMyFather listening on port ${PORT}`));
+  const server = app.listen(PORT, () => console.log(`RateMyFather listening on port ${PORT}`));
+  server.requestTimeout = 30000;
+  server.headersTimeout = 10000;
   const migDir = path.join(__dirname, 'migrations');
   if (fs.existsSync(migDir)) {
     for (const f of fs.readdirSync(migDir).sort()) {
