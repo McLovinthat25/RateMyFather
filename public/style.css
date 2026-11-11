@@ -270,6 +270,13 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
    Burgundy buttons with a gold current page, roomy tap targets on mobile. */
 .pager { display:flex; align-items:center; justify-content:center; gap:10px;
   flex-wrap:wrap; margin:28px 0 8px; }
+/* On a phone the page numbers take their own centered row under Previous /
+   Next, instead of wrapping mid-row into a ragged block. */
+@media (max-width:639px) {
+  .pager-pages { order:3; flex-basis:100%; }
+  .pager-btn, .pager-num { min-height:44px; }
+  .pager-btn { display:inline-flex; align-items:center; }
+}
 .pager-btn { display:inline-block; padding:9px 16px; border:1px solid var(--border);
   border-radius:var(--radius); background:var(--surface); color:var(--accent);
   font-weight:600; font-size:14px; text-decoration:none; }
