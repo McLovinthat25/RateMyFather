@@ -1643,23 +1643,26 @@
       ctx.fillText(parishName.toUpperCase(), GAME_W / 2, screenY(52));
       ctx.textAlign = 'left';
       // Gold X (pass target): a soft halo, a rounded X, a refined label.
+      // The ball has landed: the X lights up so the catch window reads
+      // at a glance — the ball is here, hold still and catch it.
       if (state === 'pass' && passTarget && !caught) {
         var tx = passTarget.x, ty = screenY(passTarget.y);
+        var ballHere = !!(ballFlight && ballFlight.arrived);
         var halo = ctx.createRadialGradient(tx, ty, 4, tx, ty, BOWL_CATCH_RADIUS + 14);
-        halo.addColorStop(0, 'rgba(178,138,46,0.34)');
+        halo.addColorStop(0, ballHere ? 'rgba(178,138,46,0.55)' : 'rgba(178,138,46,0.34)');
         halo.addColorStop(1, 'rgba(178,138,46,0)');
         ctx.fillStyle = halo;
         ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS + 14, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(178,138,46,0.22)';
+        ctx.fillStyle = ballHere ? 'rgba(178,138,46,0.45)' : 'rgba(178,138,46,0.22)';
         ctx.beginPath(); ctx.arc(tx, ty, BOWL_CATCH_RADIUS, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        ctx.strokeStyle = BOWL_GOLD; ctx.lineWidth = ballHere ? 6 : 4; ctx.lineCap = 'round';
         var s = 10;
         ctx.beginPath();
         ctx.moveTo(tx - s, ty - s); ctx.lineTo(tx + s, ty + s);
         ctx.moveTo(tx + s, ty - s); ctx.lineTo(tx - s, ty + s);
         ctx.stroke();
         ctx.fillStyle = BOWL_GOLD_BRIGHT; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText('CATCH HERE', tx, ty - 22);
+        ctx.fillText(ballHere ? 'CATCH IT!' : 'CATCH HERE', tx, ty - 22);
         ctx.textAlign = 'left';
         if (catchT > 0) {
           ctx.fillStyle = 'rgba(217,180,90,0.55)';
@@ -2035,6 +2038,20 @@
         var gy = ghostY();
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, gy + r, STACK_COLORS[cur.type], true); }); });
         cur.shape.forEach(function (row, r) { row.forEach(function (v, c) { if (v) drawCell(cur.x + c, cur.y + r, STACK_COLORS[cur.type]); }); });
+      }
+      // The window is nearly full: a red border pulses around it so the
+      // end never comes as a surprise — the player sees the danger coming
+      // and can clear lines before the panes run out of room.
+      var topRow = ROWS;
+      for (var yy = 0; yy < ROWS; yy++) {
+        var anyFilled = false;
+        for (var xx = 0; xx < COLS; xx++) { if (grid[yy][xx]) { anyFilled = true; break; } }
+        if (anyFilled) { topRow = yy; break; }
+      }
+      if (topRow < 5 && state === 'playing') {
+        var pulse = 0.55 + 0.35 * Math.sin(Date.now() / 200);
+        ctx.strokeStyle = 'rgba(178,32,32,' + pulse.toFixed(2) + ')'; ctx.lineWidth = 3;
+        ctx.strokeRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
       }
       // Next piece, drawn as a small preview so the player can plan around
       // its shape, not just its letter. The piece after that sits below it,
@@ -2861,6 +2878,13 @@
       ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, py + 4); ctx.textAlign = 'left';
+      // In the water with no log underfoot: a splash ring grows as the
+      // 0.6s grace runs out, so the player sees the rescue window closing
+      // and knows to step back onto a log instead of waiting to sink.
+      if (riverT > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.9 - riverT).toFixed(2) + ')'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, py, 12 + riverT * 40, 0, Math.PI * 2); ctx.stroke();
+      }
       if (paused) {
         ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
@@ -3931,9 +3955,14 @@
     x = Math.round(800 * dens);
     while (x < 8900) { if (!inSpecial(x)) L.orbs.push({ x: x, y: 150 + rnd() * 70, used: false }); x += (620 + rnd() * 300) * dens; }
     [[2100, 2950], [5650, 6500]].forEach(function (seg) {
-      var cx = seg[0] + 120;
+      var cx = seg[0] + 120, prevC = null;
       while (cx < seg[1] - 60) {
         var gapC = 110 + rnd() * 110;
+        // The flight reads as a line to follow, not a lottery: each gap
+        // sits near the last one (at most 55px away), so the dove flows
+        // from column to column instead of teleporting up and down.
+        if (prevC !== null) gapC = clamp(prevC + clamp(gapC - prevC, -55, 55), 110, 220);
+        prevC = gapC;
         L.doveCols.push({ x: cx, w: 26, gapTop: gapC - 59, gapBottom: gapC + 59 });
         cx += 165 + rnd() * 45;
       }
