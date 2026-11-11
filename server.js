@@ -182,7 +182,7 @@ const GLASS = glassStrip();
 // A daily Bible verse (plus a few short quotes from the saints), rotated
 // deterministically by the Eastern date, so every visitor sees the same
 // verse on a given day and a new one the next. No database, no API call:
-// the list is long enough (40 entries) that it never repeats within a
+// the list is long enough (84 entries) that it never repeats within a
 // month. Verse wording is ESV.
 const DAILY_VERSES = [
   { text: 'The Lord is my shepherd; I shall not want.', ref: 'Psalm 23:1' },
@@ -225,6 +225,50 @@ const DAILY_VERSES = [
   { text: 'Let nothing disturb you, let nothing frighten you. All things pass away. God never changes.', ref: 'St. Teresa of Avila' },
   { text: 'Not all of us can do great things. But we can do small things with great love.', ref: 'Mother Teresa' },
   { text: 'Act as if everything depended on you; trust as if everything depended on God.', ref: 'St. Ignatius of Loyola' },
+  { text: 'Be still, and know that I am God.', ref: 'Psalm 46:10' },
+  { text: 'When you pass through the waters, I will be with you; and through the rivers, they shall not overwhelm you.', ref: 'Isaiah 43:2' },
+  { text: 'Call to me and I will answer you, and will tell you great and hidden things that you have not known.', ref: 'Jeremiah 33:3' },
+  { text: 'I lift up my eyes to the hills. From where does my help come? My help comes from the Lord, who made heaven and earth.', ref: 'Psalm 121:1\u20132' },
+  { text: 'Blessed are the poor in spirit, for theirs is the kingdom of heaven.', ref: 'Matthew 5:3' },
+  { text: 'Blessed are those who hunger and thirst for righteousness, for they shall be satisfied.', ref: 'Matthew 5:6' },
+  { text: 'You are the light of the world. A city set on a hill cannot be hidden.', ref: 'Matthew 5:14' },
+  { text: 'Ask, and it will be given to you; seek, and you will find; knock, and it will be opened to you.', ref: 'Matthew 7:7' },
+  { text: 'And behold, I am with you always, to the end of the age.', ref: 'Matthew 28:20' },
+  { text: 'With man it is impossible, but not with God. For all things are possible with God.', ref: 'Mark 10:27' },
+  { text: 'For nothing will be impossible with God.', ref: 'Luke 1:37' },
+  { text: 'In the beginning was the Word, and the Word was with God, and the Word was God.', ref: 'John 1:1' },
+  { text: 'I am the light of the world. Whoever follows me will not walk in darkness, but will have the light of life.', ref: 'John 8:12' },
+  { text: 'I came that they may have life and have it abundantly.', ref: 'John 10:10' },
+  { text: 'I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing.', ref: 'John 15:5' },
+  { text: 'But God shows his love for us in that while we were still sinners, Christ died for us.', ref: 'Romans 5:8' },
+  { text: 'May the God of hope fill you with all joy and peace in believing, so that by the power of the Holy Spirit you may abound in hope.', ref: 'Romans 15:13' },
+  { text: 'Let all that you do be done in love.', ref: '1 Corinthians 16:14' },
+  { text: 'Therefore, if anyone is in Christ, he is a new creation. The old has passed away; behold, the new has come.', ref: '2 Corinthians 5:17' },
+  { text: 'And let us not grow weary of doing good, for in due season we will reap, if we do not give up.', ref: 'Galatians 6:9' },
+  { text: 'Be kind to one another, tenderhearted, forgiving one another, as God in Christ forgave you.', ref: 'Ephesians 4:32' },
+  { text: 'And the peace of God, which surpasses all understanding, will guard your hearts and your minds in Christ Jesus.', ref: 'Philippians 4:7' },
+  { text: 'And whatever you do, in word or deed, do everything in the name of the Lord Jesus, giving thanks to God the Father through him.', ref: 'Colossians 3:17' },
+  { text: 'Rejoice always, pray without ceasing, give thanks in all circumstances; for this is the will of God in Christ Jesus for you.', ref: '1 Thessalonians 5:16\u201318' },
+  { text: 'I have fought the good fight, I have finished the race, I have kept the faith.', ref: '2 Timothy 4:7' },
+  { text: 'Let us run with endurance the race that is set before us.', ref: 'Hebrews 12:1' },
+  { text: 'Every good gift and every perfect gift is from above, coming down from the Father of lights, with whom there is no variation or shadow due to change.', ref: 'James 1:17' },
+  { text: 'Humble yourselves, therefore, under the mighty hand of God so that at the proper time he may exalt you.', ref: '1 Peter 5:6' },
+  { text: 'See what kind of love the Father has given to us, that we should be called children of God; and so we are.', ref: '1 John 3:1' },
+  { text: 'Let the words of my mouth and the meditation of my heart be acceptable in your sight, O Lord, my rock and my redeemer.', ref: 'Psalm 19:14' },
+  { text: 'Create in me a clean heart, O God, and renew a right spirit within me.', ref: 'Psalm 51:10' },
+  { text: 'Bless the Lord, O my soul, and all that is within me, bless his holy name!', ref: 'Psalm 103:1' },
+  { text: 'I praise you, for I am fearfully and wonderfully made.', ref: 'Psalm 139:14' },
+  { text: 'The Lord is good to all, and his mercy is over all that he has made.', ref: 'Psalm 145:9' },
+  { text: 'The heart of man plans his way, but the Lord establishes his steps.', ref: 'Proverbs 16:9' },
+  { text: 'Iron sharpens iron, and one man sharpens another.', ref: 'Proverbs 27:17' },
+  { text: 'For everything there is a season, and a time for every matter under heaven.', ref: 'Ecclesiastes 3:1' },
+  { text: 'You keep him in perfect peace whose mind is stayed on you, because he trusts in you.', ref: 'Isaiah 26:3' },
+  { text: 'For my thoughts are not your thoughts, neither are your ways my ways, declares the Lord.', ref: 'Isaiah 55:8' },
+  { text: 'The Lord your God is in your midst, a mighty one who will save; he will rejoice over you with gladness; he will quiet you by his love; he will exult over you with loud singing.', ref: 'Zephaniah 3:17' },
+  { text: 'Late have I loved you, O Beauty ever ancient, ever new.', ref: 'St. Augustine, Confessions' },
+  { text: 'Do not be afraid. Open wide the doors for Christ.', ref: 'St. John Paul II' },
+  { text: 'Pray, hope, and don\'t worry.', ref: 'St. Padre Pio' },
+  { text: 'Be who you are and be that well.', ref: 'St. Francis de Sales' },
 ];
 function dailyVerse() {
   // Eastern date, so the verse turns over at midnight for the US audience
@@ -257,6 +301,7 @@ function layout(title, body, extraHead = '') {
   <p class="footer-brand">Rate<span class="accent">My</span>Father</p>
   <p class="footer-tagline small">Anonymous ratings.</p>
   <nav class="footer-nav"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/moderation">Content &amp; Moderation Policy</a><a href="/legal">Legal notices</a><a href="/owner/login">Owner moderation</a><a href="/add-priest">Add a priest</a></nav>
+  <nav class="footer-nav" aria-label="Browse by region"><a href="/browse?region=Northeast">Northeast</a><a href="/browse?region=Midwest">Midwest</a><a href="/browse?region=South">South</a><a href="/browse?region=West">West</a><a href="/browse?region=Other%20listings">Other listings</a></nav>
   <p>${DISCLAIMER}</p>
   <p>No paid placement. No sponsored priests. Reviews are never sold or promoted for payment.</p></footer>
   <div id="chat-widget"><button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat-panel">Ask <span class="chat-toggle-long">about a priest</span></button>
@@ -621,6 +666,20 @@ app.get('/', async (req, res) => {
       }
     }
   } catch (e) { console.error('be-first query failed', e.message); }
+  // Find by place: state, then city, then diocese. The selects are
+  // server-rendered (see placeOptions) and enhanced by places.js.
+  const placeOpts = await placeOptions('', '', '');
+  const placeSectionHtml = `<section class="home-section">
+    <div class="section-head">
+    <p class="eyebrow">Find by place</p>
+    <h2>Find a priest by place</h2>
+    <p class="lede">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
+    </div>
+    <form action="/browse" method="get">
+    ${placeFiltersHtml(placeOpts, '', '', '', false)}
+    <p class="section-more"><button type="submit" class="btn btn--gold btn-pill press">Browse priests</button></p>
+    </form>
+    </section>`;
   res.send(page('Home', `
     <section class="hero">
       <div class="hero-photo">
@@ -630,7 +689,7 @@ app.get('/', async (req, res) => {
           <p class="tagline">Anonymous ratings of pace, homily, and likability, from the pews.</p>
           <form action="/browse" method="get" class="hero-search">
             <div class="search">
-              <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
+              <span class="search-field">${searchIcon}<input name="q" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city" enterkeyhint="search"></span>
               <button type="submit">Search</button>
             </div>
           </form>
@@ -639,6 +698,7 @@ app.get('/', async (req, res) => {
       </div>
     </section>${GLASS}
     ${verseHtml}
+    ${placeSectionHtml}
     <section class="home-section band">
     <div class="section-head">
     <p class="eyebrow">The directory</p>
@@ -746,6 +806,35 @@ function dioceseName(code) { return DIOCESE_NAMES[code] || code; }
 const STATE_NAMES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
 function stateName(code) { return STATE_NAMES[code] || code; }
 
+// Server-rendered Find by place options. places.js replaces these with the
+// live lists when it runs, but rendering them here means the dropdowns work
+// with no JavaScript too, and an active place filter survives a text-search
+// refine even if the script fails to load.
+async function placeOptions(state, city, diocese) {
+  const st = (state || '').toUpperCase();
+  let stateOpts = '<option value="">Choose a state</option>';
+  let cityOpts = '<option value="">Choose a city</option>';
+  let dioceseOpts = '<option value="">Choose a diocese</option>';
+  try {
+    const { rows: stRows } = await pool.query(`SELECT DISTINCT state FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state IS NOT NULL AND state <> '' ORDER BY state`);
+    stateOpts += stRows.map((r) => `<option value="${esc(r.state)}"${r.state === st ? ' selected' : ''}>${esc(stateName(r.state))}</option>`).join('');
+    if (st) {
+      const { rows: cRows } = await pool.query(`SELECT DISTINCT city FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state=$1 AND city IS NOT NULL AND city <> '' ORDER BY city LIMIT 200`, [st]);
+      cityOpts += cRows.map((r) => `<option value="${esc(r.city)}"${city && r.city.toLowerCase() === city.toLowerCase() ? ' selected' : ''}>${esc(r.city)}</option>`).join('');
+      const { rows: dRows } = await pool.query(`SELECT DISTINCT diocese_code FROM priests WHERE status='approved' AND ${ACTIVE_WHERE} AND state=$1 AND diocese_code IS NOT NULL AND diocese_code <> '' ORDER BY diocese_code`, [st]);
+      dioceseOpts += dRows.map((r) => `<option value="${esc(r.diocese_code)}"${r.diocese_code === (diocese || '').toUpperCase() ? ' selected' : ''}>${esc(dioceseName(r.diocese_code))}</option>`).join('');
+    }
+  } catch (e) { console.error('place options failed', e.message); }
+  return { stateOpts, cityOpts, dioceseOpts };
+}
+function placeFiltersHtml(opts, state, city, diocese, stacked) {
+  return `<div class="place-filters${stacked ? ' stacked' : ''}" data-state="${esc(state)}" data-city="${esc(city)}" data-diocese="${esc(diocese)}">
+    <select id="place-state" name="state" aria-label="State">${opts.stateOpts}</select>
+    <select id="place-city" name="city"${state ? '' : ' disabled'} aria-label="City">${opts.cityOpts}</select>
+    <select id="place-diocese" name="diocese"${state ? '' : ' disabled'} aria-label="Diocese">${opts.dioceseOpts}</select>
+  </div>`;
+}
+
 // Find by place: state, then city, then diocese. Data comes from the directory.
 app.get('/api/places/states', async (req, res) => {
   try {
@@ -774,7 +863,7 @@ app.get('/api/places/dioceses', async (req, res) => {
 // its own "The Arcade" heading, intro, and filters. The shell stays minimal
 // so the title is not printed twice.
 app.get('/games', (req, res) => res.send(page('Games', `
-  <div id="arcade-root"><p class="small">Loading games&hellip;</p></div>
+  <div id="arcade-root"><p class="small">Loading games&hellip;</p><div class="skeleton" style="height:120px;margin-top:12px"></div><div class="skeleton" style="height:120px;margin-top:12px"></div></div>
   <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>
   <script src="/arcade.js?v=${ARCADE_VERSION}"></script>
   <script>(function () {
@@ -796,7 +885,8 @@ app.get('/saved', (req, res) => res.send(page('Saved priests', `
     <h1>Saved priests</h1>
     <p class="lede">Priests you saved while browsing. Saved only in this browser, on this device. No account, nothing leaves your browser.</p>
     </div>
-    <div id="saved-root"><p>Loading your saved priests&hellip;</p></div>
+    <div id="saved-root"><p>Loading your saved priests&hellip;</p><div class="skeleton" style="height:96px;margin-top:12px"></div><div class="skeleton" style="height:96px;margin-top:12px"></div></div>
+    <noscript><p class="notice">Saved priests live in this browser, so this page needs JavaScript to show them.</p></noscript>
     <noscript><p>Saved priests need JavaScript enabled. Your list lives in this browser only.</p></noscript>`)));
 
 // Batch lookup for saved priests: full rows (with review stats) for ids
@@ -1019,8 +1109,8 @@ app.get('/browse', async (req, res) => {
     : emptyHtml;
   const matchLine = cards.length
     ? (totalCount > 200
-      ? `<p class="match-count">Showing the first 200 of ${totalCount.toLocaleString()} priests</p>`
-      : `<p class="match-count">${totalCount.toLocaleString()} priest${totalCount === 1 ? '' : 's'}</p>`)
+      ? `<p class="match-count">Showing the first 200 of ${totalCount.toLocaleString()} priests${words.length ? ' &middot; best matches first' : ''}</p>`
+      : `<p class="match-count">${totalCount.toLocaleString()} priest${totalCount === 1 ? '' : 's'}${words.length ? ' &middot; best matches first' : ''}</p>`)
     : '';
   // The page lede: what this list is, in one line.
   const browseLede = filter === 'quick'
@@ -1060,12 +1150,19 @@ app.get('/browse', async (req, res) => {
     ? `<p class="region-links"><span class="filter-chips-label">Browse by region</span> ${['Northeast', 'Midwest', 'South', 'West', 'Other listings'].map((r) => `<a class="chip" href="/browse?region=${encodeURIComponent(r)}">${r}</a>`).join(' ')}</p>`
     : '';
   const searchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>`;
-  // A place filter arrived with by URL (state/city/diocese) is kept as hidden
-  // inputs so refining the text search does not silently drop it. The Find
-  // by place dropdowns were retired; the single box covers name, parish,
-  // and city. A 5-digit number typed in the box still resolves to its metro
-  // area behind the scenes.
-  const placeHidden = `${state ? `<input type="hidden" name="state" value="${esc(state)}">` : ''}${city ? `<input type="hidden" name="city" value="${esc(city)}">` : ''}${diocese ? `<input type="hidden" name="diocese" value="${esc(diocese)}">` : ''}`;
+  // Find by place: the visible state, city, and diocese selects carry the
+  // place filter, so refining the text search cannot silently drop it.
+  // places.js enhances them into searchable comboboxes and restores the
+  // active values from the data attributes; the options are server-rendered
+  // (see placeOptions) so they also work with no JavaScript. A 5-digit
+  // number typed in the box still resolves to its metro area behind the
+  // scenes.
+  const placeOpts = await placeOptions(state, city, diocese);
+  const placeSection = `<div class="place-section">
+    <h2>Find by place</h2>
+    <p class="explainer">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
+    ${placeFiltersHtml(placeOpts, state, city, diocese, true)}
+  </div>`;
   // The category filter select was removed from the search row to keep it one
   // box; an active filter is kept as a hidden input so refining the text
   // search does not silently drop it. Entry points are the home chips.
@@ -1077,10 +1174,11 @@ app.get('/browse', async (req, res) => {
     </div>
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
-        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city"></span>
-        ${placeHidden}${filterHidden}
+        <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city" enterkeyhint="search"></span>
+        ${filterHidden}
         <button type="submit">Search</button>
       </div>
+      ${placeSection}
     </form>
     ${chipsHtml}${regionLinks}${note}${matchLine}
     ${cards.length ? '<div class="rule" aria-hidden="true"><span></span></div>' : ''}
@@ -1203,7 +1301,7 @@ app.get('/priest/:id', async (req, res) => {
       <p class="lede">Each star has a meaning, so pick the one that matches what you actually experienced. Pace is speed only, not a quality grade: a slow Mass is not a bad Mass.</p>
     </div>
     <form action="/priest/${p.id}/review" method="post" class="rate-form rate-card">
-      <p><label>Pace of play (speed only, not a quality grade): <select name="pace" required>
+      <p><label>Pace (speed only, not a quality grade): <select name="pace" required>
         <option value="">Choose</option><option value="1">1: very slow, over 90 min</option><option value="2">2: slow, 75 to 90 min</option>
         <option value="3">3: moderate, 60 to 75 min</option><option value="4">4: brisk, 45 to 60 min</option><option value="5">5: very quick, under 45 min</option></select></label></p>
       <p class="small" data-anchor="pace">Pick a pace to see what it means.</p>
@@ -1248,9 +1346,8 @@ app.get('/priest/:id', async (req, res) => {
       <section class="rating-summary band" aria-label="Rating summary">
         <p class="eyebrow">Ratings</p>
         <div class="score-row">${scoreBoxLg}${barsHtml ? `<div class="bars">${barsHtml}</div>` : ''}</div>
-        ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}.</p>` : '<p class="profile-count">No published reviews yet. Be the first to rate this priest.</p>'}
+        ${st && st.n ? `<p class="profile-count">Based on ${st.n} review${st.n === 1 ? '' : 's'}${st.n === 1 ? ' &mdash; a first impression, not a consensus' : ''}.</p>` : '<p class="profile-count">No published reviews yet. Be the first to rate this priest.</p>'}
         ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
-        ${st && st.n === 1 ? '<p class="caveat">Based on a single review.</p>' : ''}
       </section>
       ${church && church.n ? `<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
       <p class="profile-note">${DISCLAIMER}</p>
@@ -1401,7 +1498,7 @@ app.get('/about', (req, res) => res.send(page('About', `<div class="prose about-
     <p class="lede">Anonymous ratings of pace, homily, and likability.</p>
   </div>
   <section class="about-section"><h2>What this is</h2>
-  <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace of play (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p></section>
+  <p>RateMyFather is a place for people in the pews to share honest, anonymous ratings of Catholic priests. Every priest is rated on three things: pace (how quickly Mass moves), the homily, and likability. The idea is simple. If you are new to a town, travelling, or looking for a parish that fits you better, you can see what other people in the pews actually thought, and find a priest and a parish that suit you.</p></section>
   <div class="rule" aria-hidden="true"><span></span></div>
   <section class="about-section band"><h2>How the ratings work</h2>
   <p>Reviews are anonymous. No name or email is collected, and every rating is 1 to 5 on pace, homily, and likability only. Pace measures speed alone, not quality: a slow Mass is not a bad Mass. Every average is shown with its review count, so you can see how many people stand behind a score.</p>
@@ -1437,13 +1534,13 @@ app.get('/how', (req, res) => res.send(page('How ratings work', `<div class="pro
     <p class="lede">Each rating is 1 to 5 in three categories.</p>
   </div>
   <div class="how-cats">
-    <div class="how-cat-card card--ruled"><h3>Pace of play</h3><p><strong>Pace of play measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</p></div>
+    <div class="how-cat-card card--ruled"><h3>Pace</h3><p><strong>Pace measures speed only.</strong> 5 is brisk and quick, 1 is very slow. Pace is not a quality grade: a slow Mass is not a bad Mass.</p></div>
     <div class="how-cat-card card--ruled"><h3>Homily</h3><p><strong>Homily performance:</strong> 1 is poor, 5 is excellent.</p></div>
     <div class="how-cat-card card--ruled"><h3>Likability</h3><p><strong>Likability:</strong> 1 is not likable, 5 is very likable.</p></div>
   </div>
   <section class="how-section"><h2>What the stars mean</h2>
   <p>Each star has a plain description, the same one shown in the review form, so a reviewer picks from a real basis instead of guessing.</p>
-  <h3>Pace of play</h3>
+  <h3>Pace</h3>
   <p>Pace times are for a Sunday Mass.</p>
   <ul class="anchor-list">${anchorRows('pace', true)}</ul>
   <p class="how-note">${esc(MASS_TIMING_NOTE)}</p>

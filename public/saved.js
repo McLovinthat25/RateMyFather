@@ -94,7 +94,7 @@
       root.innerHTML = '<p>You have not saved any priests yet. When you find a priest you want to keep track of, tap <strong>Save</strong> on their card or profile.</p><p><a class="btn btn--gold btn-pill press" href="/browse">Search &amp; browse priests</a></p>';
       return;
     }
-    root.innerHTML = '<p>Loading your saved priests…</p>';
+    root.innerHTML = '<p>Loading your saved priests…</p><div class="skeleton" style="height:96px;margin-top:12px"></div><div class="skeleton" style="height:96px;margin-top:12px"></div>';
     fetch('/api/priests/batch?ids=' + ids.join(','))
       .then(function (r) { return r.json(); })
       .then(function (rows) {
