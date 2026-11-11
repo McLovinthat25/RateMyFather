@@ -1,5 +1,5 @@
 // Daily trivia, Kahoot style: a round of three questions, one at a time,
-// four multiple choice answers each, 20 seconds per question. A right
+// four multiple choice answers each, 10 seconds per question. A right
 // answer earns 500 to 1,000 points depending on speed: answer instantly
 // for 1,000, at the buzzer for 500. A wrong answer, or no answer before
 // the timer runs out, earns nothing for that question. The points on
@@ -30,7 +30,7 @@
   var state = null; // { i, points, correct, startedAt, finishedAt, answered, qStartedAt }
   var timerId = null;
   var LETTERS = ['A', 'B', 'C', 'D'];
-  var QUESTION_SECONDS = 20;
+  var QUESTION_SECONDS = 10;
   var NAME_KEY = 'rmf_trivia_name';
 
   function shuffle(a) {
@@ -136,7 +136,7 @@
     if (!q) { renderDone(); return; }
     state.qStartedAt = Date.now();
     var order = shuffle([0, 1, 2, 3]);
-    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + ' &middot; <span id="trivia-countdown-secs">20s</span> &middot; <span id="trivia-countdown-points">1,000 pts</span></p>'
+    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + ' &middot; <span id="trivia-countdown-secs">10s</span> &middot; <span id="trivia-countdown-points">1,000 pts</span></p>'
       + '<div class="trivia-countdown" aria-hidden="true"><span id="trivia-countdown-fill"></span></div>'
       + '<h3 class="trivia-q">' + q.q + '</h3>'
       + '<div class="trivia-answers">' + order.map(function (oi, pos) {
