@@ -10,9 +10,11 @@ const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { AsyncLocalStorage } = require('async_hooks');
 const { Pool } = require('pg');
 const { screenBody, sourceTokenHash, BURST_LIMIT, SPIKE_THRESHOLD } = require('./lib/screening');
-const { cleanTriviaName } = require('./lib/profanity');
+const { realClientIp } = require('./lib/client-ip');
+const { cleanTriviaName, containsProfanity } = require('./lib/profanity');
 const { REGIONS, regionOf, areaForZip } = require('./lib/regions');
 const { TRIVIA_QUESTIONS, easternDateStr, dailyTriviaQuestions } = require('./lib/trivia');
 // Arcade trivia game pools: 30 questions per difficulty (Easy, Medium,
@@ -31,43 +33,57 @@ const OWNER_SECRET = process.env.OWNER_SECRET || '';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 10, connectionTimeoutMillis: 5000 });
 const app = express();
 app.disable('x-powered-by');
-// Security headers (audit F-01/F-02, Iteration 1). One middleware at the
-// top, before express.static, so every response — pages and API alike —
-// carries them. CSP is Report-Only for now: the site depends on inline
-// scripts and styles, so enforcement waits until the inline inventory is
-// moved or nonced; report-only cannot break anything.
-const CSP_REPORT_ONLY = [
-  "default-src 'self'",
-  "script-src 'self' https://www.googletagmanager.com https://www.google-analytics.com",
-  "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com",
-  "img-src 'self' https://www.google-analytics.com",
-  "style-src 'self' 'unsafe-inline'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
+// Security headers (audit F-01/F-02, Iteration 1 headers, Iteration 2
+// enforcing CSP). One middleware at the top, before express.static, so
+// every response — pages and API alike — carries them.
+// CSP is ENFORCING (Iteration 2): every inline script on the site
+// carries a per-request nonce (see layout() / the per-page JSON blobs),
+// and script-src allows 'self', the nonce, and the two Google Analytics
+// hosts. There is no 'unsafe-inline' in script-src anywhere.
+// style-src keeps 'unsafe-inline': inline styles are widespread
+// (rating-bar widths, skeletons, owner forms) and style injection
+// without script execution is low-risk — accepted residual, recorded
+// in the Iteration 2 record. The self-contained error pages are the
+// one exception: they carry their own hash-based CSP (see
+// errorCspHeader, below the error-page definitions), because they must
+// work when a follow-up asset request may fail.
+const cspStore = new AsyncLocalStorage();
 app.use((req, res, next) => {
+  // One fresh nonce per request, carried to layout() via AsyncLocalStorage
+  // so concurrent requests never share or overwrite each other's nonce.
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = nonce;
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' https://www.googletagmanager.com https://www.google-analytics.com`,
+    "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com",
+    "img-src 'self' https://www.google-analytics.com",
+    "style-src 'self' 'unsafe-inline'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
   // HSTS without includeSubDomains: subdomain HTTPS status is unverified.
   res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
-  next();
+  res.setHeader('Content-Security-Policy', csp);
+  cspStore.run({ nonce }, next);
 });
 // Hand-rolled in-memory per-IP rate limiter (audit F-08, Iteration 1).
 // No new dependency. Single-instance caveat: state lives in this process
 // and resets on deploy/restart, and a second Render instance would keep
 // its own counters. Acceptable for a one-instance deployment; move to a
 // shared store (database) if the site ever scales past one instance.
-// Keyed on req.ip, the server-determined client IP via trust proxy, never
-// on a client-supplied header.
+// Keyed on realClientIp, the server-determined client IP (see
+// lib/client-ip.js), never on a client-supplied header.
 function makeRateLimiter({ windowMs, max, message }) {
   const hits = new Map(); // ip -> { count, resetAt }
   return (req, res, next) => {
     const now = Date.now();
-    const ip = req.ip || 'unknown';
+    const ip = realClientIp(req);
     let entry = hits.get(ip);
     if (!entry || now >= entry.resetAt) {
       entry = { count: 0, resetAt: now + windowMs };
@@ -114,9 +130,42 @@ function recordLoginFailure(ip) {
   loginAttempts.set(ip, rec);
 }
 function resetLoginAttempts(ip) { loginAttempts.delete(ip); }
+// CSRF guard for owner POSTs (audit F-06, Iteration 2): an Origin /
+// Referer allow-list check, in one middleware used by every owner POST
+// (login, logout, all moderation mutations). SameSite=Lax on the owner
+// cookie already blocks cross-site POSTs from sending the cookie in
+// modern browsers; this is the application-level check that does not
+// depend on that. If Origin is present it must be one of the two live
+// origins. If Origin is absent but Referer is present, the Referer's
+// origin must be allowed. If both are absent (non-browser clients),
+// allow — do not break scripted or curl use.
+const OWNER_ORIGINS = new Set(['https://ratemyfather.com', 'https://ratemyfather.onrender.com']);
+function ownerCsrf(req, res, next) {
+  const origin = req.headers.origin;
+  if (origin) {
+    if (!OWNER_ORIGINS.has(origin)) return res.status(403).send('Forbidden: origin not allowed.');
+    return next();
+  }
+  const referer = req.headers.referer;
+  if (referer) {
+    let refererOrigin = null;
+    try { refererOrigin = new URL(referer).origin; } catch { refererOrigin = null; }
+    if (!refererOrigin || !OWNER_ORIGINS.has(refererOrigin)) return res.status(403).send('Forbidden: origin not allowed.');
+  }
+  next();
+}
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 app.use(express.json({ limit: '50kb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Static assets: explicit 1-day cache (audit F-19, Iteration 2). Safe
+// because the versioned bundles carry a content-hash ?v= query, so a
+// deploy busts them; unversioned files (style.css, chat.js) can lag up
+// to a day for repeat visitors — accepted, and unchanged from before
+// for those files (they previously relied on the browser default).
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
+// Owner routes must never be cached: the queue renders user-specific
+// (owner-only) data, and a cached copy must never be served to anyone
+// else — or back to the owner after sign-out (audit F-19, Iteration 2).
+app.use('/owner', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 app.set('trust proxy', 1);
 
 // Cache-busting for the arcade bundle: the games page loads /arcade.js
@@ -142,7 +191,7 @@ try {
 app.param('id', (req, res, next, id) => {
   const n = Number(id);
   if (!/^\d+$/.test(id) || !Number.isSafeInteger(n) || n > 2147483647) {
-    return res.status(404).send(notFoundPage());
+    return sendErrorPage(res, 404, notFoundPage());
   }
   next();
 });
@@ -468,6 +517,11 @@ function dailyVerse() {
 
 function layout(title, body, extraHead = '') {
   const description = 'Anonymous ratings of Catholic priests on pace, homily, and likability. Searchable by name, parish, city, state, or diocese.';
+  // Per-request CSP nonce (audit F-02, Iteration 2), carried from the
+  // header middleware via AsyncLocalStorage. Every inline script on the
+  // page carries it; without it the enforcing CSP blocks the script.
+  const nonce = (cspStore.getStore() || {}).nonce || '';
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="${description}">
@@ -478,9 +532,9 @@ function layout(title, body, extraHead = '') {
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>${esc(title)} | RateMyFather</title>
   <link rel="stylesheet" href="/style.css">${extraHead}
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied'});</script>
+  <script${nonceAttr}>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied'});</script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-40KVER82VY"></script>
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-40KVER82VY');</script></head><body>
+  <script${nonceAttr}>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-40KVER82VY');</script></head><body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
@@ -500,9 +554,18 @@ function layout(title, body, extraHead = '') {
   <button type="submit">Ask</button></form>
   <p class="small">Answers use approved-review averages with review counts only. Individual reviews are never quoted.</p></div></div>
   <script src="/chat.js"></script><script src="/places.js"></script><script src="/saved.js"></script>
-  <script>(function(){var h=document.querySelector('.topnav');if(!h)return;h.querySelectorAll('nav a').forEach(function(a){if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});})();</script></body></html>`;
+  <script${nonceAttr}>(function(){var h=document.querySelector('.topnav');if(!h)return;h.querySelectorAll('nav a').forEach(function(a){if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});})();</script></body></html>`;
 }
 function page(title, inner, extraHead = '') { return layout(title, inner, extraHead); }
+// ` nonce="..."` for an inline script tag rendered outside layout()
+// (the per-page JSON blobs and the games fallback script). Reads the
+// per-request nonce from the same AsyncLocalStorage the header
+// middleware set; empty outside a request, which never happens for a
+// rendered page.
+function cspNonceAttr() {
+  const nonce = (cspStore.getStore() || {}).nonce || '';
+  return nonce ? ` nonce="${nonce}"` : '';
+}
 // ---------- error pages with a playable game ----------
 // The error pages are fully self-contained: inline CSS and inline JS, no
 // external assets (no /style.css, no /mural.jpg, no /chat.js). That is
@@ -832,11 +895,55 @@ const LOST_SHEEP_SCRIPT = `
   wireDiffButtons();
   applyDiffButtons();
   buildGrid();
+  // The 500 page's "Try again" button (id err-retry) is wired here
+  // instead of an inline onclick attribute: inline event handlers are
+  // blocked by the enforcing CSP, and this script is the only script
+  // on the error page.
+  var retryBtn = document.getElementById('err-retry');
+  if (retryBtn) retryBtn.addEventListener('click', function () { location.reload(); });
 })();
 `;
 // One self-contained error page for both cases. opts: title, heading,
 // message, actions (HTML for the recovery buttons). Same game on both; only
 // the message fits the situation.
+// CSP for the self-contained error pages (audit F-02, Iteration 2).
+// The error pages deliberately ship inline CSS + JS with no external
+// assets, so they cannot use the per-request nonce: the page is built
+// by errorPage(), which runs outside the normal layout. Instead the
+// two exact blocks are pinned by SHA-256 hash in a separate CSP header
+// that OVERRIDES the main nonce CSP on error responses (see the
+// notFoundPage / errorPage send sites, which set this header before
+// sending). The hashes are computed at boot from the exact strings
+// inserted into the page, so they can never go stale: if
+// ERROR_CSS or LOST_SHEEP_SCRIPT changes, the header changes with it.
+// style-src keeps 'unsafe-inline' (same accepted residual as the main
+// CSP). The inline `onclick` handlers that used to live on these pages
+// are gone — the 500 retry button is wired in LOST_SHEEP_SCRIPT and
+// the games fallback uses addEventListener — because inline event
+// handlers need 'unsafe-inline' in script-src, which we do not ship.
+let _errorCsp = null;
+function errorCspHeader() {
+  if (!_errorCsp) {
+    const cssHash = crypto.createHash('sha256').update(ERROR_CSS).digest('base64');
+    const jsHash = crypto.createHash('sha256').update(LOST_SHEEP_SCRIPT).digest('base64');
+    _errorCsp = [
+      "default-src 'self'",
+      `script-src 'self' 'sha256-${jsHash}'`,
+      `style-src 'self' 'unsafe-inline' 'sha256-${cssHash}'`,
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ');
+  }
+  return _errorCsp;
+}
+// Send an error page with its hash-based CSP instead of the main nonce
+// CSP. Call sites: app.param 404, priest-profile 404s, the global
+// 500 handler, and the catch-all 404.
+function sendErrorPage(res, status, html) {
+  res.setHeader('Content-Security-Policy', errorCspHeader());
+  return res.status(status).send(html);
+}
 function errorPage(opts) {
   var body = '<header class="wrap"><a class="brand" href="/">Rate<span>My</span>Father</a>'
     + '<div class="glass" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></header>'
@@ -878,32 +985,62 @@ function notFoundPage() {
 }
 
 // ---------- owner auth (server side) ----------
+// Session signing still uses OWNER_SECRET as the HMAC key: separating
+// it into its own SESSION_SECRET needs a Render env-var decision by
+// the owner, so that is deliberately deferred (Iteration 2 record) —
+// no new secret is created, set, or recorded here. What Iteration 2
+// does change: the payload now carries a random session id (sid), and
+// verifySession checks it against the owner_sessions table
+// (migration 010), so logout — which deletes the row — actually
+// revokes the session. The session is deliberately NOT bound to IP or
+// User-Agent: the owner moves between networks, and binding would log
+// him out on every network change. Lifetime stays 12 hours.
 function signSession(payload) {
   const b = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', OWNER_SECRET).update(b).digest('hex');
   return b + '.' + sig;
 }
-function verifySession(cookieHeader) {
-  if (!OWNER_SECRET || !cookieHeader) return false;
+// Verify the HMAC and decode the payload, or null if the cookie is not
+// a well-formed session signed with OWNER_SECRET. No database involved.
+function parseSession(cookieHeader) {
+  if (!OWNER_SECRET || !cookieHeader) return null;
   const m = /(?:^|;\s*)__Host-rmf_owner=([^;]+)/.exec(cookieHeader);
-  if (!m) return false;
+  if (!m) return null;
   const [b, sig] = m[1].split('.');
-  if (!b || !sig) return false;
+  if (!b || !sig) return null;
   const expected = crypto.createHmac('sha256', OWNER_SECRET).update(b).digest('hex');
   let ok = false;
   try { ok = Buffer.from(sig).length === Buffer.from(expected).length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)); } catch { ok = false; }
-  if (!ok) return false;
+  if (!ok) return null;
   try {
     const payload = JSON.parse(Buffer.from(b, 'base64url').toString('utf8'));
-    return payload && payload.exp && payload.exp > Date.now();
-  } catch { return false; }
+    if (!payload || !payload.exp || payload.exp <= Date.now()) return null;
+    return payload;
+  } catch { return null; }
 }
-function isOwner(req) { return verifySession(req.headers.cookie || ''); }
+// A session is valid only if the signature checks, it has not expired,
+// AND its sid is present in owner_sessions. A missing row means the
+// session was logged out (or never existed), so it is rejected even
+// though the signature is still good for up to 12 hours.
+async function verifySession(cookieHeader) {
+  const payload = parseSession(cookieHeader);
+  if (!payload || !payload.sid) return false;
+  try {
+    const { rows } = await pool.query('SELECT 1 FROM owner_sessions WHERE sid=$1 AND expires_at > NOW() LIMIT 1', [payload.sid]);
+    return rows.length > 0;
+  } catch (e) {
+    console.error('owner session check failed', e.message);
+    return false;
+  }
+}
+async function isOwner(req) { return verifySession(req.headers.cookie || ''); }
 // Refuses non-owners BEFORE touching data. Used on every moderation route.
-function requireOwner(req, res, next) {
-  if (!OWNER_SECRET) return res.status(403).send(page('Forbidden', '<h1>Moderation unavailable</h1><p>Owner moderation is not configured on this deployment.</p>'));
-  if (!isOwner(req)) return res.status(403).send(page('Forbidden', '<h1>Owner access required</h1><p>This area is owner-only. <a href="/owner/login">Sign in as owner</a>.</p>'));
-  next();
+async function requireOwner(req, res, next) {
+  try {
+    if (!OWNER_SECRET) return res.status(403).send(page('Forbidden', '<h1>Moderation unavailable</h1><p>Owner moderation is not configured on this deployment.</p>'));
+    if (!(await isOwner(req))) return res.status(403).send(page('Forbidden', '<h1>Owner access required</h1><p>This area is owner-only. <a href="/owner/login">Sign in as owner</a>.</p>'));
+    next();
+  } catch (e) { next(e); }
 }
 async function audit(action, targetType, targetId, detail) {
   try { await pool.query('INSERT INTO moderation_audit (action, target_type, target_id, detail) VALUES ($1,$2,$3,$4)', [action, targetType, targetId, detail || null]); } catch (e) { console.error('audit failed', e.message); }
@@ -1022,7 +1159,7 @@ app.get('/', async (req, res) => {
     <p class="trivia-name-row"><label for="trivia-name">Your name for the leaderboard</label><input id="trivia-name" type="text" maxlength="20" autocomplete="off" placeholder="First name or nickname"></p>
     <p><button type="button" class="btn btn--gold btn-pill press" id="trivia-start">Start the trivia</button></p>
     <div id="trivia-panel" aria-live="polite"></div>
-    <script>window.RMF_TRIVIA = ${JSON.stringify(triviaRound).replace(/</g, '\\u003c')};</script>
+    <script${cspNonceAttr()}>window.RMF_TRIVIA = ${JSON.stringify(triviaRound).replace(/</g, '\\u003c')};</script>
     <script src="/trivia.js?v=${TRIVIA_VERSION}"></script>
     </section>`;
   // Find by place: state, then city, then diocese. The selects are
@@ -1265,22 +1402,40 @@ const ARCADE_GAME_IDS = ['rungun', 'stack', 'maze', 'steeple', 'dash', 'flee', '
 function parishKey(parish, city, state) {
   return [parish, city, state].map((s) => String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()).join('|');
 }
-// In-memory per-visitor rate limit for score submissions (never persisted
-// or stored): one submission per game per visitor per 30 seconds, and an
-// identical repeat dropped within 60 seconds. Blunts naive farming; a
-// real player finishing games a few minutes apart is never affected.
-const scoreSubmitSeen = new Map();
-function scoreRateOk(token, game, score) {
+// Per-visitor rate limit for score submissions, stored in the
+// database (audit F-07, Iteration 2; table score_rate_limits,
+// migration 009): one submission per game per visitor per 30 seconds,
+// and an identical repeat dropped within 60 seconds. Blunts naive
+// farming; a real player finishing games a few minutes apart is never
+// affected. DB-backed so it survives deploys/restarts, unlike the
+// in-process Map it replaces. Keyed on the source token hash
+// (server-determined IP + user agent), never the raw IP. On a database
+// error the check fails open (logs and allows): the score insert that
+// follows would fail the same way, so blocking here would add nothing.
+// Note a check-then-write race remains: two submissions from the same
+// token arriving at the same instant can both pass. The 30 s window
+// and the daily cap behind it bound what that buys an attacker.
+async function scoreRateOk(token, game, score) {
   const now = Date.now();
-  const k = token + ':' + game;
-  const prev = scoreSubmitSeen.get(k);
-  if (prev && now - prev.t < 30000) return false;
-  if (prev && prev.score === score && now - prev.t < 60000) return false;
-  scoreSubmitSeen.set(k, { t: now, score });
-  if (scoreSubmitSeen.size > 5000) {
-    for (const [key, v] of scoreSubmitSeen) { if (now - v.t > 60000) scoreSubmitSeen.delete(key); }
+  try {
+    const { rows } = await pool.query(
+      'SELECT last_submit, last_score FROM score_rate_limits WHERE token_hash=$1 AND game=$2',
+      [token, game]);
+    if (rows.length) {
+      const prevMs = new Date(rows[0].last_submit).getTime();
+      if (now - prevMs < 30000) return false;
+      if (rows[0].last_score === score && now - prevMs < 60000) return false;
+    }
+    await pool.query(
+      `INSERT INTO score_rate_limits (token_hash, game, last_submit, last_score)
+       VALUES ($1, $2, NOW(), $3)
+       ON CONFLICT (token_hash, game) DO UPDATE SET last_submit=EXCLUDED.last_submit, last_score=EXCLUDED.last_score`,
+      [token, game, score]);
+    return true;
+  } catch (e) {
+    console.error('score rate limit check failed', e.message);
+    return true;
   }
-  return true;
 }
 // Search distinct parishes by name or city, for picking a home parish.
 // Only parishes with an actively-listed priest appear.
@@ -1335,6 +1490,8 @@ app.get('/api/parishes/search', async (req, res) => {
 app.get('/api/leaderboard/:game', async (req, res) => {
   const game = String(req.params.game || '');
   if (!ARCADE_GAME_IDS.includes(game)) return res.status(404).json({ error: 'unknown game' });
+  // Caller-specific data (own parish row, daily contribution), so no-store (F-19).
+  res.setHeader('Cache-Control', 'no-store');
   try {
     const { rows } = await pool.query(
       `SELECT parish, city, state, total_score, games_played, best_score
@@ -1381,7 +1538,30 @@ app.post('/api/leaderboard/score', async (req, res) => {
   if (!ARCADE_GAME_IDS.includes(game) || !parish || !Number.isInteger(score) || score <= 0 || score > 100000) {
     return res.status(400).json({ error: 'bad submission' });
   }
-  if (!scoreRateOk(sourceTokenHash(req), game, score)) return res.status(429).json({ error: 'too fast' });
+  // F-11 (Iteration 2): the parish must exist in the directory — exact
+  // match on the parish key (normalized parish + city + state, the same
+  // normalisation parishKey applies) against an actively-listed priest
+  // — and the parish/city/state strings must pass the shared profanity
+  // screen. The games-tab picker only offers directory parishes and
+  // submits them verbatim, so exact matching does not block legitimate
+  // play; a spelling variant that is not the directory spelling (e.g.
+  // "Saint Patrick" for a directory "St. Patrick") IS rejected, and
+  // that is intentional — the picker is the way to choose a parish.
+  // Normalisation matches parishKey: lowercase, periods dropped,
+  // whitespace collapsed, trimmed.
+  const normPart = (s) => String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+  if (containsProfanity(parish) || containsProfanity(city) || containsProfanity(state)) {
+    return res.status(400).json({ error: 'bad submission' });
+  }
+  const normSql = (col) => `btrim(regexp_replace(lower(regexp_replace(COALESCE(${col},''), '\\.', '', 'g')), '\\s+', ' ', 'g'))`;
+  try {
+    const { rows: parishRows } = await pool.query(
+      `SELECT 1 FROM priests WHERE status='approved' AND ${ACTIVE_WHERE}
+       AND ${normSql('parish')}=$1 AND ${normSql('city')}=$2 AND ${normSql('state')}=$3 LIMIT 1`,
+      [normPart(parish), normPart(city), normPart(state)]);
+    if (!parishRows.length) return res.status(400).json({ error: 'unknown parish' });
+  } catch (e) { return res.status(500).json({ error: 'save failed' }); }
+  if (!(await scoreRateOk(sourceTokenHash(req), game, score))) return res.status(429).json({ error: 'too fast' });
   const key = parishKey(parish, city, state);
   const day = easternDateStr();
   const token = sourceTokenHash(req);
@@ -1442,10 +1622,17 @@ app.post('/api/trivia/score', async (req, res) => {
     || !Number.isInteger(correct) || correct < 0 || correct > 3
     || !Number.isFinite(ms) || ms < 0 || ms > 3600000
     || points > correct * 1000 || points < correct * 500
-    // Sanity bounds for a 3-question round (audit F-10, cheap half): at
-    // least 2 s per correct answer to have read and answered it, and no
-    // more than 30 s total (3 questions x 10 s each).
-    || ms < correct * 2000 || ms > 30000) {
+    // Sanity bounds for a 3-question round (audit F-10, cheap half;
+    // upper bound loosened Iteration 2): at least 2 s per correct
+    // answer to have read and answered it. The upper bound only needs
+    // to catch absurd forgeries — ms spans round start to final answer
+    // INCLUDING the time spent reading the per-question feedback before
+    // tapping Next, so a slow reader legitimately exceeds 30 s; 120 s
+    // (3 questions x 10 s answer time + reading dwell) is the bound
+    // that rejects forgeries without rejecting genuine slow readers.
+    // The lower bound (ms >= correct*2000) is the real anti-forgery
+    // check; it is unchanged.
+    || ms < correct * 2000 || ms > 120000) {
     return res.status(400).json({ error: 'bad submission' });
   }
   const checked = cleanTriviaName(req.body.name);
@@ -1453,7 +1640,7 @@ app.post('/api/trivia/score', async (req, res) => {
     return res.status(400).json({ error: 'bad name', message: 'Please choose a different name for the leaderboard.' });
   }
   const name = checked.name;
-  if (!scoreRateOk(sourceTokenHash(req), 'trivia', points)) return res.status(429).json({ error: 'too fast' });
+  if (!(await scoreRateOk(sourceTokenHash(req), 'trivia', points))) return res.status(429).json({ error: 'too fast' });
   const day = easternDateStr();
   try {
     await pool.query(
@@ -1483,15 +1670,17 @@ app.post('/api/trivia/score', async (req, res) => {
 app.get('/games', (req, res) => res.send(page('Games', `
   <div id="arcade-root"><p class="small">Loading games&hellip;</p><div class="skeleton" style="height:120px;margin-top:12px"></div><div class="skeleton" style="height:120px;margin-top:12px"></div></div>
   <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>
-  <script>window.RMF_TRIVIA_ARCADE = ${JSON.stringify(TRIVIA_ARCADE_QUESTIONS).replace(/</g, '\\u003c')};</script>
+  <script${cspNonceAttr()}>window.RMF_TRIVIA_ARCADE = ${JSON.stringify(TRIVIA_ARCADE_QUESTIONS).replace(/</g, '\\u003c')};</script>
   <script src="/arcade.js?v=${ARCADE_VERSION}"></script>
-  <script>(function () {
+  <script${cspNonceAttr()}>(function () {
     // If the games shelf never renders (script blocked or failed), say so
     // and offer a retry instead of leaving "Loading games…" up forever.
     setTimeout(function () {
       var root = document.getElementById('arcade-root');
       if (!root || root.querySelector('.arcade-shelf, .game-stage, .pastor-wrap')) return;
-      root.innerHTML = '<p class="notice">The games did not load. Check your connection and try again.</p><p><button type="button" onclick="location.reload()">Try again</button></p>';
+      root.innerHTML = '<p class="notice">The games did not load. Check your connection and try again.</p><p><button type="button" id="games-retry">Try again</button></p>';
+      var rb = document.getElementById('games-retry');
+      if (rb) rb.addEventListener('click', function () { location.reload(); });
     }, 6000);
   })();</script>`)));
 
@@ -2044,14 +2233,14 @@ const MASS_TIMING_NOTE = 'Typical Sunday Mass runs about 71 minutes (median), an
 // ---------- profile + rating ----------
 app.get('/priest/:id', async (req, res) => {
   const { rows } = await pool.query(`SELECT * FROM priests WHERE id=$1 AND status='approved'`, [req.params.id]);
-  if (!rows.length) return res.status(404).send(notFoundPage());
+  if (!rows.length) return sendErrorPage(res, 404, notFoundPage());
   const p = rows[0];
   // Deceased priests are not served at all: no profile, no link to one
   // anywhere on the site, and a direct URL returns the 404 page exactly
   // as if the profile did not exist. The row and its memorial note stay
   // in the database for the record; only the page stops being served.
   // Retired priests are unaffected: their profiles still load.
-  if (p.life_status === 'deceased') return res.status(404).send(notFoundPage());
+  if (p.life_status === 'deceased') return sendErrorPage(res, 404, notFoundPage());
   const stats = await statsFor([p.id]);
   const st = stats[p.id];
   const revs = (await pool.query(`SELECT id, pace, homily, likability, church_beauty, mass_context, attendance_duration, body, created_at FROM reviews WHERE priest_id=$1 AND status='approved' ORDER BY created_at DESC LIMIT 50`, [p.id])).rows;
@@ -2159,7 +2348,7 @@ app.get('/priest/:id', async (req, res) => {
     </div>
     ${reviewHtml}
     <p class="correction-row"><a class="btn btn--ghost btn--sm" href="/priest/${p.id}/correct">Correction, right of reply, or removal request</a></p>
-  </section>`, '<script>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS).replace(/</g, '\\u003c') + ';</script><script src="/review.js"></script>'));
+  </section>`, '<script' + cspNonceAttr() + '>window.RMF_ANCHORS = ' + JSON.stringify(ANCHORS).replace(/</g, '\\u003c') + ';</script><script src="/review.js"></script>'));
 });
 
 app.post('/priest/:id/review', async (req, res) => {
@@ -2397,7 +2586,7 @@ app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What i
   <li><strong>Daily trivia:</strong> an optional display name you type for the day's leaderboard, plus your points. No account, no email.</li>
   <li><strong>Abuse-prevention token:</strong> a SHA-256 hash derived from request data (IP address plus user agent). Only the hash is stored, never the raw IP address or user agent string. It is used only to refuse duplicates, enforce the hourly review limit, and detect review spikes.</li>
   <li><strong>Moderation submissions:</strong> reports, corrections, right-of-reply and removal requests, and legal notices, including any optional contact details you choose to provide. Contact details are never published.</li>
-  <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time and a signature, nothing else.</li>
+  <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time, a random session id, and a signature. The session id is also recorded server-side so signing out revokes the session; nothing else is stored with it.</li>
   <li><strong>Visit statistics:</strong> aggregate, anonymous counts of page views via Google Analytics 4, run in cookieless mode. It sets no cookies, collects no name, email, or IP address, and is used only to see which pages are visited.</li></ul>
   <p>Nothing else is collected. There is no advertising on this site.</p>
   <p>To request removal of personal information you submitted, use the <a href="/legal">Legal notices</a> page. Contact details you provide in a legal notice are never published.</p>`)));
@@ -2408,7 +2597,12 @@ app.get('/moderation', (req, res) => res.send(infoPage('Content & Moderation Pol
 
 // ---------- chatbot: site data only, aggregated approved scores with counts ----------
 app.post('/api/chat', chatLimiter, async (req, res) => {
-  const msg = String(req.body.message || '').trim();
+  // F-13 (Iteration 2): the message is a single-line search box, so it
+  // is capped at 500 chars server-side (truncated, not rejected — a
+  // long paste still searches on its first 500 chars), and the search
+  // terms built from it are capped at 5, so a crafted message cannot
+  // build a query with thousands of ILIKE conditions.
+  const msg = String(req.body.message || '').trim().slice(0, 500);
   const lower = msg.toLowerCase();
   const filterMap = [['quick', 'quick'], ['quick mass', 'quick'], ['great homily', 'homily'], ['homily', 'homily'], ['lovable', 'lovable'], ['likable', 'lovable'], ['likeable', 'lovable']];
   let filter = null;
@@ -2423,7 +2617,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
   } else {
     const words = lower.replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter((w) => w.length >= 3);
     const stop = new Set(['who', 'what', 'where', 'about', 'priest', 'father', 'rated', 'rating', 'ratings', 'tell', 'show', 'find', 'search', 'for', 'the', 'and', 'any']);
-    const terms = [...new Set(words.filter((w) => !stop.has(w)))];
+    const terms = [...new Set(words.filter((w) => !stop.has(w)))].slice(0, 5);
     if (terms.length) {
       const like = terms.map((t) => `%${t}%`);
       // ALL terms must match the name. OR let one stray term (e.g. "such"
@@ -2477,9 +2671,9 @@ app.get('/owner/login', (req, res) => res.send(page('Owner sign-in', `<h1>Owner 
   <form action="/owner/login" method="post">
     <p><label>Owner secret: <input type="password" name="secret" required autocomplete="off"></label></p>
     <button type="submit">Sign in</button></form>`)));
-app.post('/owner/login', (req, res) => {
+app.post('/owner/login', ownerCsrf, async (req, res) => {
   if (!OWNER_SECRET) return res.status(403).send(page('Forbidden', '<h1>Owner moderation is not configured.</h1>'));
-  const ip = req.ip || 'unknown';
+  const ip = realClientIp(req);
   if (loginBlocked(ip)) {
     return res.status(429).send('Too many failed sign-in attempts. Please wait and try again later.');
   }
@@ -2492,7 +2686,19 @@ app.post('/owner/login', (req, res) => {
     return res.status(403).send(page('Sign-in failed', '<h1>Sign-in failed</h1><p>The secret did not match.</p>'));
   }
   resetLoginAttempts(ip);
-  const cookie = signSession({ exp: Date.now() + 12 * 60 * 60 * 1000 });
+  // New session: random sid, recorded server-side so logout can revoke
+  // it (F-05). The cookie is set only after the row is written; if the
+  // write fails, login fails rather than issuing an unrevocable token.
+  const exp = Date.now() + 12 * 60 * 60 * 1000;
+  const sid = crypto.randomUUID();
+  try {
+    await pool.query('INSERT INTO owner_sessions (sid, expires_at) VALUES ($1, $2)', [sid, new Date(exp)]);
+    await pool.query('DELETE FROM owner_sessions WHERE expires_at < NOW()');
+  } catch (e) {
+    console.error('owner session create failed', e.message);
+    return res.status(500).send(page('Sign-in failed', '<h1>Sign-in failed</h1><p>The sign-in could not be completed. Please try again.</p>'));
+  }
+  const cookie = signSession({ exp, sid });
   // __Host- prefix + Secure: the cookie is only ever sent over HTTPS and
   // cannot be shadowed by a subdomain cookie. This signs the owner out
   // once (the old rmf_owner cookie is no longer read); he must sign in
@@ -2500,7 +2706,15 @@ app.post('/owner/login', (req, res) => {
   res.setHeader('Set-Cookie', `__Host-rmf_owner=${cookie}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=43200`);
   res.redirect('/owner');
 });
-app.post('/owner/logout', (req, res) => {
+app.post('/owner/logout', ownerCsrf, async (req, res) => {
+  // Logout revokes: delete the session row, so the signed cookie stops
+  // working even though its 12-hour expiry has not passed (F-05). The
+  // browser copy is cleared as well. A missing/invalid cookie is still
+  // cleared and redirected — logout never errors.
+  try {
+    const payload = parseSession(req.headers.cookie || '');
+    if (payload && payload.sid) await pool.query('DELETE FROM owner_sessions WHERE sid=$1', [payload.sid]);
+  } catch (e) { console.error('owner session revoke failed', e.message); }
   res.setHeader('Set-Cookie', '__Host-rmf_owner=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
   res.redirect('/');
 });
@@ -2545,32 +2759,32 @@ app.get('/owner/audit', requireOwner, async (req, res) => {
 });
 
 // Every mutation below passes requireOwner BEFORE touching data.
-app.post('/owner/review-approve/:id', requireOwner, async (req, res) => {
+app.post('/owner/review-approve/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE reviews SET status='approved' WHERE id=$1`, [req.params.id]);
   await audit('review_approved', 'review', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/review-reject/:id', requireOwner, async (req, res) => {
+app.post('/owner/review-reject/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE reviews SET status='rejected' WHERE id=$1`, [req.params.id]);
   await audit('review_rejected', 'review', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/review-delete/:id', requireOwner, async (req, res) => {
+app.post('/owner/review-delete/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`DELETE FROM reviews WHERE id=$1`, [req.params.id]);
   await audit('review_deleted', 'review', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/priest-approve/:id', requireOwner, async (req, res) => {
+app.post('/owner/priest-approve/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE priests SET status='approved' WHERE id=$1`, [req.params.id]);
   await audit('priest_approved', 'priest', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/priest-reject/:id', requireOwner, async (req, res) => {
+app.post('/owner/priest-reject/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE priests SET status='rejected' WHERE id=$1`, [req.params.id]);
   await audit('priest_rejected', 'priest', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/priest-delete/:id', requireOwner, async (req, res) => {
+app.post('/owner/priest-delete/:id', ownerCsrf, requireOwner, async (req, res) => {
   const { rows } = await pool.query(`SELECT user_added, source FROM priests WHERE id=$1`, [req.params.id]);
   if (!rows.length) return res.status(404).send(page('Not found', '<h1>Priest not found</h1>'));
   // Directory profiles are NEVER deletable, regardless of owner status.
@@ -2579,17 +2793,17 @@ app.post('/owner/priest-delete/:id', requireOwner, async (req, res) => {
   await audit('priest_deleted', 'priest', Number(req.params.id), 'user-added only');
   res.redirect('/owner');
 });
-app.post('/owner/report-resolve/:id', requireOwner, async (req, res) => {
+app.post('/owner/report-resolve/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE reports SET status='resolved' WHERE id=$1`, [req.params.id]);
   await audit('report_resolved', 'report', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/correction-resolve/:id', requireOwner, async (req, res) => {
+app.post('/owner/correction-resolve/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE corrections SET status='resolved' WHERE id=$1`, [req.params.id]);
   await audit('correction_resolved', 'correction', Number(req.params.id), 'owner');
   res.redirect('/owner');
 });
-app.post('/owner/legal-resolve/:id', requireOwner, async (req, res) => {
+app.post('/owner/legal-resolve/:id', ownerCsrf, requireOwner, async (req, res) => {
   await pool.query(`UPDATE legal_notices SET status='resolved' WHERE id=$1`, [req.params.id]);
   await audit('legal_resolved', 'legal_notice', Number(req.params.id), 'owner');
   res.redirect('/owner');
@@ -2601,18 +2815,18 @@ app.post('/owner/legal-resolve/:id', requireOwner, async (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err && err.stack ? err.stack : err);
   if (res.headersSent) return next(err);
-  res.status(500).send(errorPage({
+  sendErrorPage(res, 500, errorPage({
     title: 'Something went wrong',
     heading: 'The server is having a moment',
     message: 'Our server is busy right now. Give it a minute, then try again — or play a round of the Lost Sheep while you wait.',
-    actions: `<div class="btnrow"><button class="btn" type="button" onclick="location.reload()">Try again</button> <a class="btn btn-secondary" href="/">Back to home</a></div>`,
+    actions: `<div class="btnrow"><button class="btn" type="button" id="err-retry">Try again</button> <a class="btn btn-secondary" href="/">Back to home</a></div>`,
   }));
 });
 
 // Catch-all 404: any URL that matches no route above gets the site's helpful
 // 404 page (search box, Browse, Arcade, Add-a-priest), not Express's bare
 // default "Cannot GET" page.
-app.use((req, res) => res.status(404).send(notFoundPage()));
+app.use((req, res) => sendErrorPage(res, 404, notFoundPage()));
 
 // ---------- boot ----------
 async function boot() {
