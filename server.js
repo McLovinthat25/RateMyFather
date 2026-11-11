@@ -139,7 +139,7 @@ function lifeStatusHtml(p) {
   switch (p.life_status) {
     case 'deceased': {
       const d = p.death_date ? ` Died ${esc(p.death_date)}.` : '';
-      return `<p class="notice"><strong>Deceased.</strong>${d} This is a historical record; this priest no longer serves a parish.</p>`;
+      return `<p class="notice"><strong>Deceased.</strong>${d} This is a historical record; this priest no longer serves a parish.${note}</p>`;
     }
     case 'retired':
       return `<p class="notice"><strong>Retired.</strong> This priest no longer serves a parish.${note}</p>`;
