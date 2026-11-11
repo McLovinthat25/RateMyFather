@@ -251,6 +251,34 @@
     };
   }
 
+  // ---- shared keyboard helpers ----
+  // A key shown on the button itself, so a keyboard player sees at a
+  // glance which key picks it — the same pattern the Bowl uses on its
+  // Run / Pass buttons. Styled for the gold overlay buttons and the
+  // Pastor choice buttons (dark text on light); the Bowl's burgundy
+  // buttons carry their own chip.
+  function kbdChip(key) {
+    return '<span style="display:inline-block;min-width:20px;padding:2px 7px;margin-left:10px;border:1.5px solid rgba(46,34,5,.55);border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.08em;vertical-align:2px;">' + key + '</span>';
+  }
+  // One line under a big button, naming the keyboard way to press it.
+  function kbdHint(text) {
+    return '<p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">' + text + '</p>';
+  }
+  // Never swallow keys while the player is typing in a text field, and
+  // never double-fire a key that would also activate a focused button:
+  // a focused button answers Space / Enter itself, so the game-level
+  // shortcut stands aside and lets the click do it. The event target
+  // is the focused element for a real key press; activeElement covers
+  // the same ground for a dispatched event.
+  function kbdTyping(e) {
+    var t = (e && e.target) || document.activeElement;
+    return !!(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable));
+  }
+  function kbdOnButton(e) {
+    var t = (e && e.target) || document.activeElement;
+    return !!(t && t.tagName === 'BUTTON');
+  }
+
   // ---- game registry ----
   var ARCADE_GAMES = [
     { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father Ted carries the ball for Craggy Island against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then stand on the gold X to catch. On a pass you have 2 seconds to reach the X, and the defence will hold you up on the way.', mount: mountBowl },
@@ -259,8 +287,8 @@
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', mount: mountSteeple },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', mount: mountDash },
     { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', mount: mountFlee },
-    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows to move, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
-    { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Pick one choice each week. Watch the ledger.', mount: mountPastor },
+    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
+    { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger.', mount: mountPastor },
   ];
 
   // ---- arcade shelf ----
@@ -1718,6 +1746,7 @@
       var fb = writeBest('stack', score); best = fb;
       api.showOverlay('<h3>The window is full</h3><p>Score: ' + score + ' &middot; Lines: ' + lines + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="stack-again">Play again</button>' +
+        kbdHint('Keyboard: Space or Enter plays again.') +
         '<button type="button" class="linklike" id="stack-back">Back to arcade</button>');
       var a = document.getElementById('stack-again');
       if (a) a.addEventListener('click', function () { startGame(); });
@@ -1857,15 +1886,25 @@
     function softDrop() { if (state !== 'playing' || paused) return; if (!collides(cur.shape, cur.x, cur.y + 1)) { cur.y++; score += 1; updateHud(); } else lock(); }
     function slam() { if (state !== 'playing' || paused) return; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; lock(); }
     document.addEventListener('keydown', onKey);
+    // Keyboard play for the whole loop: Space or Enter starts and plays
+    // again, arrows move and turn, C holds, Space slams. The typing and
+    // focused-button guards keep Space from double-firing a button that
+    // already answers it.
     function onKey(e) {
-      if (state !== 'playing' || paused) return;
+      if (kbdTyping(e)) return;
       var k = e.key.toLowerCase();
+      var go = (k === ' ' || k === 'enter');
+      if (state === 'ready' || state === 'over') {
+        if (go && !kbdOnButton(e)) { e.preventDefault(); startGame(); }
+        return;
+      }
+      if (state !== 'playing' || paused) return;
       if (k === 'arrowleft') moveLeft();
       else if (k === 'arrowright') moveRight();
       else if (k === 'arrowdown') softDrop();
       else if (k === 'arrowup') rotateCur();
       else if (k === 'c') holdCur();
-      else if (k === ' ') { e.preventDefault(); slam(); }
+      else if (k === ' ' && !kbdOnButton(e)) { e.preventDefault(); slam(); }
     }
     // Direct touch on the window: drag sideways to slide the pane to the
     // column under your finger, tap to turn it, swipe down to drop it.
@@ -1903,10 +1942,11 @@
     touchRow.appendChild(makeTouchButton('↓', softDrop));
     touchRow.appendChild(makeTouchButton('Hold', holdCur, { repeat: false }));
     touchRow.appendChild(makeTouchButton('Slam', slam, { repeat: false, wide: true }));
-    api.actions.appendChild(el('p', 'game-note', 'Left and right to move, Up to turn, Down to drop faster, Space to slam it down, C to hold a pane for later. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.'));
+    api.actions.appendChild(el('p', 'game-note', 'Space or Enter starts and plays again. Left and right to move, Up to turn, Down to drop faster, Space to slam it down, C to hold a pane for later. On touch, drag on the window to slide a pane, tap to turn it, or use the buttons below.'));
     api.showOverlay('<h3>Stained-Glass Blocks</h3><p>Fit the falling panes into the window. Complete rows to clear them. ' + gameMark('stack') + '</p>' +
       diffPickerHtml('stack', diff) +
-      '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>');
+      '<button type="button" class="big-btn press" id="stack-start">Start stacking</button>' +
+      kbdHint('Keyboard: Space or Enter starts stacking.'));
     wireDiffButtons(api.overlay, 'stack', function () { return diff; }, function (d) { diff = d; writeDiff('stack', d); applyStackDiff(); });
     var s = document.getElementById('stack-start');
     if (s) s.addEventListener('click', startGame);
@@ -1996,6 +2036,7 @@
       var fb = writeBest('steeple', score); best = fb;
       api.showOverlay('<h3>The steeple toppled</h3><p>Height: ' + tower.length + (tower.length === 1 ? ' stone' : ' stones') + ' &middot; Score: ' + score + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="steeple-again">Build again</button>' +
+        kbdHint('Keyboard: Space or Enter builds again.') +
         '<button type="button" class="linklike" id="steeple-back">Back to arcade</button>');
       var a = document.getElementById('steeple-again');
       if (a) a.addEventListener('click', startGame);
@@ -2088,12 +2129,21 @@
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     document.addEventListener('keydown', onKey);
-    function onKey(e) { if (e.key === ' ' && state === 'playing' && !paused) { e.preventDefault(); drop(); } }
+    // Keyboard play for the whole loop: Space or Enter starts and builds
+    // again, Space drops the stone.
+    function onKey(e) {
+      if (kbdTyping(e)) return;
+      var k = e.key.toLowerCase();
+      var go = (k === ' ' || k === 'enter');
+      if ((state === 'ready' || state === 'over') && go && !kbdOnButton(e)) { e.preventDefault(); startGame(); return; }
+      if (go && state === 'playing' && !paused && !kbdOnButton(e)) { e.preventDefault(); drop(); }
+    }
     api.canvas.addEventListener('pointerdown', function () { drop(); });
-    api.actions.appendChild(el('p', 'game-note', 'Tap the field or press Space to drop the stone. The wind picks up once the tower grows tall.'));
+    api.actions.appendChild(el('p', 'game-note', 'Tap the field or press Space to drop the stone. Space or Enter starts and builds again. The wind picks up once the tower grows tall.'));
     api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples. ' + gameMark('steeple') + '</p>' +
       diffPickerHtml('steeple', diff) +
-      '<button type="button" class="big-btn press" id="steeple-start">Start building</button>');
+      '<button type="button" class="big-btn press" id="steeple-start">Start building</button>' +
+      kbdHint('Keyboard: Space or Enter starts building.'));
     wireDiffButtons(api.overlay, 'steeple', function () { return diff; }, function (d) { diff = d; writeDiff('steeple', d); applySteepleDiff(); });
     var s = document.getElementById('steeple-start');
     if (s) s.addEventListener('click', startGame);
@@ -2182,6 +2232,7 @@
       var fb = writeBest('flee', finalScore); best = fb;
       api.showOverlay('<h3>The sins caught up</h3><p>Score: ' + finalScore + ' &middot; Survived: ' + Math.floor(elapsed) + 's<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="flee-again">Run again</button>' +
+        kbdHint('Keyboard: Space or Enter runs again.') +
         '<button type="button" class="linklike" id="flee-back">Back to arcade</button>');
       var a = document.getElementById('flee-again');
       if (a) a.addEventListener('click', startGame);
@@ -2337,8 +2388,14 @@
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     document.addEventListener('keydown', onKey);
+    // Keyboard play for the whole loop: Space or Enter starts and runs
+    // again, Space dashes. Arrows / WASD steer through makeKeys.
     function onKey(e) {
-      if (e.key === ' ' && state === 'playing' && !paused && dashCd <= 0) {
+      if (kbdTyping(e)) return;
+      var k = e.key.toLowerCase();
+      var go = (k === ' ' || k === 'enter');
+      if ((state === 'ready' || state === 'over') && go && !kbdOnButton(e)) { e.preventDefault(); startGame(); return; }
+      if (k === ' ' && state === 'playing' && !paused && dashCd <= 0 && !kbdOnButton(e)) {
         e.preventDefault(); dashT = 0.45; dashCd = 2;
       }
     }
@@ -2377,10 +2434,11 @@
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
+    api.actions.appendChild(el('p', 'game-note', 'Halos are +25. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.'));
     api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. ' + gameMark('flee') + '</p>' +
       diffPickerHtml('flee', diff) +
-      '<button type="button" class="big-btn press" id="flee-start">Start running</button>');
+      '<button type="button" class="big-btn press" id="flee-start">Start running</button>' +
+      kbdHint('Keyboard: Space or Enter starts running.'));
     wireDiffButtons(api.overlay, 'flee', function () { return diff; }, function (d) { diff = d; writeDiff('flee', d); applyFleeDiff(); });
     var s = document.getElementById('flee-start');
     if (s) s.addEventListener('click', startGame);
@@ -2463,6 +2521,7 @@
       var fb = writeBest('cross', score); best = fb;
       api.showOverlay('<h3>' + esc(why) + '</h3><p>Score: ' + score + ' &middot; Level: ' + level + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="cross-again">Cross again</button>' +
+        kbdHint('Keyboard: Space or Enter crosses again.') +
         '<button type="button" class="linklike" id="cross-back">Back to arcade</button>');
       var a = document.getElementById('cross-again');
       if (a) a.addEventListener('click', startGame);
@@ -2640,6 +2699,15 @@
     function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
+    // Keyboard play for the whole loop: Space or Enter starts and
+    // crosses again. Arrows / WASD move through makeKeys.
+    document.addEventListener('keydown', onKey);
+    function onKey(e) {
+      if (kbdTyping(e)) return;
+      var k = e.key.toLowerCase();
+      var go = (k === ' ' || k === 'enter');
+      if ((state === 'ready' || state === 'over') && go && !kbdOnButton(e)) { e.preventDefault(); startGame(); }
+    }
     // Direct touch on the field: touch and hold, and Father steps toward
     // your finger, one grid step at a time; lift to stop. The pad still
     // works exactly as before.
@@ -2663,10 +2731,11 @@
     makeDpad(api.stage, function (dx, dy, active) {
       if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
     });
-    api.actions.appendChild(el('p', 'game-note', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. On touch, hold the field to walk toward your finger.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to move. Space or Enter starts and crosses again. Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. On touch, hold the field to walk toward your finger.'));
     api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Every step forward is +10. Follow the moth to the right door. ' + gameMark('cross') + '</p>' +
       diffPickerHtml('cross', diff) +
-      '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>');
+      '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>' +
+      kbdHint('Keyboard: Space or Enter starts crossing.'));
     wireDiffButtons(api.overlay, 'cross', function () { return diff; }, function (d) { diff = d; writeDiff('cross', d); applyCrossDiff(); });
     var s = document.getElementById('cross-start');
     if (s) s.addEventListener('click', startGame);
@@ -2674,6 +2743,7 @@
     last = performance.now(); raf = requestAnimationFrame(loop);
     return function cleanup() {
       destroyed = true; cancelAnimationFrame(raf);
+      document.removeEventListener('keydown', onKey);
       keys.cleanup();
       cleanupPause();
     };
@@ -2873,7 +2943,7 @@
     else { startCong = 140; startFunds = 3000; startHappy = 65; collMult = 2.2; costBase = 120; costPer = 0.3; }
   }
   applyPastorDiff();
-  var deck = [], week = 0, cong = startCong, funds = startFunds, happy = startHappy, over = false;
+  var deck = [], week = 0, cong = startCong, funds = startFunds, happy = startHappy, over = false, started = false;
     var histCong = [startCong], histHappy = [startHappy]; // the season's arc, for the trend chart
     // The week's event: Holy Week is fixed at the halfway point (week 8),
     // every other week comes from the shuffled deck.
@@ -2951,6 +3021,7 @@
         '<p>Final congregation: ' + cong + ' &middot; Funds: ' + money(funds) + ' &middot; Happiness: ' + happy + '<br>' +
         'Season score: <b>' + score + '</b> &middot; Best: ' + fb + '<br>' + esc(verdict) + '</p>' +
         '<button type="button" class="big-btn press" id="pastor-again">New season</button> ' +
+        kbdHint('Keyboard: Space or Enter starts a new season.') +
         '<button type="button" class="linklike" id="pastor-back2">Back to arcade</button>';
       var a = document.getElementById('pastor-again');
       if (a) a.addEventListener('click', startSeason);
@@ -2970,9 +3041,9 @@
       var choices = ev.slice(2);
       var html = '<h3>Week ' + (week + 1) + ' — ' + esc(ev[0]) + '</h3><p>' + esc(personalise(ev[1])) + '</p><div class="pastor-choices">';
       choices.forEach(function (ch, i) {
-        html += '<button type="button" class="pastor-choice press" data-i="' + i + '">' + esc(ch[0]) + '</button>';
+        html += '<button type="button" class="pastor-choice press" data-i="' + i + '">' + esc(ch[0]) + kbdChip(String(i + 1)) + '</button>';
       });
-      html += '</div>';
+      html += '</div>' + kbdHint('Keyboard: 1, 2 or 3 picks a choice.');
       card.innerHTML = html;
       card.querySelectorAll('.pastor-choice').forEach(function (btn) {
         btn.addEventListener('click', function () { choose(parseInt(btn.getAttribute('data-i'), 10)); });
@@ -3003,19 +3074,39 @@
       deck = PASTOR_DECK.slice();
       for (var i = deck.length - 1; i > 0; i--) { var j = randInt(0, i); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
       deck = deck.slice(0, PASTOR_WEEKS);
-      week = 0; cong = startCong; funds = startFunds; happy = startHappy; over = false;
+      week = 0; cong = startCong; funds = startFunds; happy = startHappy; over = false; started = true;
       histCong = [startCong]; histHappy = [startHappy];
       ledger.innerHTML = '';
       showWeek();
     }
     card.innerHTML = '<h3>Parish Pastor</h3><p>Shepherd your parish for 16 weeks. Every decision moves the congregation, the funds, and the happiness of the parish. Keep the pews full, the books out of the red, and the people glad. Your season score is congregation + happiness + funds &divide; 10. ' + gameMark('pastor') + '</p>' +
       diffPickerHtml('pastor', diff) +
-      '<button type="button" class="big-btn press" id="pastor-start">Begin the season</button>';
+      '<button type="button" class="big-btn press" id="pastor-start">Begin the season</button>' +
+      kbdHint('Keyboard: Space or Enter begins the season · 1, 2 or 3 picks a choice.');
     wireDiffButtons(card, 'pastor', function () { return diff; }, function (d) { diff = d; writeDiff('pastor', d); applyPastorDiff(); });
     var s = document.getElementById('pastor-start');
     if (s) s.addEventListener('click', startSeason);
+    // Keyboard play for the whole season: Space or Enter begins the
+    // season and starts a new one, 1 / 2 / 3 picks a choice each week.
+    document.addEventListener('keydown', onKey);
+    function onKey(e) {
+      if (kbdTyping(e)) return;
+      var k = e.key.toLowerCase();
+      if (k === '1' || k === '2' || k === '3') {
+        if (!over && card.querySelector('.pastor-choice')) choose(parseInt(k, 10) - 1);
+        return;
+      }
+      var go = (k === ' ' || k === 'enter');
+      if (!go || kbdOnButton(e)) return;
+      e.preventDefault();
+      if (over) { startSeason(); return; }
+      if (!started) startSeason();
+    }
     renderStats();
-    return function cleanup() { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); };
+    return function cleanup() {
+      document.removeEventListener('keydown', onKey);
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    };
   }
 
   // ================= Candle Maze =================
@@ -3138,6 +3229,7 @@
       api.showOverlay('<h3>Vigil complete!</h3><p>' + candlesEaten + ' candles lit &middot; Grace: ' + score +
         (flawlessBonus ? ' (incl. +' + flawlessBonus + ' flawless vigil)' : '') + ' &middot; Lives: ' + lives + '<br>Best: ' + best + '</p>' +
         '<button type="button" class="big-btn press" id="maze-next-vigil">Begin vigil ' + (level + 1) + '</button>' +
+        kbdHint('Keyboard: Space or Enter begins the next vigil.') +
         '<button type="button" class="linklike" id="maze-back2">Back to arcade</button>');
       var nx = document.getElementById('maze-next-vigil');
       if (nx) nx.addEventListener('click', beginNextVigil);
@@ -3155,6 +3247,7 @@
       var fb = writeBest('maze', score); best = fb;
       api.showOverlay('<h3>The candles go dark</h3><p>Grace: ' + score + ' &middot; Vigil reached: ' + level + '<br>Best: ' + fb + '</p>' +
         '<button type="button" class="big-btn press" id="maze-again">Light the candles again</button>' +
+        kbdHint('Keyboard: Space or Enter lights the candles again · R restarts too.') +
         '<button type="button" class="linklike" id="maze-back">Back to arcade</button>');
       var a = document.getElementById('maze-again');
       if (a) a.addEventListener('click', startGame);
@@ -3462,10 +3555,15 @@
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     document.addEventListener('keydown', onKey);
+    // Keyboard play for the whole loop: Space or Enter lights the first
+    // candle, begins the next vigil and restarts; R restarts too.
     function onKey(e) {
+      if (kbdTyping(e)) return;
       var k = e.key.toLowerCase();
-      if (k === 'r' && state === 'over') { startGame(); return; }
-      if (k === ' ' && state === 'ready') { e.preventDefault(); startGame(); return; }
+      var go = (k === ' ' || k === 'enter');
+      if (state === 'ready' && go && !kbdOnButton(e)) { e.preventDefault(); startGame(); return; }
+      if (state === 'vigil-done' && go && !kbdOnButton(e)) { e.preventDefault(); beginNextVigil(); return; }
+      if (state === 'over' && (k === 'r' || (go && !kbdOnButton(e)))) { if (go) e.preventDefault(); startGame(); return; }
       var map = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1], arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] };
       if (map[k]) { e.preventDefault(); steer(map[k][0], map[k][1]); }
     }
@@ -3495,10 +3593,11 @@
       if (Math.abs(dx) > Math.abs(dy)) steer(dx > 0 ? 1 : -1, 0);
       else steer(0, dy > 0 ? 1 : -1);
     });
-    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible. R restarts.'));
+    api.actions.appendChild(el('p', 'game-note', 'Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible. Space or Enter starts, begins the next vigil and restarts. R restarts.'));
     api.showOverlay('<h3>Candle Maze</h3><p>Light the candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
       diffPickerHtml('maze', diff) +
-      '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>');
+      '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>' +
+      kbdHint('Keyboard: Space or Enter lights the first candle.'));
     wireDiffButtons(api.overlay, 'maze', function () { return diff; }, function (d) { diff = d; writeDiff('maze', d); applyMazeDiff(); });
     var s = document.getElementById('maze-start');
     if (s) s.addEventListener('click', startGame);
@@ -3667,8 +3766,9 @@
         'Score: ' + sc + ' &middot; Reached: ' + pct + '% &middot; Best: ' + fb + '<br>' +
         'Best depth: ' + newDepth + '% &middot; Attempt: ' + attempts +
         (practice ? '<br>Practice deaths: ' + practiceDeaths : '') + '</p>' +
-        '<button type="button" class="big-btn press" id="dash-retry">Retry this course</button> ' +
-        '<button type="button" class="big-btn press" id="dash-again">Run again</button> ' +
+        '<button type="button" class="big-btn press" id="dash-retry">Retry this course' + kbdChip('Space') + '</button> ' +
+        '<button type="button" class="big-btn press" id="dash-again">Run again' + kbdChip('R') + '</button> ' +
+        kbdHint('Keyboard: Space or Enter retries this course · R runs a new course.') +
         '<button type="button" class="linklike" id="dash-back">Back to arcade</button>');
       var r1 = document.getElementById('dash-retry');
       if (r1) r1.addEventListener('click', function () { startRun(seed); });
@@ -4036,11 +4136,18 @@
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     document.addEventListener('keydown', onKey);
+    // Keyboard play for the whole loop: Space or Enter starts the run and
+    // retries this course; R runs a new course. Space / Up / W jumps, and
+    // holding keeps hopping. The typing and focused-button guards keep
+    // Space from double-firing a button that already answers it.
     function onKey(e) {
+      if (kbdTyping(e)) return;
       var k = e.key.toLowerCase();
+      var go = (k === ' ' || k === 'enter');
       if (k === 'r' && state === 'over') { startRun(Math.floor(Math.random() * 1e9)); return; }
-      if (k === ' ' && state === 'ready') { e.preventDefault(); startRun(seed); return; }
-      if ((k === ' ' || k === 'arrowup' || k === 'w') && state === 'playing' && !paused) {
+      if (state === 'ready' && go && !kbdOnButton(e)) { e.preventDefault(); startRun(seed); return; }
+      if (state === 'over' && go && !kbdOnButton(e)) { e.preventDefault(); startRun(seed); return; }
+      if ((k === ' ' || k === 'arrowup' || k === 'w') && state === 'playing' && !paused && !kbdOnButton(e)) {
         e.preventDefault();
         if (!holding) { holding = true; doJump(); }
       }
@@ -4058,7 +4165,7 @@
     api.canvas.addEventListener('pointerup', function () { holding = false; });
     api.canvas.addEventListener('pointerleave', function () { holding = false; });
     api.canvas.addEventListener('pointercancel', function () { holding = false; });
-    api.actions.appendChild(el('p', 'game-note', 'Space, Up, W, click or tap to jump. Hold to keep hopping; in dove stretches hold to rise and release to fall. R restarts.'));
+    api.actions.appendChild(el('p', 'game-note', 'Space, Up, W, click or tap to jump. Hold to keep hopping; in dove stretches hold to rise and release to fall. Space or Enter retries this course, R runs a new one.'));
     var practiceWrap = el('label', 'game-note', '');
     var practiceBox = document.createElement('input');
     practiceBox.type = 'checkbox';
@@ -4071,7 +4178,8 @@
     api.actions.appendChild(practiceWrap);
     api.showOverlay('<h3>Sanctuary Dash</h3><p>The golden cube never stops. Jump the thorns, ride the pews, run under the swinging censers — never jump into one — and reach the sanctuary 9,200px down the nave. ' + gameMark('dash') + '</p>' +
       diffPickerHtml('dash', diff) +
-      '<button type="button" class="big-btn press" id="dash-start">Start the run</button>');
+      '<button type="button" class="big-btn press" id="dash-start">Start the run</button>' +
+      kbdHint('Keyboard: Space or Enter starts the run.'));
     wireDiffButtons(api.overlay, 'dash', function () { return diff; }, function (d) { diff = d; writeDiff('dash', d); applyDashDiff(); });
     var s = document.getElementById('dash-start');
     if (s) s.addEventListener('click', function () { startRun(seed); });
