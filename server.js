@@ -13,6 +13,7 @@ const path = require('path');
 const { Pool } = require('pg');
 const { screenBody, sourceTokenHash, BURST_LIMIT, SPIKE_THRESHOLD } = require('./lib/screening');
 const { REGIONS, regionOf, areaForZip } = require('./lib/regions');
+const { TRIVIA_QUESTIONS, easternDateStr, dailyTriviaQuestions } = require('./lib/trivia');
 
 const PORT = process.env.PORT || 3000;
 const OWNER_SECRET = process.env.OWNER_SECRET || '';
@@ -31,6 +32,11 @@ app.set('trust proxy', 1);
 var ARCADE_VERSION = '1';
 try {
   ARCADE_VERSION = crypto.createHash('md5').update(fs.readFileSync(path.join(__dirname, 'public', 'arcade.js'))).digest('hex').slice(0, 8);
+} catch (e) { /* fall back to the plain path if the file cannot be read */ }
+// Cache-busting for the trivia bundle, same pattern as the arcade.
+var TRIVIA_VERSION = '1';
+try {
+  TRIVIA_VERSION = crypto.createHash('md5').update(fs.readFileSync(path.join(__dirname, 'public', 'trivia.js'))).digest('hex').slice(0, 8);
 } catch (e) { /* fall back to the plain path if the file cannot be read */ }
 
 // Numeric :id params only. Express 4 does not catch async route rejections,
@@ -750,6 +756,31 @@ app.get('/', async (req, res) => {
       }
     }
   } catch (e) { console.error('be-first query failed', e.message); }
+  // Daily trivia: three questions drawn from the pool by the Eastern
+  // date, so every visitor gets the same round today and a new one
+  // tomorrow. The day's best score comes from trivia_daily_best; when
+  // nobody has played yet the section says so instead of showing a 0.
+  const triviaRound = dailyTriviaQuestions();
+  let triviaBest = null;
+  try {
+    const { rows: tb } = await pool.query(`SELECT best_score, best_ms FROM trivia_daily_best WHERE day=$1`, [triviaRound.date]);
+    if (tb.length && tb[0].best_score > 0) triviaBest = { score: tb[0].best_score, ms: tb[0].best_ms };
+  } catch (e) { console.error('trivia best query failed', e.message); }
+  const triviaBestLine = triviaBest
+    ? `Today's best: ${triviaBest.score} out of 3 in ${Math.round(triviaBest.ms / 1000)} seconds.`
+    : 'No one has played today yet. Be the first.';
+  const triviaSectionHtml = `<section class="home-section" id="trivia">
+    <div class="section-head">
+    <p class="eyebrow">Daily trivia</p>
+    <h2>Test your faith, three questions</h2>
+    <p class="lede">Three questions on saints, scripture, Church history, liturgy, and the sacraments. A new round every day, and one shared best score for the day.</p>
+    </div>
+    <p class="trivia-best" id="trivia-best">${esc(triviaBestLine)}</p>
+    <p><button type="button" class="btn btn--gold btn-pill press" id="trivia-start">Start the trivia</button></p>
+    <div id="trivia-panel" aria-live="polite"></div>
+    <script>window.RMF_TRIVIA = ${JSON.stringify(triviaRound).replace(/</g, '\\u003c')};</script>
+    <script src="/trivia.js?v=${TRIVIA_VERSION}"></script>
+    </section>`;
   // Find by place: state, then city, then diocese. The selects are
   // server-rendered (see placeOptions) and enhanced by places.js.
   const placeOpts = await placeOptions('', '', '');
@@ -838,7 +869,8 @@ app.get('/', async (req, res) => {
       <p class="explainer">Take a break between Masses with eight little games in the arcade. Best scores live only in your browser.</p>
       </div>
       <a class="btn btn--gold btn-pill press" href="/games">Play the arcade</a>
-    </section>`));
+    </section>
+    ${triviaSectionHtml}`));
 });
 
 // Diocese codes (2017 directory) to full names, for the Find by place filters.
@@ -980,19 +1012,46 @@ function scoreRateOk(token, game, score) {
 }
 // Search distinct parishes by name or city, for picking a home parish.
 // Only parishes with an actively-listed priest appear.
+// Multi-word queries match across parish, city and state: every word
+// must appear in the parish name, the city, or the state, so
+// "Saint George in Erie PA" finds St. George in Erie, PA instead of
+// matching nothing (the old single LIKE across the whole string could
+// never span the parish and city columns). Words use the same
+// whole-word normalisation as the main search, so "Saint" and "St."
+// are the same word. Rows are ranked by how many words land in the
+// city or parish, then by priest count, so a small parish still shows
+// when it is the match — St. George in Erie has one priest and used
+// to be cut off by the old ORDER BY n DESC LIMIT 10.
 app.get('/api/parishes/search', async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80);
   if (q.length < 2) return res.json([]);
   try {
-    // Periods are ignored on both sides so "St Patrick" finds "St.
-    // Patrick" and vice versa.
-    const like = '%' + q.toLowerCase().replace(/\./g, '').replace(/[%_\\]/g, '').trim().replace(/\s+/g, ' ') + '%';
+    const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'from']);
+    const rawWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 10);
+    const words = rawWords.map(searchNormWord).filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+    if (!words.length) return res.json([]);
+    const params = [];
+    const matchParts = [];
+    const relParts = [];
+    for (const w of words) {
+      params.push(`%${searchLikeEscape(w)}%`);
+      const ph = `$${params.length}`;
+      params.push(w);
+      const sph = `$${params.length}`;
+      const cityM = `${searchNormField('city')} ILIKE ${ph}`;
+      const parishM = `${searchNormField('parish')} ILIKE ${ph}`;
+      const stateM = `LOWER(state) = ${sph}`;
+      matchParts.push(`(${cityM} OR ${parishM} OR ${stateM})`);
+      relParts.push(`(CASE WHEN ${cityM} THEN 2 WHEN ${parishM} THEN 1 ELSE 0 END)`);
+    }
     const { rows } = await pool.query(
       `SELECT parish, city, state, COUNT(*)::int AS n FROM priests
        WHERE status='approved' AND ${ACTIVE_WHERE}
          AND parish IS NOT NULL AND parish <> ''
-         AND (REPLACE(LOWER(parish), '.', '') LIKE $1 OR REPLACE(LOWER(city), '.', '') LIKE $1)
-       GROUP BY parish, city, state ORDER BY n DESC, parish LIMIT 10`, [like]);
+         AND (${matchParts.join(' AND ')})
+       GROUP BY parish, city, state
+       ORDER BY (${relParts.join(' + ')}) DESC, n DESC, parish ASC
+       LIMIT 20`, params);
     res.json(rows);
   } catch (e) { res.json([]); }
 });
@@ -1041,6 +1100,39 @@ app.post('/api/leaderboard/score', async (req, res) => {
          best_score = GREATEST(parish_scores.best_score, EXCLUDED.best_score),
          updated_at = NOW()`, [game, key, parish, city, state, score]);
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'save failed' }); }
+});
+
+// ---- Daily trivia high score (homepage, shared) ----
+// A finished round posts its score (0-3) and total time. The day's best
+// is the highest score; among equal scores the fastest time wins, so a
+// perfect round still has a record to beat. One row per day, anonymous:
+// no name, no email, no account, no IP stored — only the best score and
+// the time it took. Rate-limited per visitor like the leaderboard, so a
+// perfect round cannot be farmed by spamming the endpoint.
+app.post('/api/trivia/score', async (req, res) => {
+  const score = Number(req.body.score);
+  const ms = Number(req.body.ms);
+  if (!Number.isInteger(score) || score < 0 || score > 3 || !Number.isFinite(ms) || ms < 0 || ms > 3600000) {
+    return res.status(400).json({ error: 'bad submission' });
+  }
+  if (!scoreRateOk(sourceTokenHash(req), 'trivia', score)) return res.status(429).json({ error: 'too fast' });
+  const day = easternDateStr();
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO trivia_daily_best (day, best_score, best_ms)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (day) DO UPDATE SET
+         best_score = GREATEST(trivia_daily_best.best_score, EXCLUDED.best_score),
+         best_ms = CASE WHEN EXCLUDED.best_score > trivia_daily_best.best_score THEN EXCLUDED.best_ms
+                        WHEN EXCLUDED.best_score = trivia_daily_best.best_score THEN LEAST(NULLIF(trivia_daily_best.best_ms, 0), EXCLUDED.best_ms)
+                        ELSE trivia_daily_best.best_ms END,
+         updated_at = NOW()
+       RETURNING best_score, best_ms`,
+      [day, score, Math.round(ms)]);
+    const best = rows[0];
+    const isNewBest = best && best.best_score === score && best.best_ms === Math.round(ms);
+    res.json({ ok: true, best: { score: best.best_score, ms: best.best_ms }, isNewBest: !!isNewBest });
   } catch (e) { res.status(500).json({ error: 'save failed' }); }
 });
 

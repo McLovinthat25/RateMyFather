@@ -1103,3 +1103,20 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .compare-table th { font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--dim); }
 .compare-table a { color:var(--text); }
 .saved-actions { margin-top:16px; }
+
+/* ---------- Daily trivia (homepage) ---------- */
+/* Kahoot style: one question at a time, four answers, the correct one
+   shown with a one-line explanation after each answer. */
+.trivia-best { font-weight:600; }
+.trivia-count { color:var(--dim); font-size:14px; margin:0 0 4px; }
+.trivia-q { margin:0 0 14px; font-size:20px; }
+.trivia-answers { display:grid; gap:10px; max-width:560px; }
+.trivia-answer { text-align:left; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; font-size:16px; font-weight:600; cursor:pointer; }
+.trivia-answer:hover:not(:disabled) { border-color:var(--gold); background:var(--surface-alt); }
+.trivia-answer:disabled { cursor:default; opacity:0.75; }
+.trivia-answer.is-correct { border-color:#2e7d32; background:#e8f5e9; color:#1b5e20; opacity:1; }
+.trivia-answer.is-wrong { border-color:#b3261e; background:#fdecea; color:#7a1f1a; opacity:1; }
+.trivia-feedback { margin-top:16px; max-width:640px; }
+.trivia-feedback p { margin:8px 0; }
+.trivia-time { color:var(--dim); }
+.trivia-best-update { font-weight:600; }
