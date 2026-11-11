@@ -2137,15 +2137,32 @@ app.get('/browse', async (req, res) => {
   // number typed in the box still resolves to its metro area behind the
   // scenes.
   const placeOpts = await placeOptions(state, city, diocese);
-  const placeSection = `<div class="place-section">
+  // Find by place lives below the results now, in its own form: pick a
+  // state, then a city, then a diocese, then Browse priests to filter.
+  // The search form keeps the active place filter as hidden inputs, so
+  // refining the text search cannot silently drop it (the selects used
+  // to carry it while they sat inside the search form). The place form
+  // likewise carries the text query and category filter, so picking a
+  // place never drops those either. places.js works wherever the
+  // .place-filters block sits in the page; it does not need the form.
+  const placeSection = `<form action="/browse" method="get" class="place-form">
+    <div class="place-section">
     <h2>Find by place</h2>
     <p class="explainer">Pick a state, then a city, then a diocese. Type in any box to search the list.</p>
     ${placeFiltersHtml(placeOpts, state, city, diocese, true)}
-  </div>`;
+    ${q ? `<input type="hidden" name="q" value="${esc(q)}">` : ''}${FILTERS[filter] ? `<input type="hidden" name="filter" value="${esc(filter)}">` : ''}
+    <p class="section-more"><button type="submit" class="btn btn--gold btn-pill press">Browse priests</button></p>
+    </div>
+  </form>`;
   // The category filter select was removed from the search row to keep it one
   // box; an active filter is kept as a hidden input so refining the text
   // search does not silently drop it. Entry points are the home chips.
   const filterHidden = FILTERS[filter] ? `<input type="hidden" name="filter" value="${esc(filter)}">` : '';
+  const placeHidden = [
+    state ? `<input type="hidden" name="state" value="${esc(state)}">` : '',
+    city ? `<input type="hidden" name="city" value="${esc(city)}">` : '',
+    diocese ? `<input type="hidden" name="diocese" value="${esc(diocese)}">` : '',
+  ].join('');
   res.send(page(heading, `<div class="section-head">
     <p class="eyebrow">The directory</p>
     <h1>${esc(heading)}</h1>
@@ -2154,14 +2171,13 @@ app.get('/browse', async (req, res) => {
     <form action="/browse" method="get" id="browse-form">
       <div class="search">
         <span class="search-field">${searchIcon}<input name="q" value="${esc(q)}" placeholder="Search by name, parish, or city" aria-label="Search by name, parish, or city" enterkeyhint="search"></span>
-        ${filterHidden}
+        ${filterHidden}${placeHidden}
         <button type="submit">Search</button>
       </div>
-      ${placeSection}
     </form>
     ${chipsHtml}${regionLinks}${note}${matchLine}
     ${cards.length ? '<div class="rule" aria-hidden="true"><span></span></div>' : ''}
-    <div class="cards">${body}</div>${pagerHtml}`));
+    <div class="cards">${body}</div>${pagerHtml}${placeSection}`));
 });
 
 // Attendance-duration answers for the review form (required dropdown).

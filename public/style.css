@@ -230,9 +230,10 @@ button:hover, .btn:hover { filter:brightness(1.06); transform:translateY(-1px);
 .priest-card:hover .priest-name { color:var(--accent); }
 .priest-main { flex:1; min-width:0; overflow:hidden; }
 .priest-name { font-family:Georgia, "Times New Roman", Times, serif; font-size:18px; font-weight:700;
-  color:var(--text); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.assign { display:block; font-size:14px; color:var(--dim); margin:2px 0 0;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  color:var(--text); display:-webkit-box; -webkit-line-clamp:2; line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:break-word; }
+.assign { display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; overflow-wrap:break-word; font-size:14px; color:var(--dim); margin:2px 0 0; }
 .stars { color:var(--gold); font-size:16px; letter-spacing:2px; line-height:1; margin-top:4px; display:block; }
 .stars .empty { color:var(--border); }
 .priest-card .scores { display:block; font-size:12px; color:var(--dim); margin-top:4px; font-weight:400; }
@@ -1150,3 +1151,20 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .trivia-board li:first-child .trivia-rank { background:var(--gold); border-color:var(--gold); color:#fff; }
 .trivia-board-name { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .trivia-board-points { flex:none; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* ---------- Search & browse on a phone: readable names, results first ----------
+   Appended last so these beat the earlier base rules and the early mobile
+   block (the early block sits before the base card rules, so its name
+   wrapping was silently overridden by the later single-line ellipsis). */
+@media (max-width:639px) {
+  /* The name gets the full card width: the link row takes its own line and
+     the Save button drops to a row of its own, so a long name wraps to two
+     lines instead of squeezing into an ellipsis beside the button and the
+     score box. */
+  .priest-card { flex-wrap:wrap; gap:12px; }
+  .priest-link { flex:1 1 100%; }
+  .priest-card .save-btn { margin-left:auto; }
+  /* The Ask pill moves to the bottom-left corner on a phone, so it can
+     never cover the Save button, which sits at the right of each card. */
+  #chat-widget { left:12px; right:auto; align-items:flex-start; }
+}
