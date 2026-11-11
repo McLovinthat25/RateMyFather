@@ -6,6 +6,8 @@
 // homepage by the server); the answer order is shuffled per round so the
 // right answer is not always in the same spot, and the round timer runs
 // from Start to the last answer (the daily best ties on fastest time).
+// Keyboard: 1-4 or A-D answers a question, Enter moves on, so a round
+// can be played without touching the mouse.
 (function () {
   var root = document.getElementById('trivia');
   if (!root || !window.RMF_TRIVIA || !window.RMF_TRIVIA.questions) return;
@@ -13,7 +15,9 @@
   var startBtn = document.getElementById('trivia-start');
   var panel = document.getElementById('trivia-panel');
   var bestLine = document.getElementById('trivia-best');
-  var state = null; // { i, score, startedAt, answered }
+  var state = null; // { i, score, startedAt, finishedAt, answered }
+  var timerId = null;
+  var LETTERS = ['A', 'B', 'C', 'D'];
 
   function shuffle(a) {
     for (var i = a.length - 1; i > 0; i--) {
@@ -28,15 +32,33 @@
     return s + (s === 1 ? ' second' : ' seconds');
   }
 
+  function fmtClock(ms) {
+    var s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function stopTimer() {
+    if (timerId !== null) { clearInterval(timerId); timerId = null; }
+  }
+
+  function startTimer() {
+    stopTimer();
+    if (typeof setInterval !== 'function') return;
+    timerId = setInterval(function () {
+      var el = document.getElementById('trivia-timer');
+      if (el && state) el.textContent = fmtClock(Date.now() - state.startedAt);
+    }, 250);
+  }
+
   function render() {
     if (!state) { panel.innerHTML = ''; return; }
     var q = questions[state.i];
     if (!q) { renderDone(); return; }
     var order = shuffle([0, 1, 2, 3]);
-    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + '</p>'
+    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + ' &middot; <span class="trivia-timer" id="trivia-timer">0:00</span></p>'
       + '<h3 class="trivia-q">' + q.q + '</h3>'
       + '<div class="trivia-answers">' + order.map(function (oi, pos) {
-        return '<button type="button" class="trivia-answer" data-pos="' + pos + '" data-correct="' + (oi === q.correct ? '1' : '0') + '">' + q.answers[oi] + '</button>';
+        return '<button type="button" class="trivia-answer" data-pos="' + pos + '" data-correct="' + (oi === q.correct ? '1' : '0') + '" aria-label="' + LETTERS[pos] + ': ' + q.answers[oi].replace(/"/g, '&quot;') + '"><span class="trivia-key" aria-hidden="true">' + LETTERS[pos] + '</span><span class="trivia-answer-text">' + q.answers[oi] + '</span></button>';
       }).join('') + '</div>'
       + '<div class="trivia-feedback" hidden></div>';
     panel.innerHTML = html;
@@ -47,6 +69,12 @@
         state.answered = true;
         var right = btn.getAttribute('data-correct') === '1';
         if (right) state.score++;
+        // The clock stops at the last answer, not at the tap on
+        // "See your score": reading the last explanation is not racing.
+        if (state.i + 1 >= questions.length) {
+          state.finishedAt = Date.now();
+          stopTimer();
+        }
         panel.querySelectorAll('.trivia-answer').forEach(function (b) {
           b.disabled = true;
           if (b.getAttribute('data-correct') === '1') b.classList.add('is-correct');
@@ -56,17 +84,20 @@
         feedback.innerHTML = '<p><strong>' + (right ? 'Correct.' : 'Not quite.') + '</strong> ' + q.why + '</p>'
           + '<p><button type="button" class="btn btn--gold btn-pill press" id="trivia-next">'
           + (state.i + 1 >= questions.length ? 'See your score' : 'Next question') + '</button></p>';
-        document.getElementById('trivia-next').addEventListener('click', function () {
+        var nextBtn = document.getElementById('trivia-next');
+        nextBtn.addEventListener('click', function () {
           state.i++;
           state.answered = false;
           render();
         });
+        nextBtn.focus();
       });
     });
   }
 
   function renderDone() {
-    var ms = Date.now() - state.startedAt;
+    stopTimer();
+    var ms = (state.finishedAt || Date.now()) - state.startedAt;
     var total = questions.length;
     panel.innerHTML = '<h3 class="trivia-q">You got ' + state.score + ' out of ' + total + '.</h3>'
       + '<p class="trivia-time">Finished in ' + fmtMs(ms) + '.</p>'
@@ -93,10 +124,36 @@
   }
 
   function startRound() {
-    state = { i: 0, score: 0, startedAt: Date.now(), answered: false };
+    state = { i: 0, score: 0, startedAt: Date.now(), finishedAt: 0, answered: false };
     startBtn.hidden = true;
+    startTimer();
     render();
   }
+
+  // Keyboard play: 1-4 or A-D picks an answer, Enter advances after one
+  // and starts a fresh round from the done screen.
+  document.addEventListener('keydown', function (e) {
+    if (!state || !startBtn.hidden) return;
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      var againBtn = document.getElementById('trivia-again');
+      if (againBtn) { e.preventDefault(); againBtn.click(); return; }
+      if (state.answered) {
+        var nextBtn = document.getElementById('trivia-next');
+        if (nextBtn) { e.preventDefault(); nextBtn.click(); }
+      }
+      return;
+    }
+    if (state.answered) return;
+    var pos = -1;
+    if (e.key >= '1' && e.key <= '4') pos = Number(e.key) - 1;
+    else if (/^[a-dA-D]$/.test(e.key)) pos = e.key.toLowerCase().charCodeAt(0) - 97;
+    if (pos >= 0) {
+      var btns = panel.querySelectorAll('.trivia-answer');
+      if (btns[pos]) { e.preventDefault(); btns[pos].click(); }
+    }
+  });
 
   if (startBtn) startBtn.addEventListener('click', startRound);
 })();

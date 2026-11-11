@@ -14,6 +14,16 @@ const { Pool } = require('pg');
 const { screenBody, sourceTokenHash, BURST_LIMIT, SPIKE_THRESHOLD } = require('./lib/screening');
 const { REGIONS, regionOf, areaForZip } = require('./lib/regions');
 const { TRIVIA_QUESTIONS, easternDateStr, dailyTriviaQuestions } = require('./lib/trivia');
+// Arcade trivia game pools: 30 questions per difficulty (Easy, Medium,
+// Hard). Embedded on the games page as window.RMF_TRIVIA_ARCADE, the
+// same pattern as the homepage daily trivia.
+const TRIVIA_ARCADE_QUESTIONS = require('./lib/trivia-arcade');
+// Verse-of-the-day pool expansion: 218 more Old Testament verses and
+// 185 more New Testament verses and saint quotes, taking the pool from
+// 164 to 567 entries, so a daily visitor goes over a year without a
+// repeat. Same { text, ref } format; verified no duplicate text.
+const { EXTRA_OT_VERSES } = require('./lib/verses-extra-ot');
+const EXTRA_NT_VERSES = require('./lib/verses-extra-nt');
 
 const PORT = process.env.PORT || 3000;
 const OWNER_SECRET = process.env.OWNER_SECRET || '';
@@ -356,6 +366,11 @@ const DAILY_VERSES = [
   { text: 'We become what we love and who we love shapes what we become.', ref: 'St. Clare of Assisi' },
   { text: 'Prayer is the place of refuge for every worry, a foundation for cheerfulness, a source of constant happiness, a protection against sadness.', ref: 'St. John Chrysostom' },
 ];
+// Verse pool expansion (see the requires at the top): 218 Old Testament
+// verses plus 185 New Testament verses and saint quotes, for 567 entries
+// in all. The rotation below is dayNum % length, so a daily visitor now
+// goes over a year without seeing the same verse twice.
+DAILY_VERSES.push(...EXTRA_OT_VERSES, ...EXTRA_NT_VERSES);
 function dailyVerse() {
   // Eastern date, so the verse turns over at midnight for the US audience
   // and matches the date shown under it.
@@ -455,13 +470,26 @@ const ERROR_CSS = `
   .game-bar i{display:block;height:100%;background:var(--gold);width:100%}
   .game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
   .game-cell{aspect-ratio:1/1;border:1.5px solid var(--border);border-radius:14px;background:#f1e8d8;
-    font-size:44px;line-height:1;cursor:pointer;touch-action:manipulation;
+    font-size:44px;line-height:1;cursor:pointer;touch-action:manipulation;position:relative;overflow:hidden;
     -webkit-tap-highlight-color:transparent;user-select:none;padding:0}
   .game-cell:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .game-cell.pop{animation:pop .18s ease-out}
   @keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
   .game-cell.caught{animation:caught .25s ease-out}
   @keyframes caught{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+  .game-cell.gold{background:#f7e8b8;border-color:var(--gold)}
+  .diff-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .diff-row .lbl{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}
+  .diff-btn{padding:7px 14px;border-radius:999px;border:1.5px solid var(--border);background:#fff;font-weight:600;cursor:pointer;font-size:14px;color:var(--text)}
+  .diff-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .game-grid.shake{animation:shake .3s ease-out}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  .float-points{position:absolute;left:0;right:0;top:6px;text-align:center;font-size:20px;font-weight:800;color:var(--green);pointer-events:none;animation:floatUp .7s ease-out forwards}
+  @keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-26px)}}
+  .wolf-flash{color:#b3261e}
+  .game-streak{color:var(--gold)}
+  .kbd-hint{font-size:13px;color:var(--dim)}
+  @media (hover:none),(pointer:coarse){.kbd-hint{display:none}}
   .game-overlay{text-align:center;padding:18px 0 4px}
   .game-overlay p{margin:8px 0 0}
   footer{padding:0 0 40px;text-align:center}
@@ -474,6 +502,7 @@ const LOST_SHEEP_SCRIPT = `
   if (!grid) return;
   var scoreEl = document.getElementById('sheep-score');
   var bestEl = document.getElementById('sheep-best');
+  var streakEl = document.getElementById('sheep-streak');
   var timeEl = document.getElementById('sheep-time');
   var barEl = document.getElementById('sheep-bar');
   var startBtn = document.getElementById('sheep-start');
@@ -482,16 +511,60 @@ const LOST_SHEEP_SCRIPT = `
   var endPanel = document.getElementById('sheep-end-panel');
   var endText = document.getElementById('sheep-end-text');
   var ROUND_MS = 45000;
+  // Difficulty, Easy / Medium / Hard like the arcade games. Medium is the
+  // game as it plays today. The choice is remembered in this browser.
+  var DIFFS = {
+    easy: { pop: 850, visible: 1150, wolf: 0.10, doubleAfter: 30000 },
+    medium: { pop: 700, visible: 900, wolf: 0.15, doubleAfter: 22500 },
+    hard: { pop: 550, visible: 700, wolf: 0.20, doubleAfter: 0 }
+  };
+  var diff = 'medium';
+  try {
+    var savedDiff = window.localStorage.getItem('rmf_lost_sheep_diff');
+    if (savedDiff === 'easy' || savedDiff === 'hard') diff = savedDiff;
+  } catch (e) {}
   var cells = [];
-  var score = 0, best = 0, timeLeft = ROUND_MS, timer = null, popTimer = null, endAt = 0, running = false;
+  var score = 0, best = 0, streak = 0, bestStreak = 0, timeLeft = ROUND_MS, timer = null, popTimer = null, endAt = 0, running = false;
   try { best = parseInt(window.localStorage.getItem('rmf_lost_sheep_best') || '0', 10) || 0; } catch (e) { best = 0; }
   bestEl.textContent = String(best);
   var SHEEP = '\\uD83D\\uDC11';
   var WOLF = '\\uD83D\\uDC3A';
   var BUSH = '\\uD83C\\uDF3F';
+  // Desktop keyboards get the key hints and the 1-9 shortcuts; phones and
+  // tablets get touch only. Same fine-pointer-plus-hover check as the arcade.
+  var _hasKeyboard = null;
+  function hasKeyboard() {
+    if (_hasKeyboard === null) {
+      try {
+        _hasKeyboard = (typeof matchMedia === 'function') ? matchMedia('(pointer: fine) and (hover: hover)').matches : true;
+      } catch (e) { _hasKeyboard = true; }
+    }
+    return _hasKeyboard;
+  }
   function fmt(ms) {
     var s = Math.ceil(ms / 1000);
     return '0:' + (s < 10 ? '0' + s : String(s));
+  }
+  function applyDiffButtons() {
+    var btns = document.querySelectorAll('.sheep-diff-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var on = btns[i].getAttribute('data-diff') === diff;
+      btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (on) btns[i].classList.add('on'); else btns[i].classList.remove('on');
+    }
+  }
+  function wireDiffButtons() {
+    var btns = document.querySelectorAll('.sheep-diff-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function (ev) {
+        var d = ev.currentTarget.getAttribute('data-diff');
+        if (d === 'easy' || d === 'medium' || d === 'hard') {
+          diff = d;
+          try { window.localStorage.setItem('rmf_lost_sheep_diff', d); } catch (e) {}
+          applyDiffButtons();
+        }
+      });
+    }
   }
   function buildGrid() {
     for (var i = 0; i < 9; i++) {
@@ -502,8 +575,34 @@ const LOST_SHEEP_SCRIPT = `
       b.setAttribute('aria-label', 'Bush ' + (i + 1));
       b.addEventListener('click', onTap);
       grid.appendChild(b);
-      cells.push({ el: b, kind: null });
+      cells.push({ el: b, kind: null, idx: i, popSeq: 0 });
     }
+  }
+  function clearCell(cell) {
+    cell.kind = null;
+    cell.el.textContent = BUSH;
+    cell.el.classList.remove('gold');
+    cell.el.setAttribute('aria-label', 'Bush ' + (cell.idx + 1));
+  }
+  function floatPoints(el, pts) {
+    var s = document.createElement('span');
+    s.className = 'float-points';
+    s.textContent = '+' + pts;
+    s.setAttribute('aria-hidden', 'true');
+    el.appendChild(s);
+    setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 750);
+  }
+  function flashWolf() {
+    grid.classList.remove('shake');
+    void grid.offsetWidth;
+    grid.classList.add('shake');
+    scoreEl.classList.remove('wolf-flash');
+    void scoreEl.offsetWidth;
+    scoreEl.classList.add('wolf-flash');
+    setTimeout(function () {
+      grid.classList.remove('shake');
+      scoreEl.classList.remove('wolf-flash');
+    }, 500);
   }
   function onTap(ev) {
     if (!running) return;
@@ -512,18 +611,27 @@ const LOST_SHEEP_SCRIPT = `
       if (cells[i].el === ev.currentTarget) { cell = cells[i]; break; }
     }
     if (!cell || !cell.kind) return;
-    if (cell.kind === 'sheep') {
-      score += 1;
-      cell.el.classList.remove('pop');
+    var wasGold = cell.kind === 'gold';
+    var wasWolf = cell.kind === 'wolf';
+    clearCell(cell);
+    if (wasWolf) {
+      score = Math.max(0, score - 1);
+      streak = 0;
+      streakEl.textContent = '0';
+      scoreEl.textContent = String(score);
+      flashWolf();
+    } else {
+      streak += 1;
+      if (streak > bestStreak) bestStreak = streak;
+      var pts = (wasGold ? 3 : 1) + Math.min(3, Math.floor(streak / 5));
+      score += pts;
+      scoreEl.textContent = String(score);
+      streakEl.textContent = String(streak);
+      cell.el.classList.remove('caught');
       void cell.el.offsetWidth;
       cell.el.classList.add('caught');
-    } else if (cell.kind === 'wolf') {
-      score = Math.max(0, score - 1);
+      floatPoints(cell.el, pts);
     }
-    cell.kind = null;
-    cell.el.textContent = BUSH;
-    cell.el.setAttribute('aria-label', 'Bush');
-    scoreEl.textContent = String(score);
   }
   function popOne() {
     if (!running) return;
@@ -531,22 +639,38 @@ const LOST_SHEEP_SCRIPT = `
     for (var i = 0; i < cells.length; i++) { if (!cells[i].kind) free.push(cells[i]); }
     if (!free.length) return;
     var cell = free[Math.floor(Math.random() * free.length)];
-    var isWolf = Math.random() < 0.15;
-    cell.kind = isWolf ? 'wolf' : 'sheep';
-    cell.el.textContent = isWolf ? WOLF : SHEEP;
-    cell.el.setAttribute('aria-label', isWolf ? 'Wolf! Do not tap.' : 'Sheep! Tap to catch it.');
+    var cfg = DIFFS[diff];
+    var roll = Math.random();
+    var kind = 'sheep';
+    if (roll < cfg.wolf) kind = 'wolf';
+    else if (roll < cfg.wolf + 0.06) kind = 'gold';
+    cell.kind = kind;
+    cell.popSeq += 1;
+    var myPop = cell.popSeq;
+    cell.el.textContent = kind === 'wolf' ? WOLF : SHEEP;
+    if (kind === 'gold') cell.el.classList.add('gold');
+    var label = kind === 'wolf' ? 'Wolf! Do not tap.' : (kind === 'gold' ? 'Golden sheep! Worth three.' : 'Sheep! Tap to catch it.');
+    if (kind !== 'wolf' && hasKeyboard()) label = (kind === 'gold' ? 'Golden sheep in bush ' : 'Sheep in bush ') + (cell.idx + 1) + '! Tap it, or press ' + (cell.idx + 1) + '.';
+    cell.el.setAttribute('aria-label', label);
     cell.el.classList.remove('pop');
     void cell.el.offsetWidth;
     cell.el.classList.add('pop');
     var elapsed = ROUND_MS - timeLeft;
-    var visible = 950 - Math.min(300, elapsed / 150);
+    var visible = cfg.visible - Math.min(300, elapsed / 150);
     setTimeout(function () {
-      if (cell.kind) {
-        cell.kind = null;
-        cell.el.textContent = BUSH;
-        cell.el.setAttribute('aria-label', 'Bush');
-      }
+      if (cell.kind && cell.popSeq === myPop) clearCell(cell);
     }, visible);
+  }
+  function schedulePop() {
+    var cfg = DIFFS[diff];
+    var elapsed = ROUND_MS - timeLeft;
+    var interval = Math.max(380, cfg.pop - Math.min(200, elapsed / 150));
+    popTimer = setTimeout(function () {
+      if (!running) return;
+      popOne();
+      if (elapsed > cfg.doubleAfter && Math.random() < 0.35) popOne();
+      schedulePop();
+    }, interval);
   }
   function tick() {
     timeLeft = Math.max(0, endAt - Date.now());
@@ -555,9 +679,21 @@ const LOST_SHEEP_SCRIPT = `
     if (timeLeft <= 0) { endGame(); return; }
     timer = setTimeout(tick, 100);
   }
+  function verdict(n) {
+    if (n >= 20) return 'Legendary Shepherd - the whole flock, home before dark.';
+    if (n >= 15) return 'Master Shepherd. Not one sheep left behind.';
+    if (n >= 10) return 'A fine shepherd - the flock trusts you.';
+    if (n >= 5) return 'A steady shepherd. The flock is mostly home.';
+    return 'The flock is still wandering. Give it another round.';
+  }
   function startGame() {
     score = 0;
+    streak = 0;
+    bestStreak = 0;
     scoreEl.textContent = '0';
+    streakEl.textContent = '0';
+    scoreEl.classList.remove('wolf-flash');
+    grid.classList.remove('shake');
     timeLeft = ROUND_MS;
     timeEl.textContent = fmt(timeLeft);
     barEl.style.width = '100%';
@@ -566,34 +702,50 @@ const LOST_SHEEP_SCRIPT = `
     running = true;
     endAt = Date.now() + ROUND_MS;
     tick();
-    popTimer = setInterval(function () {
-      popOne();
-      if (timeLeft < ROUND_MS / 2 && Math.random() < 0.3) popOne();
-    }, 750);
+    schedulePop();
   }
   function endGame() {
     running = false;
     clearTimeout(timer);
-    clearInterval(popTimer);
-    for (var i = 0; i < cells.length; i++) {
-      cells[i].kind = null;
-      cells[i].el.textContent = BUSH;
-      cells[i].el.setAttribute('aria-label', 'Bush');
-    }
+    clearTimeout(popTimer);
+    for (var i = 0; i < cells.length; i++) { clearCell(cells[i]); }
     var isBest = score > 0 && score > best;
     if (isBest) {
       best = score;
       try { window.localStorage.setItem('rmf_lost_sheep_best', String(best)); } catch (e) {}
       bestEl.textContent = String(best);
     }
-    var msg = 'Time! You rounded up ' + score + ' sheep.';
+    var msg = 'Time! You rounded up ' + score + ' sheep. ' + verdict(score);
+    if (bestStreak >= 5) msg += ' Best streak: ' + bestStreak + ' in a row.';
     if (isBest) msg += ' A new best!';
-    msg += ' The flock is safe, for now.';
     endText.textContent = msg;
     endPanel.hidden = false;
   }
+  function onKey(e) {
+    var t = (e && e.target) || document.activeElement;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    var k = e.key;
+    if ((k === ' ' || k === 'Enter') && !running) {
+      if (t && t.tagName === 'BUTTON') return;
+      e.preventDefault();
+      startGame();
+      return;
+    }
+    if (!running) return;
+    if (k >= '1' && k <= '9') {
+      var cell = cells[parseInt(k, 10) - 1];
+      if (cell) onTap({ currentTarget: cell.el });
+    }
+  }
+  if (!hasKeyboard()) {
+    var hints = document.querySelectorAll('.kbd-hint');
+    for (var i = 0; i < hints.length; i++) { hints[i].hidden = true; }
+  }
+  document.addEventListener('keydown', onKey);
   startBtn.addEventListener('click', startGame);
   againBtn.addEventListener('click', startGame);
+  wireDiffButtons();
+  applyDiffButtons();
   buildGrid();
 })();
 `;
@@ -606,10 +758,11 @@ function errorPage(opts) {
     + '<main class="wrap"><h1>' + opts.heading + '</h1><p>' + opts.message + '</p>'
     + opts.actions
     + '<section class="card" aria-label="The Lost Sheep game">'
-    + '<div class="game-head"><h2>The Lost Sheep</h2><span class="game-score">Sheep: <span id="sheep-score">0</span> &middot; Best: <span id="sheep-best">0</span></span><span class="game-time" id="sheep-time">0:45</span></div>'
+    + '<div class="game-head"><h2>The Lost Sheep</h2><span class="game-score">Sheep: <span id="sheep-score">0</span> &middot; Best: <span id="sheep-best">0</span> &middot; Streak: <span id="sheep-streak" class="game-streak">0</span></span><span class="game-time" id="sheep-time">0:45</span></div>'
     + '<div class="game-bar" aria-hidden="true"><i id="sheep-bar"></i></div>'
+    + '<div class="diff-row"><span class="lbl">Difficulty</span><button type="button" class="diff-btn sheep-diff-btn" data-diff="easy" aria-pressed="false">Easy</button><button type="button" class="diff-btn sheep-diff-btn" data-diff="medium" aria-pressed="true">Medium</button><button type="button" class="diff-btn sheep-diff-btn" data-diff="hard" aria-pressed="false">Hard</button></div>'
     + '<div class="game-grid" id="sheep-grid"></div>'
-    + '<div class="game-overlay" id="sheep-start-panel"><p>Sheep keep wandering out of the bushes. Tap one to round it up. Mind the wolf &mdash; tapping him loses a sheep.</p><p><button class="btn" id="sheep-start" type="button">Start rounding them up</button></p></div>'
+    + '<div class="game-overlay" id="sheep-start-panel"><p>Sheep pop out of the bushes. Tap one to round it up. A golden sheep is worth 3, and catching sheep in a row builds your streak: every 5 in a row adds a bonus point per sheep. Mind the wolf &mdash; tapping him costs a sheep and breaks your streak.</p><p class="kbd-hint">On a computer, keys 1 to 9 catch the sheep in each bush. Space starts a round.</p><p><button class="btn" id="sheep-start" type="button">Start rounding them up</button></p></div>'
     + '<div class="game-overlay" id="sheep-end-panel" hidden><p id="sheep-end-text"></p><p><button class="btn" id="sheep-again" type="button">Play again</button></p></div>'
     + '</section>'
     + '<p class="small"><a href="/">Home</a> &middot; <a href="/browse">Browse priests</a> &middot; <a href="/games">Arcade</a> &middot; <a href="/about">About</a></p>'
@@ -925,6 +1078,34 @@ function dioceseName(code) { return DIOCESE_NAMES[code] || code; }
 const STATE_NAMES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
 function stateName(code) { return STATE_NAMES[code] || code; }
 
+// ---- Mass times link (outbound link only, no data copied) ----
+// MassTimes.org is a JavaScript app. Its own deep link format is
+// /map?SearchQueryTerm=<City>, <State>: the app itself sets that query
+// param when it geocodes a place search, and its search results are
+// indexed under that URL (for example /map?SearchQueryTerm=Madison,
+// Wisconsin). The link only sends the visitor there; no Mass times are
+// copied, scraped, or stored. Fallback chain: city + state, then state
+// alone, then the MassTimes.org home page, so the link always appears.
+function massTimesUrl(p) {
+  const city = String(p.city || '').trim();
+  const state = stateName(String(p.state || '').trim());
+  const term = city && state ? `${city}, ${state}` : (state || city || '');
+  if (!term) return 'https://masstimes.org/';
+  return 'https://masstimes.org/map?SearchQueryTerm=' + encodeURIComponent(term);
+}
+function massTimesHtml(p) {
+  const city = String(p.city || '').trim();
+  const state = stateName(String(p.state || '').trim());
+  const place = city && state ? `${city}, ${state}` : (state || city || 'your area');
+  return `<section class="mass-times-box card--ruled" aria-label="Mass times">
+    <p class="eyebrow">Going to Mass</p>
+    <h3>Find Mass times near ${esc(place)}</h3>
+    <p class="small">Mass times are listed on MassTimes.org, a separate site. This link takes you there for ${esc(place)}. RateMyFather does not copy or store their times.</p>
+    <p><a class="btn btn--gold" href="${massTimesUrl(p)}" target="_blank" rel="noopener">Find Mass times on MassTimes.org <span aria-hidden="true">&#8599;</span></a></p>
+    <p class="small">Prefer an app? <a href="https://play.google.com/store/apps/details?id=com.itsharedservices.hdsmyc.app&amp;hl=en" target="_blank" rel="noopener">Catholic Mass Times on Google Play</a> &middot; <a href="https://apps.apple.com/us/app/catholic-mass-times/id789923520" target="_blank" rel="noopener">Catholic Mass Times on the App Store</a> (both leave this site).</p>
+  </section>`;
+}
+
 // Server-rendered Find by place options. places.js replaces these with the
 // live lists when it runs, but rendering them here means the dropdowns work
 // with no JavaScript too, and an active place filter survives a text-search
@@ -989,7 +1170,7 @@ app.get('/api/places/dioceses', async (req, res) => {
 // is collected or stored: the parish name, city, state and the score are
 // all that is kept. A player who never sets a home parish plays exactly
 // as before, and scores are never submitted.
-const ARCADE_GAME_IDS = ['rungun', 'stack', 'maze', 'steeple', 'dash', 'flee', 'cross', 'pastor'];
+const ARCADE_GAME_IDS = ['rungun', 'stack', 'maze', 'steeple', 'dash', 'flee', 'cross', 'pastor', 'trivia'];
 function parishKey(parish, city, state) {
   return [parish, city, state].map((s) => String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()).join('|');
 }
@@ -1056,7 +1237,10 @@ app.get('/api/parishes/search', async (req, res) => {
   } catch (e) { res.json([]); }
 });
 // Top parishes for one game. ?parish=<key> also returns the caller's
-// parish row with its rank, even when it sits outside the top 10.
+// parish row with its rank, even when it sits outside the top 10. The
+// response also carries the caller's own daily contribution for this
+// game (contributed / cap), so the games tab can show how much of
+// today's cap they have used.
 app.get('/api/leaderboard/:game', async (req, res) => {
   const game = String(req.params.game || '');
   if (!ARCADE_GAME_IDS.includes(game)) return res.status(404).json({ error: 'unknown game' });
@@ -1074,9 +1258,27 @@ app.get('/api/leaderboard/:game', async (req, res) => {
          FROM parish_scores s WHERE game=$1 AND parish_key=$2`, [game, key]);
       if (yRows.length) yours = yRows[0];
     }
-    res.json({ game, top: rows, count: cRows[0].n, yours });
-  } catch (e) { res.json({ game, top: [], count: 0, yours: null }); }
+    let daily = { contributed: 0, cap: DAILY_PARISH_CAP };
+    try {
+      const { rows: dRows } = await pool.query(
+        `SELECT contributed FROM parish_daily_contrib WHERE day=$1 AND token_hash=$2 AND game=$3`,
+        [easternDateStr(), sourceTokenHash(req), game]);
+      if (dRows.length) daily.contributed = Number(dRows[0].contributed);
+    } catch (e) {}
+    res.json({ game, top: rows, count: cRows[0].n, yours, daily });
+  } catch (e) { res.json({ game, top: [], count: 0, yours: null, daily: { contributed: 0, cap: DAILY_PARISH_CAP } }); }
 });
+// Daily parish contribution cap: how many points one person can add to a
+// parish score per game per day. 5000 is generous for real play (a great
+// game is a few hundred to a few thousand points, depending on the game)
+// and still stops one player farming endlessly to carry a parish alone.
+// It resets every day on the Eastern date, and it is enforced server
+// side here, so the browser cannot bypass it. A submission is credited
+// only up to the room left for the day (partial credit), and once the
+// cap is reached further submissions add nothing. The response tells
+// the player how much was added, whether they are capped, and their
+// daily total, so the games tab can show it.
+const DAILY_PARISH_CAP = 5000;
 // One finished game's score for a home parish. Score is capped per
 // submission, and the rate limit above drops repeats and bursts.
 app.post('/api/leaderboard/score', async (req, res) => {
@@ -1090,16 +1292,32 @@ app.post('/api/leaderboard/score', async (req, res) => {
   }
   if (!scoreRateOk(sourceTokenHash(req), game, score)) return res.status(429).json({ error: 'too fast' });
   const key = parishKey(parish, city, state);
+  const day = easternDateStr();
+  const token = sourceTokenHash(req);
   try {
+    const { rows: oldRows } = await pool.query(
+      `SELECT contributed FROM parish_daily_contrib WHERE day=$1 AND token_hash=$2 AND game=$3`,
+      [day, token, game]);
+    const before = oldRows.length ? Number(oldRows[0].contributed) : 0;
+    const added = Math.max(0, Math.min(score, DAILY_PARISH_CAP - before));
     await pool.query(
-      `INSERT INTO parish_scores (game, parish_key, parish, city, state, total_score, games_played, best_score)
-       VALUES ($1,$2,$3,$4,$5,$6::bigint,1,$6::integer)
-       ON CONFLICT (game, parish_key) DO UPDATE SET
-         total_score = parish_scores.total_score + EXCLUDED.total_score,
-         games_played = parish_scores.games_played + 1,
-         best_score = GREATEST(parish_scores.best_score, EXCLUDED.best_score),
-         updated_at = NOW()`, [game, key, parish, city, state, score]);
-    res.json({ ok: true });
+      `INSERT INTO parish_daily_contrib (day, token_hash, game, contributed)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (day, token_hash, game) DO UPDATE SET
+         contributed = LEAST(parish_daily_contrib.contributed + EXCLUDED.contributed, $5),
+         updated_at = NOW()`,
+      [day, token, game, added, DAILY_PARISH_CAP]);
+    if (added > 0) {
+      await pool.query(
+        `INSERT INTO parish_scores (game, parish_key, parish, city, state, total_score, games_played, best_score)
+         VALUES ($1,$2,$3,$4,$5,$6::bigint,1,$6::integer)
+         ON CONFLICT (game, parish_key) DO UPDATE SET
+           total_score = parish_scores.total_score + EXCLUDED.total_score,
+           games_played = parish_scores.games_played + 1,
+           best_score = GREATEST(parish_scores.best_score, EXCLUDED.best_score),
+           updated_at = NOW()`, [game, key, parish, city, state, added]);
+    }
+    res.json({ ok: true, added, capped: added < score, dailyTotal: before + added, dailyCap: DAILY_PARISH_CAP });
   } catch (e) { res.status(500).json({ error: 'save failed' }); }
 });
 
@@ -1139,6 +1357,7 @@ app.post('/api/trivia/score', async (req, res) => {
 app.get('/games', (req, res) => res.send(page('Games', `
   <div id="arcade-root"><p class="small">Loading games&hellip;</p><div class="skeleton" style="height:120px;margin-top:12px"></div><div class="skeleton" style="height:120px;margin-top:12px"></div></div>
   <noscript><p class="notice">The arcade needs JavaScript enabled to play. Turn JavaScript on and reload the page.</p></noscript>
+  <script>window.RMF_TRIVIA_ARCADE = ${JSON.stringify(TRIVIA_ARCADE_QUESTIONS).replace(/</g, '\\u003c')};</script>
   <script src="/arcade.js?v=${ARCADE_VERSION}"></script>
   <script>(function () {
     // If the games shelf never renders (script blocked or failed), say so
@@ -1691,6 +1910,7 @@ app.get('/priest/:id', async (req, res) => {
         ${st && st.n ? '<p class="small">Pace measures speed only, not quality.</p>' : ''}
       </section>
       ${church && church.n ? `<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p><strong>${Number(church.avg).toFixed(1)} out of 5</strong> for church beauty, from ${church.n} review${church.n === 1 ? '' : 's'}. This rates the building, not the priest, and it never affects the priest's score above.</p></div>` : '<div class="church-box card--ruled"><p class="eyebrow">The building, not the priest</p><h3>The church building</h3><p>No church beauty ratings yet. When you review, you can rate how beautiful the building is. That rating is about the church, not the priest, and it never affects the priest\'s score.</p></div>'}
+      ${massTimesHtml(p)}
       <p class="profile-note">${DISCLAIMER}</p>
     </div>
   </article>

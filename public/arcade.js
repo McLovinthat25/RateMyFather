@@ -82,7 +82,7 @@
   // one finished game; each game's start function clears it for the
   // next game.
   var parishSubmitted = {};
-  function submitParishScore(gameId, score) {
+  function submitParishScore(gameId, score, onResult) {
     var hp = readHomeParish();
     if (!hp || !hp.parish || !(score > 0)) return;
     if (parishSubmitted[gameId]) return;
@@ -92,6 +92,8 @@
       fetch('/api/leaderboard/score', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ game: gameId, parish: hp.parish, city: hp.city || '', state: hp.state || '', score: Math.round(score) }),
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        if (typeof onResult === 'function') { try { onResult(data); } catch (e) {} }
       }).catch(function () {});
     } catch (e) {}
   }
@@ -344,6 +346,7 @@
     { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', howTouch: 'Drag on the floor to run, tap to dash.', mount: mountFlee },
     { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', howTouch: 'Touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
     { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger.', howTouch: 'Tap a choice each week. Watch the ledger.', mount: mountPastor },
+    { id: 'trivia', title: 'Catholic Trivia', blurb: 'Ten questions on saints, scripture, Church history, the liturgy, and the sacraments. Every answer teaches you something.', verdict: 'Best for testing your faith.', how: 'Press 1 to 4 or A to D to answer, Enter for the next question. 100 points per right answer, 1,000 for a perfect round.', howTouch: 'Tap an answer. 100 points per right answer, 1,000 for a perfect round.', mount: mountTrivia },
   ];
 
   // ---- arcade shelf ----
@@ -432,7 +435,7 @@
   // Top parishes across the country, per game. The player's home parish
   // row is marked when it is on the board.
   var currentBoardGame = 'rungun';
-  var BOARD_GAME_LABELS = { rungun: 'Parish Bowl', stack: 'Blocks', maze: 'Candle Maze', steeple: 'Steeple Stack', dash: 'Sanctuary Dash', flee: 'Flee the Sins', cross: 'Crossing', pastor: 'Parish Pastor' };
+  var BOARD_GAME_LABELS = { rungun: 'Parish Bowl', stack: 'Blocks', maze: 'Candle Maze', steeple: 'Steeple Stack', dash: 'Sanctuary Dash', flee: 'Flee the Sins', cross: 'Crossing', pastor: 'Parish Pastor', trivia: 'Trivia' };
   function leaderboardPanel() {
     var panel = el('div', 'game-card');
     panel.style.marginTop = '14px';
@@ -460,6 +463,18 @@
     var url = '/api/leaderboard/' + currentBoardGame + (hp ? '?parish=' + encodeURIComponent(homeParishKey(hp)) : '');
     fetch(url).then(function (r) { return r.json(); }).then(function (data) {
       list.innerHTML = '';
+      // Daily cap, per game: how much of today's limit this visitor has
+      // used. Only shown to a player with a home parish set, since only
+      // they contribute scores. The limit resets tomorrow.
+      if (hp && data && data.daily) {
+        var used = Number(data.daily.contributed) || 0, capN = Number(data.daily.cap) || 5000;
+        var capLine = el('p', 'small');
+        capLine.style.margin = '0 0 10px';
+        capLine.textContent = used >= capN
+          ? 'You have reached today\u2019s ' + capN.toLocaleString() + '-point limit for this game. It resets tomorrow.'
+          : 'Today you have added ' + used.toLocaleString() + ' of ' + capN.toLocaleString() + ' points for this game. The limit resets tomorrow.';
+        list.appendChild(capLine);
+      }
       var rows = (data && data.top) || [];
       if (!rows.length) {
         list.appendChild(el('p', 'small', 'No scores yet for this game — set a home parish above and be the first.'));
@@ -493,7 +508,7 @@
     root.innerHTML = '';
     var head = el('div', 'arcade-head');
     head.appendChild(el('h2', '', 'The Arcade'));
-    head.appendChild(el('p', 'small', 'Eight little games. Best scores live only in your browser.'));
+    head.appendChild(el('p', 'small', 'Nine little games. Best scores live only in your browser.'));
     var tools = el('div', 'arcade-tools');
     var surprise = el('button', 'press', 'Surprise me'); surprise.type = 'button';
     surprise.addEventListener('click', function () {
@@ -2230,16 +2245,29 @@
     var camOff = 0; // the view scrolls down as the tower grows, so the top stays in reach and the wind (stone fifteen) is reachable at all
     var perfectT = 0; // seconds left to show the Perfect flash after a clean drop
     var perfectStreak = 0; // consecutive perfect drops; the bonus grows with it
+    var lastPerfectBonus = 0; // points the last perfect drop paid, for the flash text
+    // Perfect means essentially nothing was trimmed: at most PERFECT_TOL px
+    // of the moving stone may hang over the tower edge. The stone moves
+    // ~2-3px per frame at full swing, so 2px is less than one frame of
+    // travel — a drop timed to within a frame of square. Any real sliver
+    // (3px or more cut off) is not perfect, and it stays cut off: the
+    // stone is placed exactly where it landed, never snapped square.
+    var PERFECT_TOL = 2;
+    // Perfect streaks grow the tower: every PERFECT_STREAK_GROW-th
+    // consecutive perfect (3rd, 6th, 9th, ...) grows the stone just placed
+    // by PERFECT_GROW_PX, up to PERFECT_MAX_W wide. The wider stone is the
+    // new tower top, so the next moving stone is wider too.
+    var PERFECT_STREAK_GROW = 3, PERFECT_GROW_PX = 10, PERFECT_MAX_W = 150;
     var BASE_W = 120, BASE_Y = GAME_H - 20;
     var diff = readDiff('steeple'); // Easy / Medium / Hard; Medium is the tuned default
-    var stoneBase = 115, stonePer = 6, windFrom = 15, windMag = 40, graceTopple = 3, graceWidth = 5;
+    var stoneBase = 115, stonePer = 6, windFrom = 15, windMag = 40, graceTopple = 3;
     function applySteepleDiff() {
       // Easy: the stone swings slower, the wind comes later and gentler,
       // and the first stones forgive a miss. Hard: faster swing, early
       // wind, less forgiveness. Medium is the current game.
-      if (diff === 'easy') { stoneBase = 90; stonePer = 4; windFrom = 20; windMag = 20; graceTopple = 5; graceWidth = 8; }
-      else if (diff === 'hard') { stoneBase = 140; stonePer = 8; windFrom = 10; windMag = 60; graceTopple = 2; graceWidth = 3; }
-      else { stoneBase = 115; stonePer = 6; windFrom = 15; windMag = 40; graceTopple = 3; graceWidth = 5; }
+      if (diff === 'easy') { stoneBase = 90; stonePer = 4; windFrom = 20; windMag = 20; graceTopple = 5; }
+      else if (diff === 'hard') { stoneBase = 140; stonePer = 8; windFrom = 10; windMag = 60; graceTopple = 2; }
+      else { stoneBase = 115; stonePer = 6; windFrom = 15; windMag = 40; graceTopple = 3; }
     }
     applySteepleDiff();
     function newStone() {
@@ -2264,17 +2292,13 @@
         if (tower.length < graceTopple) { api.showBanner('Missed \u2014 try again', 1400); newStone(); return; }
         gameOver(); return;
       }
-      var perfect = overlap / top.w > 0.9;
-      // Early forgiveness: the first five stones keep the full width of the
-      // tower below and settle squarely on it, so a new player can build a
-      // base instead of the tower narrowing to a sliver on one sloppy drop.
-      // After five stones the overhang is cut, as usual.
-      var stone;
-      if (tower.length < graceWidth) {
-        stone = { x: top.x, w: top.w, y: top.y - 18 };
-      } else {
-        stone = { x: left, w: overlap, y: top.y - 18 };
-      }
+      var trimmed = moving.w - overlap; // px of the moving stone cut off by the tower edge
+      // Perfect only when essentially nothing was trimmed: a sliver cut off
+      // means the drop was not perfect, however small the sliver. The stone
+      // is placed exactly where it landed — the overhang is cut, the stone
+      // is never snapped square onto the tower below.
+      var perfect = overlap > 0 && trimmed <= PERFECT_TOL;
+      var stone = { x: left, w: overlap, y: top.y - 18 };
       tower.push(stone);
       score += 1;
       // Scroll the view: keep the tower top near the same place on screen,
@@ -2286,7 +2310,21 @@
       if (tower.length % 5 === 0) { score += 25; api.showBanner(tower.length + ' stones — the steeple rises! +25', 1400); }
       // A run of perfect drops is worth more than one alone: the streak
       // grows the bonus, so a steady hand is rewarded for staying steady.
-      if (perfect) { perfectStreak += 1; score += 10 + 5 * (perfectStreak - 1); perfectT = 1.2; }
+      // Every third consecutive perfect also grows the stone just placed
+      // by 10px (up to 150px wide), so the tower gets easier to build on.
+      if (perfect) {
+        perfectStreak += 1;
+        lastPerfectBonus = 10 + 5 * (perfectStreak - 1);
+        score += lastPerfectBonus; perfectT = 1.2;
+        if (perfectStreak % PERFECT_STREAK_GROW === 0) {
+          var grow = Math.min(PERFECT_GROW_PX, PERFECT_MAX_W - stone.w);
+          if (grow > 0) {
+            stone.w += grow;
+            stone.x = clamp(stone.x - grow / 2, 0, GAME_W - stone.w);
+            api.showBanner('Perfect x' + perfectStreak + ' — the stone grows +' + grow, 1600);
+          }
+        }
+      }
       else perfectStreak = 0;
       if (tower.length % 10 === 0) score += 100;
       if (tower.length >= windFrom) wind = (Math.random() - 0.5) * windMag;
@@ -2338,7 +2376,7 @@
         var topX = tower.length ? tower[tower.length - 1].x : (GAME_W - BASE_W) / 2;
         var topW = tower.length ? tower[tower.length - 1].w : BASE_W;
         var gLeft = Math.max(moving.x, topX), gRight = Math.min(moving.x + moving.w, topX + topW);
-        var gPerfect = (gRight - gLeft) / topW > 0.9;
+        var gPerfect = (gRight - gLeft) > 0 && (moving.w - (gRight - gLeft)) <= PERFECT_TOL;
         ctx.strokeStyle = gPerfect ? 'rgba(46,125,50,0.9)' : 'rgba(178,138,46,0.55)'; ctx.lineWidth = 1.5;
         ctx.setLineDash([5, 4]);
         ctx.strokeRect(moving.x, topY - 18, moving.w, 18);
@@ -2350,7 +2388,7 @@
       if (perfectT > 0) {
         ctx.globalAlpha = Math.min(1, perfectT);
         ctx.fillStyle = '#b28a2e'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
-        ctx.fillText(perfectStreak > 1 ? 'Perfect x' + perfectStreak + '!' : 'Perfect! +10', GAME_W / 2, 90); ctx.textAlign = 'left';
+        ctx.fillText(perfectStreak > 1 ? 'Perfect x' + perfectStreak + '! +' + lastPerfectBonus : 'Perfect! +' + lastPerfectBonus, GAME_W / 2, 90); ctx.textAlign = 'left';
         ctx.globalAlpha = 1;
       }
       // Wind you can see: once the wind starts (stone fifteen), faint
@@ -2403,7 +2441,7 @@
     }
     api.canvas.addEventListener('pointerdown', function () { drop(); });
     api.actions.appendChild(el('p', 'game-note', gameNote('Tap the field or press Space to drop the stone. Space or Enter starts and builds again. The wind picks up once the tower grows tall.', 'Tap the field to drop the stone. The wind picks up once the tower grows tall.')));
-    api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples. ' + gameMark('steeple') + '</p>' +
+    api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples. A drop counts as perfect only if almost nothing is trimmed off it, and three perfects in a row grows the stone by 10. ' + gameMark('steeple') + '</p>' +
       diffPickerHtml('steeple', diff) +
       '<button type="button" class="big-btn press" id="steeple-start">Start building</button>' +
       kbdHint('Keyboard: Space or Enter starts building.'));
@@ -3388,6 +3426,130 @@
     };
   }
 
+  // ================= Catholic Trivia =================
+  // Ten questions a round, drawn from the difficulty's pool of 30
+  // (90 questions in all). 100 points per right answer, 1,000 for a
+  // perfect round. Every question shows the correct answer and a
+  // one-line explanation after the player answers, so it teaches as
+  // well as tests. Keyboard: 1-4 or A-D to answer, Enter for next.
+  // The questions come from window.RMF_TRIVIA_ARCADE, embedded by
+  // the server on the games page.
+  var TRIVIA_ROUND = 10, TRIVIA_POINTS = 100;
+  function mountTrivia(parent, onBack) {
+    var wrap = el('div', 'pastor-wrap');
+    var head = el('div', 'game-head');
+    var backBtn = el('button', 'back-btn press', '\u2190 Back to arcade'); backBtn.type = 'button';
+    backBtn.addEventListener('click', function () { onBack(); });
+    head.appendChild(backBtn);
+    head.appendChild(el('h2', 'font-display', 'Catholic Trivia'));
+    wrap.appendChild(head);
+    var card = el('div', 'pastor-card');
+    wrap.appendChild(card);
+    parent.appendChild(wrap);
+    var diff = readDiff('trivia');
+    var best = readBest('trivia');
+    var pools = (typeof window !== 'undefined' && window.RMF_TRIVIA_ARCADE) || null;
+    var round = [], qi = 0, correct = 0, answered = false, over = false;
+    function shuffle(arr) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) { var j = randInt(0, i); var t = a[i]; a[i] = a[j]; a[j] = t; }
+      return a;
+    }
+    function startRound() {
+      over = false; qi = 0; correct = 0; answered = false;
+      var pool = pools && pools[diff] ? pools[diff] : [];
+      round = shuffle(pool).slice(0, TRIVIA_ROUND).map(function (q) {
+        var order = shuffle([0, 1, 2, 3]);
+        return { topic: q.topic, q: q.q, answers: order.map(function (i) { return q.answers[i]; }), correct: order.indexOf(q.correct), why: q.why };
+      });
+      if (!round.length) { card.innerHTML = '<p class="notice">No questions for this difficulty yet.</p>'; return; }
+      showQuestion();
+    }
+    function showQuestion() {
+      answered = false;
+      var q = round[qi];
+      if (!q) { showFinal(); return; }
+      card.innerHTML =
+        diffPickerHtml('trivia', diff) +
+        '<p class="small" style="margin:0 0 4px;">Question ' + (qi + 1) + ' of ' + round.length + ' &middot; ' + esc(q.topic) + ' &middot; Score ' + (correct * TRIVIA_POINTS) + ' &middot; Best ' + best + '</p>' +
+        '<h3 style="margin:6px 0 14px;">' + esc(q.q) + '</h3>' +
+        '<div class="trivia-answers">' +
+        q.answers.map(function (a, i) {
+          return '<button type="button" class="press trivia-answer" data-i="' + i + '"><span class="trivia-key">' + 'ABCD'[i] + '</span> ' + esc(a) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="trivia-feedback"></div>' +
+        (hasKeyboard() ? '<p class="small">Press 1 to 4 or A to D to answer.</p>' : '');
+      wireDiffButtons(card, 'trivia', function () { return diff; }, function (d) { diff = d; writeDiff('trivia', d); startRound(); });
+      var btns = card.querySelectorAll('.trivia-answer');
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () { answer(Number(b.getAttribute('data-i'))); });
+      });
+    }
+    function answer(i) {
+      if (answered || over) return;
+      answered = true;
+      var q = round[qi];
+      var right = i === q.correct;
+      if (right) correct += 1;
+      var btns = card.querySelectorAll('.trivia-answer');
+      btns.forEach(function (b) {
+        var bi = Number(b.getAttribute('data-i'));
+        b.disabled = true;
+        if (bi === q.correct) b.classList.add('is-correct');
+        else if (bi === i) b.classList.add('is-wrong');
+      });
+      var fb = card.querySelector('.trivia-feedback');
+      fb.innerHTML = '<p style="margin:12px 0 4px;font-weight:700;">' + (right ? 'Right! +100' : 'Not quite. The answer is ' + esc(q.answers[q.correct]) + '.') + '</p>' +
+        '<p class="small" style="margin:0 0 10px;">' + esc(q.why) + '</p>' +
+        '<button type="button" class="press trivia-next">' + (qi + 1 >= round.length ? 'See your score' : 'Next question') + '</button>';
+      var next = fb.querySelector('.trivia-next');
+      next.addEventListener('click', function () { qi += 1; showQuestion(); });
+      next.focus();
+    }
+    function showFinal() {
+      over = true;
+      var score = correct * TRIVIA_POINTS;
+      best = writeBest('trivia', score);
+      card.innerHTML =
+        diffPickerHtml('trivia', diff) +
+        '<h3 style="margin:6px 0;">' + (correct === round.length ? 'A perfect round!' : correct >= 7 ? 'Well played.' : 'Good effort.') + '</h3>' +
+        '<p style="font-size:20px;margin:6px 0;"><strong>' + score + ' points</strong> &middot; ' + correct + ' of ' + round.length + ' right</p>' +
+        '<p class="small">Best: ' + best + ' &middot; ' + DIFF_LABEL[diff] + ' &middot; 100 points per right answer.</p>' +
+        '<p class="trivia-cap-note small"></p>' +
+        '<button type="button" class="press trivia-again">Play again</button>';
+      wireDiffButtons(card, 'trivia', function () { return diff; }, function (d) { diff = d; writeDiff('trivia', d); startRound(); });
+      var again = card.querySelector('.trivia-again');
+      again.addEventListener('click', function () { startRound(); });
+      again.focus();
+      submitParishScore('trivia', score, function (data) {
+        if (!data) return;
+        var note = card.querySelector('.trivia-cap-note');
+        if (!note) return;
+        if (data.capped) {
+          note.textContent = 'Today\u2019s parish limit is reached for this game (' + Number(data.dailyTotal || 0).toLocaleString() + ' of ' + Number(data.dailyCap || 5000).toLocaleString() + ' points). It resets tomorrow.';
+        } else if (data.added > 0) {
+          note.textContent = 'Added ' + Number(data.added).toLocaleString() + ' points to your parish today (' + Number(data.dailyTotal || 0).toLocaleString() + ' of ' + Number(data.dailyCap || 5000).toLocaleString() + ').';
+        }
+      });
+    }
+    function onKey(e) {
+      if (over) { if (e.key === 'Enter') { e.preventDefault(); startRound(); } return; }
+      if (answered) { if (e.key === 'Enter') { e.preventDefault(); qi += 1; showQuestion(); } return; }
+      var map = { '1': 0, '2': 1, '3': 2, '4': 3, a: 0, b: 1, c: 2, d: 3, A: 0, B: 1, C: 2, D: 3 };
+      if (e.key in map) { e.preventDefault(); answer(map[e.key]); }
+    }
+    document.addEventListener('keydown', onKey);
+    if (!pools || !pools[diff] || !pools[diff].length) {
+      card.innerHTML = '<p class="notice">The trivia questions did not load. Check your connection and try again.</p>';
+    } else {
+      startRound();
+    }
+    return function cleanup() {
+      document.removeEventListener('keydown', onKey);
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    };
+  }
+
   // ================= Candle Maze =================
   // 19x16 cloister maze, cell 20px. Father walks on his own; the player
   // only steers (arrows/WASD, swipe, dpad). Reverse applies immediately.
@@ -3897,7 +4059,12 @@
   // Speed 250 + distance x 0.045, capped 430, times the speed gate.
   // Score = distance/10 + bonuses: halo hop +15 chaining +25/+35...,
   // quarter marks +25 each, best-depth crossing +25, sanctuary +250.
-  // Jump velocity 790, gravity 2100, 0.09s coyote, 110ms press buffer.
+  // Jump velocity 900, gravity 2600, 0.12s coyote, 120ms press buffer:
+  // a 156px jump that lasts 0.69s, snappy rather than floaty. Physics runs
+  // on a fixed 1/120s timestep (see the loop below), so the jump is the
+  // same height at 30, 60 and 120Hz instead of drifting with the frame
+  // rate, and the scroll advances in even steps instead of stuttering
+  // whenever a frame runs long. Dove stretches 2100-2950 and 5650-6500
   // Dove stretches 2100-2950 and 5650-6500 (gaps 118px); heavenward
   // (gravity-flip) stretch 3950-4700. Speed gates x1.25/x0.8/x1.3/x0.85/x1.25
   // at 1500/3300/5100/7350/8450. One hit kills; practice mode respawns at
@@ -3936,16 +4103,27 @@
     // Clear opening runway: the first thorn waits until 1400px on Medium (scaled by difficulty), so a new
     // player gets a few jumps in before the first thing to clear, and the
     // first pew waits until 1300px.
+    // Pews are placed first, because thorns keep their distance from them:
+    // a thorn cluster may never start inside a pew or within 160px after
+    // one ends. Landing on (or jumping over) a pew and meeting thorns in
+    // the same breath is not a fair jump — the player needs room to land
+    // and jump again, about half a second at full speed.
+    x = Math.round(1300 * dens);
+    while (x < 8900) { if (!inSpecial(x)) L.pews.push({ x: x, w: 70 + rnd() * 30, h: 46 + rnd() * 20 }); x += (750 + rnd() * 350) * dens; }
     var x = Math.round(1400 * dens);
     while (x < 9000) {
       if (!inSpecial(x)) {
+        var clearOfPews = true;
+        for (var pi2 = 0; pi2 < L.pews.length; pi2++) {
+          var pp = L.pews[pi2];
+          if (x >= pp.x - 40 && x < pp.x + pp.w + 160) { x = pp.x + pp.w + 160; clearOfPews = false; break; }
+        }
+        if (!clearOfPews) continue;
         var n = 1 + Math.floor(rnd() * 3);
         for (var i = 0; i < n; i++) L.spikes.push({ x: x + i * 26, w: 24 });
         x += (380 + rnd() * 260) * dens;
       } else x += 120;
     }
-    x = Math.round(1300 * dens);
-    while (x < 8900) { if (!inSpecial(x)) L.pews.push({ x: x, w: 70 + rnd() * 30, h: 46 + rnd() * 20 }); x += (750 + rnd() * 350) * dens; }
     x = Math.round(1100 * dens);
     while (x < 8900) { if (!inSpecial(x)) L.clouds.push({ x: x, w: 54 }); x += (950 + rnd() * 400) * dens; }
     // The first censer waits until 3200px: a new player gets a few thorn
@@ -3997,7 +4175,7 @@
     var layout = genDashLayout(seed, dashDens);
     var practice = false, practiceDeaths = 0;
     var dist = 0, y = DASH_FLOOR - DASH_CUBE / 2, vy = 0, grounded = true;
-    var gateIdx = -1, gateMult = 1, bonus = 0, chain = 0;
+    var gateIdx = -1, gateMult = 1, gateTarget = 1, bonus = 0, chain = 0;
     var quarters = [false, false, false, false], depthAwarded = false;
     var coyoteT = 0, bufferT = 0, holding = false, mercyT = 0, rot = 0;
     var mode = 'normal', state = 'ready', paused = false;
@@ -4023,7 +4201,8 @@
       parishSubmitted['dash'] = false;
       if (typeof newSeed === 'number') { seed = newSeed; layout = genDashLayout(seed, dashDens); }
       dist = 0; y = DASH_FLOOR - DASH_CUBE / 2; vy = 0; grounded = true;
-      gateIdx = -1; gateMult = 1; bonus = 0; chain = 0;
+      stepDx = 0; stepDy = 0; stepDr = 0;
+      gateIdx = -1; gateMult = 1; gateTarget = 1; bonus = 0; chain = 0;
       quarters = [false, false, false, false]; depthAwarded = false;
       coyoteT = 0; bufferT = 0; mercyT = 0; rot = 0; mode = 'normal'; runT = 0;
       checkpoint = null; practiceDeaths = 0;
@@ -4073,9 +4252,10 @@
         dist = checkpoint.dist; bonus = checkpoint.bonus;
         quarters = checkpoint.quarters.slice();
         y = DASH_FLOOR - DASH_CUBE / 2; vy = 0; grounded = true; chain = 0;
+        stepDx = 0; stepDy = 0; stepDr = 0;
         mode = dashModeAt(dist);
-        gateIdx = -1; gateMult = 1;
-        layout.gates.forEach(function (g, i) { if (g.x <= dist) { gateIdx = i; gateMult = g.m; } });
+        gateIdx = -1; gateMult = 1; gateTarget = 1;
+        layout.gates.forEach(function (g, i) { if (g.x <= dist) { gateIdx = i; gateMult = g.m; gateTarget = g.m; } });
         layout.orbs.forEach(function (o) { if (o.x > dist) o.used = false; });
         mercyT = 0.9;
         api.showBanner('Back at the candle — ' + practiceDeaths + (practiceDeaths === 1 ? ' death' : ' deaths') + ' in practice', 1600);
@@ -4087,9 +4267,9 @@
     function doJump() {
       if (state !== 'playing' || paused) return;
       if (mode === 'dove') return; // dove is hold-to-rise, not jump
-      bufferT = 0.11;
+      bufferT = 0.12;
       if (grounded || coyoteT > 0) {
-        vy = mode === 'flip' ? 790 : -790;
+        vy = mode === 'flip' ? 900 : -900;
         grounded = false; coyoteT = 0; bufferT = 0;
         return;
       }
@@ -4100,7 +4280,7 @@
         var d = Math.hypot(o.x - dist, o.y - y);
         if (d < 58) {
           o.used = true;
-          vy = mode === 'flip' ? 800 : -800;
+          vy = mode === 'flip' ? 900 : -900;
           bonus += 15 + chain * 10;
           chain += 1;
           api.showBanner('Halo hop! +' + (15 + (chain - 1) * 10), 900);
@@ -4109,12 +4289,18 @@
         }
       }
     }
+    // The HUD is rebuilt only when its text actually changes. It used to
+    // be rewritten on every tick, which tore the whole HUD down and rebuilt
+    // it 60+ times a second — DOM churn on every frame, and a real source
+    // of the stutter.
+    var lastHud = '';
     function updateHud() {
       var pct = Math.min(100, Math.floor((dist / DASH_COURSE) * 100));
-      api.setHud('<span class="score">Score: ' + score() + '</span><span>' + pct + '%</span>' +
+      var h = '<span class="score">Score: ' + score() + '</span><span>' + pct + '%</span>' +
         '<span>' + (mode === 'dove' ? 'Dove flight' : mode === 'flip' ? 'Heavenward' : 'Running') + '</span>' +
-        '<span>Speed x' + gateMult + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>' +
-        (practice ? '<span>Practice</span>' : ''));
+        '<span>Speed x' + (Math.round(gateMult * 100) / 100) + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>' +
+        (practice ? '<span>Practice</span>' : '');
+      if (h !== lastHud) { lastHud = h; api.setHud(h); }
     }
     function draw() {
       var ctx = api.ctx;
@@ -4270,6 +4456,11 @@
       dust = dust.filter(function (pt) { return pt.t < 0.5; });
       if (coyoteT > 0) coyoteT -= dt;
       if (bufferT > 0) bufferT -= dt;
+      // Speed gates ease in over ~0.2s instead of jumping 25% in one frame.
+      if (gateMult !== gateTarget) {
+        gateMult += (gateTarget - gateMult) * Math.min(1, dt * 5);
+        if (Math.abs(gateTarget - gateMult) < 0.005) gateMult = gateTarget;
+      }
       var prevBottom = y + DASH_CUBE / 2;
       dist += speedNow() * dt;
       // Warning: a dove or heavenward stretch is coming up in 300px, so
@@ -4292,7 +4483,7 @@
       // Speed gates
       layout.gates.forEach(function (g, i) {
         if (i > gateIdx && dist >= g.x) {
-          gateIdx = i; gateMult = g.m;
+          gateIdx = i; gateTarget = g.m;
           api.showBanner('Speed x' + g.m, 1200);
         }
       });
@@ -4320,7 +4511,7 @@
       }
       if (mode === 'dove') {
         var targetVy = holding ? -240 : 300;
-        vy += (targetVy - vy) * Math.min(1, dt * 8);
+        vy += (targetVy - vy) * Math.min(1, dt * 12);
         y += vy * dt;
         if (y + DASH_CUBE / 2 >= DASH_FLOOR) { die('The dove touched the floor'); return; }
         if (y - DASH_CUBE / 2 <= 16) { die('The dove touched the ceiling'); return; }
@@ -4331,15 +4522,15 @@
           }
         }
       } else {
-        var g = mode === 'flip' ? -2100 : 2100;
+        var g = mode === 'flip' ? -2600 : 2600;
         vy += g * dt;
         y += vy * dt;
         if (!grounded) rot += dt * 6;
         if (mode === 'flip') {
           if (y <= DASH_CEIL + DASH_CUBE / 2 && vy <= 0) {
             y = DASH_CEIL + DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0;
-            if (holding) { vy = 790; grounded = false; }
-            else if (bufferT > 0) { vy = 790; grounded = false; bufferT = 0; }
+            if (holding) { vy = 900; grounded = false; }
+            else if (bufferT > 0) { vy = 900; grounded = false; bufferT = 0; }
           }
           // Ceiling spikes
           if (mercyT <= 0) {
@@ -4359,8 +4550,8 @@
               if (vy >= 0 && prevBottom <= top + 6 && y + DASH_CUBE / 2 >= top) {
                 if (!grounded) spawnDust(dist, top);
                 y = top - DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0; landed = true;
-                if (holding) { vy = -790; grounded = false; }
-                else if (bufferT > 0) { vy = -790; grounded = false; bufferT = 0; }
+                if (holding) { vy = -900; grounded = false; }
+                else if (bufferT > 0) { vy = -900; grounded = false; bufferT = 0; }
                 break;
               }
               if (y + DASH_CUBE / 2 > top + 6 && y - DASH_CUBE / 2 < DASH_FLOOR) {
@@ -4382,8 +4573,8 @@
             if (y >= DASH_FLOOR - DASH_CUBE / 2 && vy >= 0) {
               y = DASH_FLOOR - DASH_CUBE / 2; vy = 0;
               if (!grounded) { grounded = true; rot = 0; chain = 0; spawnDust(dist, DASH_FLOOR); }
-              if (holding) { vy = -790; grounded = false; }
-              else if (bufferT > 0) { vy = -790; grounded = false; bufferT = 0; }
+              if (holding) { vy = -900; grounded = false; }
+              else if (bufferT > 0) { vy = -900; grounded = false; bufferT = 0; }
             }
           }
           // Walked off a pew edge: start falling
@@ -4391,7 +4582,7 @@
           layout.pews.forEach(function (p2) {
             if (dist + DASH_CUBE / 2 > p2.x && dist - DASH_CUBE / 2 < p2.x + p2.w && Math.abs((y + DASH_CUBE / 2) - (DASH_FLOOR - p2.h)) < 1) onPew = true;
           });
-          if (grounded && !onPew && y < DASH_FLOOR - DASH_CUBE / 2) { grounded = false; coyoteT = 0.09; }
+          if (grounded && !onPew && y < DASH_FLOOR - DASH_CUBE / 2) { grounded = false; coyoteT = 0.12; }
           // Floor spikes
           if (mercyT <= 0) {
             for (var si = 0; si < layout.spikes.length; si++) {
@@ -4414,10 +4605,40 @@
       if (dist >= DASH_COURSE) { endRun(true, null); return; }
       updateHud();
     }
+    // Fixed-timestep loop: physics always advances in 1/120s steps, however
+    // fast or slow the display refreshes. The old loop fed the raw frame
+    // time straight into the physics, so a long frame made the cube jump
+    // higher and the scroll lurch — the choppiness. Now a 120Hz screen
+    // steps once per frame, a 60Hz screen twice, a 30Hz screen four times,
+    // and the jump and the scroll are identical on all of them. A hitch
+    // drops its backlog instead of spiralling. Drawing is extrapolated one
+    // partial step ahead from the last step's motion, so the scroll stays
+    // smooth even when the display hands us uneven frame times: the drawn
+    // position is where the cube is heading, not the last stepped position.
+    // The extrapolation is clamped to one step of real motion, so a
+    // teleport (entering dove flight) can never fling the drawing.
+    var FIXED_DT = 1 / 120, acc = 0;
+    var stepDx = 0, stepDy = 0, stepDr = 0;
     function loop(t) {
       if (destroyed) return;
-      var dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
-      tick(dt); draw();
+      var frameDt = Math.min(0.1, (t - last) / 1000 || 0); last = t;
+      if (paused || state !== 'playing') { acc = 0; }
+      else {
+        var bD = dist, bY = y, bR = rot;
+        acc += frameDt;
+        var steps = 0;
+        while (acc >= FIXED_DT && steps < 10) { tick(FIXED_DT); acc -= FIXED_DT; steps++; }
+        if (steps === 10) acc = 0;
+        if (steps > 0) { stepDx = (dist - bD) / steps; stepDy = (y - bY) / steps; stepDr = (rot - bR) / steps; }
+      }
+      var alpha = acc / FIXED_DT;
+      if (alpha > 1) alpha = 1;
+      var saveD = dist, saveY = y, saveR = rot;
+      dist = dist + clamp(stepDx * alpha, -6, 6);
+      y = y + clamp(stepDy * alpha, -12, 12);
+      rot = rot + clamp(stepDr * alpha, -0.1, 0.1);
+      draw();
+      dist = saveD; y = saveY; rot = saveR;
       raf = requestAnimationFrame(loop);
     }
     function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
