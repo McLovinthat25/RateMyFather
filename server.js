@@ -371,7 +371,10 @@ function layout(title, body, extraHead = '') {
   <meta name="theme-color" content="#7a1f2b">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>${esc(title)} | RateMyFather</title>
-  <link rel="stylesheet" href="/style.css">${extraHead}</head><body>
+  <link rel="stylesheet" href="/style.css">${extraHead}
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied'});</script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-40KVER82VY"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-40KVER82VY');</script></head><body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <header class="topnav"><div class="wrap nav-inner">
     <a class="brand" href="/">Rate<span class="accent">My</span>Father</a>
@@ -1732,8 +1735,9 @@ app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What i
   <ul><li><strong>Reviews:</strong> the three 1-5 ratings, how long you have attended the parish or known the priest, optional Mass context, and optional written review text you submit. No name or email is collected with reviews.</li>
   <li><strong>Abuse-prevention token:</strong> a SHA-256 hash derived from request data (IP address plus user agent). Only the hash is stored, never the raw IP address or user agent string. It is used only to refuse duplicates, enforce the hourly review limit, and detect review spikes.</li>
   <li><strong>Moderation submissions:</strong> reports, corrections, right-of-reply and removal requests, and legal notices, including any optional contact details you choose to provide. Contact details are never published.</li>
-  <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time and a signature, nothing else.</li></ul>
-  <p>Nothing else is collected for tracking or advertising. There is no advertising on this site.</p>
+  <li><strong>Owner session:</strong> a signed, httpOnly session cookie is set only when the owner signs in. It contains an expiry time and a signature, nothing else.</li>
+  <li><strong>Visit statistics:</strong> aggregate, anonymous counts of page views via Google Analytics 4, run in cookieless mode. It sets no cookies, collects no name, email, or IP address, and is used only to see which pages are visited.</li></ul>
+  <p>Nothing else is collected. There is no advertising on this site.</p>
   <p>To request removal of personal information you submitted, use the <a href="/legal">Legal notices</a> page. Contact details you provide in a legal notice are never published.</p>`)));
 app.get('/moderation', (req, res) => res.send(infoPage('Content & Moderation Policy', `<p>All moderation is owner-only and enforced on the server. Public buttons (report, correction, legal notice) only flag the queue; they never approve, reject, or delete anything.</p>
   <p>Star-only and clearly clean reviews may auto-approve. Borderline reviews wait for a human owner decision. Possible unverified factual allegations are force-held with an abuse flag and never auto-approved. Reviews with private contact details are refused. Repeat reviews of the same priest from the same source are refused. Hourly bursts (over 5 per source) are refused. 24-hour spikes (10 or more per priest) are force-held.</p>
