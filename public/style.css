@@ -1137,12 +1137,21 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .trivia-countdown span { display:block; height:100%; width:100%; background:var(--gold); transition:width .1s linear; }
 .trivia-running { color:var(--dim); font-size:14px; margin:14px 0 0; }
 .trivia-earned { font-weight:700; color:var(--text); }
-/* Name for the leaderboard: a short label and input beside the Start
-   button, kept plain so it reads as part of the game, not a form. */
-.trivia-name-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0; }
-.trivia-name-row label { font-weight:600; }
-.trivia-name-row input { font:inherit; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); max-width:220px; }
-.trivia-name-row input:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+/* Name for the leaderboard: label above, input and Start button side
+   by side, so the whole thing reads as one game-start unit. The input
+   flexes wide enough that its placeholder never clips, and on a phone
+   the button drops to its own full-width line. Focus matches the
+   site's other inputs: gold border plus a soft gold ring. */
+.trivia-start { margin:12px 0; max-width:560px; }
+.trivia-name-label { display:block; font-weight:600; margin:0 0 8px; }
+.trivia-start-controls { display:flex; flex-wrap:wrap; gap:10px; }
+.trivia-start-controls input { flex:1 1 220px; min-width:0; font:inherit; font-size:16px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); box-shadow:var(--shadow-card); }
+.trivia-start-controls input::placeholder { color:var(--dim); }
+.trivia-start-controls input:focus { outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgb(178 138 46 / 0.28); }
+.trivia-start-controls input:disabled { opacity:0.6; }
+@media (max-width:639px) {
+  .trivia-start-controls .btn { width:100%; }
+}
 /* Daily board: top five names and points for the day. */
 .trivia-board { list-style:none; margin:0 0 12px; padding:0; max-width:560px; }
 .trivia-board li { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); margin-bottom:8px; }
