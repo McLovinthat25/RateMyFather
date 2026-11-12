@@ -340,12 +340,12 @@
   var ARCADE_GAMES = [
     { id: 'rungun', title: 'The Parish Bowl', blurb: 'Father carries the ball for Your Parish against St Swithin\u2019s. Run or pass your way down the field.', verdict: 'Best for a quick kickabout.', how: 'Arrows or WASD to move, or touch and drag on the field. R runs, T throws, Space kicks off. Choose RUN or PASS, then be in the gold circle as the ball arrives to catch it. The ball arcs in slowly enough to track, so watch it and time your run — the defence will hold you up on the way.', howTouch: 'Touch and drag on the field to move. Choose RUN or PASS, then be in the gold circle as the ball arrives to catch it. The ball arcs in slowly enough to track, so watch it and time your run — the defence will hold you up on the way.', mount: mountBowl },
     { id: 'stack', title: 'Stained-Glass Blocks', blurb: 'Fit the falling panes into the window before it fills up.', verdict: 'Best for puzzle lovers.', how: 'Left and right to move, Up to turn a pane, Down to drop it faster. On a phone, drag on the window to slide a pane, tap to turn it, or use the buttons below.', howTouch: 'Drag on the window to slide a pane, tap to turn it, or use the buttons below.', mount: mountStack },
-    { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own.', howTouch: 'Swipe and drag on the field to steer. Father walks on his own.', mount: mountMaze },
-    { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower.', howTouch: 'Tap to drop a stone on the tower.', mount: mountSteeple },
-    { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping.', howTouch: 'Tap to jump. Hold to keep hopping.', mount: mountDash },
-    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash.', howTouch: 'Drag on the floor to run, tap to dash.', mount: mountFlee },
-    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door.', howTouch: 'Touch and hold the field to walk toward your finger. Follow the moth to the right door.', mount: mountCross },
-    { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger.', howTouch: 'Tap a choice each week. Watch the ledger.', mount: mountPastor },
+    { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own. Once per life, grace shields you from a catch.', howTouch: 'Swipe and drag on the field to steer. Father walks on his own. Once per life, grace shields you from a catch.', mount: mountMaze },
+    { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower. Once per run the buttress catches a clean miss.', howTouch: 'Tap to drop a stone on the tower. Once per run the buttress catches a clean miss.', mount: mountSteeple },
+    { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping. Once per run, grace forgives a fall.', howTouch: 'Tap to jump. Hold to keep hopping. Once per run, grace forgives a fall.', mount: mountDash },
+    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash. Every fifth halo earns a guardian halo that turns one catch aside.', howTouch: 'Drag on the floor to run, tap to dash. Every fifth halo earns a guardian halo that turns one catch aside.', mount: mountFlee },
+    { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door. A golden candle waits on the road: +50 and +8s on the bell.', howTouch: 'Touch and hold the field to walk toward your finger. Follow the moth to the right door. A golden candle waits on the road: +50 and +8s on the bell.', mount: mountCross },
+    { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger. Once per season you may take back a week.', howTouch: 'Tap a choice each week. Watch the ledger. Once per season you may take back a week.', mount: mountPastor },
   ];
 
   // ---- arcade shelf ----
@@ -750,7 +750,7 @@
     var customizing = false; // the name screen is up: keyboard play must not fire while it is
     var paused = false;
     var quarter = 1, clock = RUNGUN_QUARTER_SECONDS;
-    var score = 0, best = readBest('rungun'), tds = 0, oppTds = 0;
+    var score = 0, best = readBest('rungun'), tds = 0, oppTds = 0, totalYards = 0;
     var bestPlay = 0, drivePlays = 0; // best single-play gain; plays in the current drive
     var driveYards = 0, qTurnover = false, qScored = false; // yards in the current drive; whether this quarter ended in a turnover or a score, for the opponent's field position
     var down = 1, seriesStart = 80, seriesGain = 0; // four downs, ten yards for a first
@@ -765,6 +765,7 @@
   var ballFlight = null; // the throw in the air: launch spot, target, flight time, arrived
   var passTimeLeft = 0, passTimeMax = 0, impeded = false, reachedX = false, reachedXT = 0, graceT = 0; // countdown to the catch spot and its full length; held-up flag; reached the X; time since reaching it (coverage breaks then); time left in the grace window after the ball lands
   var passRoute = null; // what kind of throw this is (depth + direction), for the HUD
+  var coverBurstT = 0; // seconds left of the coverage break burst after a catch
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
     var popYards = 0, popT = 0; // floating "+N yards" after a play, display only
@@ -950,7 +951,12 @@
       // stays fair.
       var dx = bestSpot.x - px, dy = bestSpot.y - py;
       var dist = Math.hypot(dx, dy);
-      var MAX_REACH = passLimit * 160;
+      // The countdown is the flight plus the grace window (capped by the
+      // difficulty limit), so the reach cap uses that same time: a spot
+      // the receiver cannot reach before the ball is gone is never fair,
+      // whatever the difficulty's headline limit.
+      var flightDur = depth < 10 ? BOWL_FLIGHT_SHORT : depth < 18 ? BOWL_FLIGHT_MEDIUM : BOWL_FLIGHT_DEEP;
+      var MAX_REACH = Math.min(passLimit, flightDur + BOWL_CATCH_GRACE) * 160;
       if (dist > MAX_REACH) {
         var k = MAX_REACH / dist;
         bestSpot = { x: px + dx * k, y: py + dy * k };
@@ -962,8 +968,10 @@
     // the route and the X instead of running the receiver down on the way,
     // so the receiver can reach the spot — and the contest happens there,
     // with a man right on him, instead of the defence tackling him before
-    // he arrives. Once he reaches the X they break on him at full pace,
-    // so the hold to catch is a real fight. The shadow sits wide of the
+    // he arrives. They play the ball, not the man: they break only once
+    // the ball is down and the receiver is at the X, so the contest is
+    // the catch itself and the tackle right after it, not a tackle
+    // before the catch (pass interference). The shadow sits wide of the
     // route, the man on the spot sits beside the X, never on it.
     // Both men work the same side of the route: the shadow guards the
     // approach and the man sits on the X, so the contest is a fight on
@@ -991,14 +999,24 @@
       // distance off the route each snap.
       var spots = [
         { x: mx + perpX * offShadow, y: my + perpY * offShadow },
-        { x: passTarget.x + perpX * offMan, y: passTarget.y + perpY * offMan },
+        { x: passTarget.x + perpX * offMan, y: passTarget.y + perpY * offMan, spot: true },
       ];
       spots.forEach(function (s) {
         var x = clamp(s.x, 40, GAME_W - 40);
         var y = clamp(s.y, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
         if (Math.hypot(x - px, y - py) < 45) return;
         if (Math.hypot(x - passTarget.x, y - passTarget.y) < 35) return;
-        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, hx: x, hy: y, lane: x, aggr: rand(0.9, 1.1), laneGive: rand(0.3, 0.5), laneWidth: rand(40, 55), breakDelay: rand(0, 0.05) });
+        // The man on the spot eases toward a ring 44px off the X as the
+        // ball flies (see moveDefenders), so he is on the spot when the
+        // ball lands. The ring stays outside tackle reach of the X's
+        // centre, so closing never gifts pass interference by itself.
+        var ringX, ringY;
+        if (s.spot) {
+          var rx = x - passTarget.x, ry = y - passTarget.y, rl = Math.hypot(rx, ry) || 1;
+          ringX = clamp(passTarget.x + rx / rl * 44, 40, GAME_W - 40);
+          ringY = clamp(passTarget.y + ry / rl * 44, RUNGUN_END_Y + 10, RUNGUN_START_Y - 20);
+        }
+        defenders.push({ x: x, y: y, speed: rand(covLo, covHi), heading: Math.atan2(py - y, px - x), cover: true, spotCover: !!s.spot, ringX: ringX, ringY: ringY, hx: x, hy: y, lane: x, aggr: rand(0.9, 1.1), laneGive: rand(0.3, 0.5), laneWidth: rand(40, 55), breakDelay: rand(0, 0.05) });
       });
     }
     function startPlay(kind) {
@@ -1006,7 +1024,7 @@
       playStartYards = yardsToGo();
       playStartPy = py;
       playT = 0;
-      caught = false; graceT = 0; reachedXT = 0; freezeT = 0;
+      caught = false; graceT = 0; reachedXT = 0; freezeT = 0; coverBurstT = 0;
       defenders = [];
       // On a pass the deep line drops beyond the catch spot, and two men
       // cover the receiver, so reaching the gold X is a fight through
@@ -1102,6 +1120,7 @@
       // the bonus), and the drive's play count, for the full-time summary.
       var playYards = flags.touchdown ? playStartYards : gained;
       if (playYards > bestPlay) bestPlay = playYards;
+      totalYards += playYards; // true yards gained, for the summaries (the score also carries bonuses)
       drivePlays += 1;
       // Floating "+N yards" above the runner when the play ends, so the
       // gain reads on the field as well as in the result slab. Display only:
@@ -1174,7 +1193,7 @@
         // have made their adjustments — the defence is a step quicker in
         // the second half.
         state = 'half';
-        var halfYards = Math.max(0, score - tds * RUNGUN_TOUCHDOWN_BONUS);
+        var halfYards = totalYards;
         coachLine = 'Monsignor Coach: Second half — St Swithin\u2019s have tightened up. Your ball.';
         api.showOverlay(bowlCard('Half time', esc(parishName) + ' ' + (tds * 7) + ' — ' + esc(opponent) + ' ' + (oppTds * 7),
           '<p style="margin:0 0 4px;font-size:15px;">' + oppLine + ' ' + matchLine + '</p>' +
@@ -1197,7 +1216,7 @@
       var finalBest = writeBest('rungun', score);
       submitParishScore('rungun', score);
       best = finalBest;
-      var yardsGained = Math.max(0, score - tds * RUNGUN_TOUCHDOWN_BONUS);
+      var yardsGained = totalYards;
       api.showOverlay(bowlCard('Full time', esc(parishName) + ' ' + (tds * 7) + ' — ' + esc(opponent) + ' ' + (oppTds * 7),
         '<p style="margin:0 0 4px;font-size:15px;">' + tds + (tds === 1 ? ' touchdown' : ' touchdowns') + ' · ' + yardsGained + ' yards gained · ' + score + ' points.</p>' +
         (bestPlay > 0 ? '<p style="margin:0 0 4px;font-size:15px;">Best play: +' + bestPlay + ' yards.</p>' : '') +
@@ -1213,13 +1232,13 @@
     }
     function resetGame() {
       parishSubmitted['rungun'] = false;
-      quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0; tds = 0; oppTds = 0;
+      quarter = 1; clock = RUNGUN_QUARTER_SECONDS; score = 0; tds = 0; oppTds = 0; totalYards = 0;
       bestPlay = 0; drivePlays = 0; driveYards = 0; popYards = 0; popT = 0;
       qTurnover = false; qScored = false;
       px = GAME_W / 2; py = RUNGUN_START_Y; timeGoneShown = false;
       down = 1; seriesStart = 80; seriesGain = 0;
       coachLine = 'Run it or pass it, ' + priestName + '. Your call.';
-      defenders = []; blockers = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0; ballFlight = null;
+      defenders = []; blockers = []; passTarget = null; caught = false; hasBall = false; freezeT = 0; playT = 0; ballFlight = null; coverBurstT = 0;
       state = 'choose'; showChoose();
     }
     // ---- designed overlay card: parchment panel, burgundy frame, gold rule ----
@@ -1300,7 +1319,7 @@
         '<p style="margin:0 0 4px;font-size:14px;line-height:1.45;">Coach: ' + esc(coachLine) + '</p>' +
         (drivePlays > 0 ? '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">Drive: ' + drivePlays + (drivePlays === 1 ? ' play' : ' plays') + ' · +' + driveYards + ' yards</p>' : '<p style="margin:0 0 16px;font-size:14px;line-height:1.45;">&nbsp;</p>'),
         bowlBtn('bowl-run', 'Run' + keyChip('R')) + bowlBtn('bowl-pass', 'Pass' + keyChip('T')) +
-        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and hold still to catch, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete.' + (hasKeyboard() ? ' Keys: R runs, T throws.' : '') + '</p>'));
+        '<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b5636;">Clock stops while you choose. Pass: you have ' + passLimit.toFixed(1) + ' seconds to reach the gold X, and the defence will hold you up on the way, so beat them to the spot and be in the gold circle as the ball arrives, then run it in. A tackle before the catch is pass interference — +10 yards and a first down. The clock running out is incomplete.' + (hasKeyboard() ? ' Keys: R runs, T throws.' : '') + '</p>'));
       var run = document.getElementById('bowl-run');
       if (run) run.addEventListener('click', function () { startPlay('run'); });
       var pass = document.getElementById('bowl-pass');
@@ -1361,9 +1380,11 @@
       // Before the catch the men on the receiver hold their ground near
       // the route and the spot, and the deep line closes at three-fifths
       // pace, so the defence is set around the ball while the clock runs
-      // and a man is right there when the receiver reaches the spot. Once
-      // he reaches the X the coverage breaks on him at full pace, so the
-      // hold to catch is a fight. The runner is still the faster man in
+      // and a man is right there when the receiver reaches the spot. The
+      // coverage breaks only once the ball is down and the receiver is
+      // at the X: breaking earlier tackled waiting receivers before the
+      // ball arrived, which is pass interference. The runner is still the
+      // faster man in
       // open space, so the coverage has to hold him up and arrive with
       // him, not run him down from behind. After the catch (or on a run)
       // everyone hunts at full pace, but every defender steers with a
@@ -1377,22 +1398,38 @@
         // Tied up by a blocker: out of the play for a beat — no chase,
         // no tackle, no holding the runner up.
         if (d.blockedT > 0) return;
-        // Coverage men on a pass hold their ground until the receiver
-        // reaches the X, then break on him at full pace. Holding means the
-        // receiver can actually reach the spot instead of being run down
-        // on the way, and breaking means a man is right on him for the
-        // catch itself — the contest is at the X, not on the route.
-        if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) {
-          if (Math.hypot(d.hx - d.x, d.hy - d.y) < 12) return; // holding: stay put
+        // Coverage men on a pass hold their ground until the ball is down
+        // and the receiver has reached the X, then break on him at full
+        // pace. Holding means the receiver can actually reach the spot
+        // instead of being run down on the way. The coverage plays the
+        // ball, not the man: breaking on the spot alone tackled waiting
+        // receivers before the ball arrived, which is pass interference
+        // and gifted the offence yards for the defence's mistake. The
+        // contest is the catch itself and the tackle right after it.
+        // The man on the spot does not stand still while the ball flies:
+        // he eases from his holding spot toward the ring off the X, so he
+        // arrives on the spot with the ball instead of standing 50px off
+        // it. The shadow keeps guarding the approach from his spot.
+        var ballDown = !!(ballFlight && ballFlight.arrived);
+        var coverBreak = state === 'pass' && !caught && d.cover && reachedX && ballDown && reachedXT >= (d.breakDelay || 0);
+        var holdX = null, holdY = null;
+        if (state === 'pass' && !caught && d.cover && !coverBreak && d.hx !== undefined) {
+          holdX = d.hx; holdY = d.hy;
+          if (d.spotCover && d.ringX !== undefined && ballFlight) {
+            var prog = clamp(ballFlight.t / ballFlight.dur, 0, 1);
+            holdX = d.hx + (d.ringX - d.hx) * prog;
+            holdY = d.hy + (d.ringY - d.hy) * prog;
+          }
+          if (Math.hypot(holdX - d.x, holdY - d.y) < 10) return; // holding: stay put
         }
-        var chase = (state === 'pass' && !caught) ? (d.cover ? ((reachedX && reachedXT >= (d.breakDelay || 0)) ? 1 : 0.75) : 0.6) : 1;
+        var chase = (state === 'pass' && !caught) ? (d.cover ? (coverBreak ? 1 : 0.75) : 0.6) : 1;
         // Lead pursuit: aim at where the runner will be in a third of a
         // second, not where he is, so the defence cuts off the run instead
         // of trailing a faster man. A sharp cut still beats it, because
         // the defender commits to the lead point and turns slowly.
         // A holding coverage man drifts back to his spot instead.
         var tx = px + pvx * 0.3, ty = py + pvy * 0.3;
-        if (state === 'pass' && !caught && d.cover && !reachedX && d.hx !== undefined) { tx = d.hx; ty = d.hy; }
+        if (holdX !== null) { tx = holdX; ty = holdY; }
         else if (state === 'pass' && !caught && !d.cover && d.lane !== undefined) {
           // Lane discipline: on a pass, the line holds its zones instead
           // of collapsing on the runner. Each man shuffles laterally
@@ -1406,7 +1443,11 @@
           // pace, as before.
           var laneX = d.lane;
           tx = clamp(laneX + (px - laneX) * (d.laneGive || 0.4), laneX - (d.laneWidth || 48), laneX + (d.laneWidth || 48));
-          ty = d.y;
+          // The line also drifts slowly toward a depth just beyond the
+          // catch spot while the ball is in the air, instead of standing
+          // frozen at its snap depth: the second level closes on the play
+          // as it develops, so a caught pass meets men nearer the spot.
+          ty = passTarget ? d.y + clamp((passTarget.y - 40) - d.y, -55, 55) : d.y;
           chase = 0.55;
         }
         else if (state === 'run' && !caught && !d.cover && d.lane !== undefined && py >= d.y) {
@@ -1427,7 +1468,10 @@
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         d.heading += clamp(diff, -BOWL_TURN_RATE * dt, BOWL_TURN_RATE * dt);
-        var sp = d.speed * chase * goalBoost * (d.aggr || 1);
+        // Break burst: for a beat after the catch the coverage men, already
+        // breaking on the receiver, run a step quicker, so the catch is
+        // contested at once instead of the pair trailing in from afar.
+        var sp = d.speed * chase * goalBoost * (d.aggr || 1) * ((d.cover && coverBurstT > 0) ? 1.15 : 1);
         d.x += Math.cos(d.heading) * sp * dt;
         d.y += Math.sin(d.heading) * sp * dt;
       });
@@ -1483,6 +1527,7 @@
       hudT -= dt;
       if ((state === 'run' || state === 'pass') && hudT <= 0) { hudT = 0.25; updateHud(); }
       if (freezeT > 0) freezeT -= dt;
+      if (coverBurstT > 0) coverBurstT -= dt;
       if (state === 'run' || state === 'pass') {
         playT += dt;
         var opx = px, opy = py;
@@ -1530,6 +1575,7 @@
             reachedXT += dt;
             if (!ballFlight || ballFlight.arrived) {
               caught = true; hasBall = true; freezeT = RUNGUN_PASS_STUN_SECONDS;
+              coverBurstT = 0.75; // the coverage pair breaks at once
               ballFlight = null;
               api.showBanner('Caught!', 1600);
               state = 'run'; // carry on running with the ball
@@ -1658,7 +1704,7 @@
       ctx.textAlign = 'left';
       // Gold X (pass target): a soft halo, a rounded X, a refined label.
       // The ball has landed: the X lights up so the catch window reads
-      // at a glance — the ball is here, hold still and catch it.
+      // at a glance — the ball is here, be in the circle to catch it.
       if (state === 'pass' && passTarget && !caught) {
         var tx = passTarget.x, ty = screenY(passTarget.y);
         var ballHere = !!(ballFlight && ballFlight.arrived);
@@ -1841,11 +1887,16 @@
     function doPause() { if (state === 'run' || state === 'pass' || state === 'result' || state === 'choose') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
+    var dpadHeld = {};
     makeDpad(api.stage, function (dx, dy, active) {
-      if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
+      var key = dx + ',' + dy;
+      if (active) dpadHeld[key] = [dx, dy]; else delete dpadHeld[key];
+      var hx = 0, hy = 0, ks = Object.keys(dpadHeld);
+      for (var hi = 0; hi < ks.length; hi++) { hx += dpadHeld[ks[hi]][0]; hy += dpadHeld[ks[hi]][1]; }
+      dpadVec.x = hx; dpadVec.y = hy;
     });
     // Direct touch on the field: touch and drag, and the player runs toward
-    // your finger; drag to the gold X and hold still there to catch a pass.
+    // your finger; drag to the gold X and be there as the ball arrives.
     // The touch point is in world coordinates (the field scrolls under the
     // camera), so the finger stays on the spot it touched.
     var touchTarget = null;
@@ -1891,7 +1942,7 @@
       }
     }
     document.addEventListener('keydown', onBowlKey);
-    api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to move. Space or Enter kicks off, continues and plays again. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there. On a phone, touch and drag on the field to run; drag to the gold X and hold still to catch.', 'Touch and drag on the field to run; drag to the gold X and hold still to catch. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and hold still to catch. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there.')));
+    api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to move. Space or Enter kicks off, continues and plays again. R runs, T throws, P or Esc pauses. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and be in the gold circle as the ball arrives. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there. On a phone, touch and drag on the field to run; drag to the gold X and be there as the ball arrives.', 'Touch and drag on the field to run; drag to the gold X and be there as the ball arrives. The clock stops while you choose a play. Four downs to gain ten yards. On a pass, reach the gold X before the clock runs out, and defenders in your face slow you down, so beat them to the spot and be in the gold circle as the ball arrives. Every once in a while two blockers line up in front of you to clear a lane; on Easy they are always there.')));
     showStart();
     updateHud();
     last = performance.now();
@@ -1912,12 +1963,12 @@
     S: [[0, 1, 1], [1, 1, 0]], Z: [[1, 1, 0], [0, 1, 1]],
     J: [[1, 0, 0], [1, 1, 1]], L: [[0, 0, 1], [1, 1, 1]],
   };
-  var STACK_COLORS = { I: '#3a6ea5', O: '#b28a2e', T: '#5b2a4a', S: '#2e5e4e', Z: '#b8452a', J: '#3a6ea5', L: '#8a6d3b' };
+  var STACK_COLORS = { I: '#3a6ea5', O: '#b28a2e', T: '#5b2a4a', S: '#2e5e4e', Z: '#b8452a', J: '#2f7f8f', L: '#8a6d3b' };
   var STACK_POINTS = [0, 100, 300, 500, 800];
   function mountStack(parent, onBack) {
     var api = createStage(parent, { title: 'Stained-Glass Blocks', onBack: onBack });
     var COLS = 10, ROWS = 20, CELL = 15, OX = (GAME_W - COLS * CELL) / 2, OY = 10;
-    var grid = [], bag = [], cur = null, score = 0, lines = 0, level = 1, combo = 0;
+    var grid = [], bag = [], peekBag = null, cur = null, score = 0, lines = 0, level = 1, combo = 0;
     var held = null, canHold = true; // held pane (C key or Hold button), one swap per pane
     var best = readBest('stack');
     var diff = readDiff('stack'); // Easy / Medium / Hard; Medium is the tuned default
@@ -1932,15 +1983,21 @@
     }
     applyStackDiff();
     var state = 'ready', paused = false, dropT = 0, raf = 0, last = 0, destroyed = false;
+    var lockT = 0, lockResets = 0, stackRun = 0; // lock delay at the floor; run id, so a level-up banner from an old game never fires into a new one
+    var LOCK_DELAY = 0.45, MAX_LOCK_RESETS = 12; // a pane resting on the floor (or the stack) waits this long before it locks, and a nudge or turn restarts the wait (up to 12 times), so a pane can still be slid into place at speed instead of locking the instant it touches down
     function resetGrid() { grid = []; for (var y = 0; y < ROWS; y++) { grid.push(new Array(COLS).fill(null)); } }
-    function refillBag() {
-      bag = Object.keys(STACK_SHAPES).slice();
-      for (var i = bag.length - 1; i > 0; i--) { var j = randInt(0, i); var t = bag[i]; bag[i] = bag[j]; bag[j] = t; }
+    function shuffledBag() {
+      var b = Object.keys(STACK_SHAPES).slice();
+      for (var i = b.length - 1; i > 0; i--) { var j = randInt(0, i); var t = b[i]; b[i] = b[j]; b[j] = t; }
+      return b;
     }
     function spawn(fromHold) {
-      if (!bag.length) refillBag();
+      if (!bag.length) { bag = peekBag || shuffledBag(); peekBag = null; }
       var type = bag.pop();
+      if (!bag.length) { bag = peekBag || shuffledBag(); peekBag = null; }
+      if (bag.length === 1 && !peekBag) peekBag = shuffledBag(); // Then preview: peek the next bag now, so it never blanks for a whole pane; the peeked bag becomes the real next bag, so the previewed piece is the one that comes
       cur = { type: type, shape: STACK_SHAPES[type].map(function (r) { return r.slice(); }), x: 3, y: 0 };
+      dropT = 0; lockT = 0; lockResets = 0; // a fresh pane falls on its own clock, with a fresh lock wait
       if (!fromHold) canHold = true; // a fresh pane brings a fresh hold; a held swap does not
       if (collides(cur.shape, cur.x, cur.y)) { gameOver(); }
     }
@@ -1953,6 +2010,7 @@
       if (!held) { held = cur.type; spawn(true); return; }
       var t = held; held = cur.type;
       cur = { type: t, shape: STACK_SHAPES[t].map(function (r) { return r.slice(); }), x: 3, y: 0 };
+      dropT = 0; lockT = 0; lockResets = 0;
       if (collides(cur.shape, cur.x, cur.y)) { gameOver(); }
     }
     function collides(shape, x, y) {
@@ -1994,7 +2052,7 @@
         // callout so the quickening pace is never a surprise.
         var clearName = ['', 'Single', 'Double', 'Triple', 'Tetris'][cleared];
         api.showBanner(clearName + '! +' + (STACK_POINTS[cleared] * oldLevel + (combo > 1 ? (combo - 1) * 50 * oldLevel : 0)) + (combo > 1 ? ' \u00b7 Combo x' + combo : ''), 1300);
-        if (level > oldLevel) setTimeout(function () { api.showBanner('Level ' + level + ' — the panes fall faster', 1500); }, 1300);
+        if (level > oldLevel) { var runAtClear = stackRun; setTimeout(function () { if (runAtClear === stackRun && state === 'playing') api.showBanner('Level ' + level + ' — the panes fall faster', 1500); }, 1300); }
       } else combo = 0;
       updateHud();
       spawn();
@@ -2017,7 +2075,8 @@
     function startGame() {
       applyStackDiff();
       parishSubmitted['stack'] = false;
-      resetGrid(); bag = []; held = null; canHold = true; score = 0; lines = 0; level = 1; combo = 0; dropT = 0;
+      stackRun += 1;
+      resetGrid(); bag = []; peekBag = null; held = null; canHold = true; score = 0; lines = 0; level = 1; combo = 0; dropT = 0; lockT = 0; lockResets = 0;
       state = 'playing'; api.hideOverlay(); spawn(); updateHud();
     }
     function updateHud() {
@@ -2085,7 +2144,7 @@
           });
         });
       }
-      var next2Type = bag.length > 1 ? bag[bag.length - 2] : null;
+      var next2Type = bag.length > 1 ? bag[bag.length - 2] : (peekBag && peekBag.length ? peekBag[peekBag.length - 1] : null);
       if (next2Type) {
         ctx.fillStyle = '#fffdf7'; ctx.font = '13px Georgia';
         ctx.fillText('Then', 12, 82);
@@ -2126,12 +2185,22 @@
     }
     function tick(dt) {
       if (paused || destroyed || state !== 'playing') return;
+      // Lock delay: a pane resting on the floor or the stack waits before
+      // it locks, so it can still be slid or turned into place at speed.
+      // Nudges and turns restart the wait (capped), gravity does not run
+      // while the pane is grounded, and the leftover drop time carries
+      // over instead of being thrown away each step.
+      if (collides(cur.shape, cur.x, cur.y + 1)) {
+        lockT += dt;
+        if (lockT >= LOCK_DELAY) lock();
+        return;
+      }
+      lockT = 0; lockResets = 0;
       dropT += dt;
       var interval = Math.max(0.08, dropBase - (level - 1) * dropStep);
       if (dropT >= interval) {
-        dropT = 0;
-        if (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++;
-        else lock();
+        dropT -= interval;
+        cur.y++;
       }
     }
     function loop(t) {
@@ -2145,21 +2214,24 @@
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     // Named moves, shared by the keyboard and the touch buttons below, so
     // the two inputs can never drift apart. Rules unchanged.
-    function moveLeft() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x - 1, cur.y)) cur.x--; }
-    function moveRight() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x + 1, cur.y)) cur.x++; }
+    // A nudge or turn restarts the lock wait (capped), so a grounded pane
+    // can be worked into place instead of locking mid-adjustment.
+    function bumpLock() { if (lockT > 0 && lockResets < MAX_LOCK_RESETS) { lockT = 0; lockResets++; } }
+    function moveLeft() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x - 1, cur.y)) { cur.x--; bumpLock(); } }
+    function moveRight() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x + 1, cur.y)) { cur.x++; bumpLock(); } }
     function rotateCur() {
       if (state !== 'playing' || paused) return;
       var r = rotate(cur.shape);
       // Wall kicks: a turn against the wall or a stack tries a nudge left,
-      // right, then further out, before refusing — so turning never silently
-      // does nothing when there is room beside the pane.
-      var kicks = [0, -1, 1, -2, 2];
+      // right, then further out, then up a row, before refusing — so turning
+      // never silently does nothing when there is room beside or above the pane.
+      var kicks = [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]];
       for (var i = 0; i < kicks.length; i++) {
-        if (!collides(r, cur.x + kicks[i], cur.y)) { cur.x += kicks[i]; cur.shape = r; return; }
+        if (!collides(r, cur.x + kicks[i][0], cur.y + kicks[i][1])) { cur.x += kicks[i][0]; cur.y += kicks[i][1]; cur.shape = r; bumpLock(); return; }
       }
     }
     function softDrop() { if (state !== 'playing' || paused) return; if (!collides(cur.shape, cur.x, cur.y + 1)) { cur.y++; score += 1; updateHud(); } else lock(); }
-    function slam() { if (state !== 'playing' || paused) return; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; lock(); }
+    function slam() { if (state !== 'playing' || paused) return; var y0 = cur.y; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; score += (cur.y - y0) * 2; lock(); }
     document.addEventListener('keydown', onKey);
     // Keyboard play for the whole loop: Space or Enter starts and plays
     // again, arrows move and turn, C holds, Space slams. The typing and
@@ -2195,7 +2267,10 @@
       if (!stackTouch || state !== 'playing' || paused || !cur) return;
       e.preventDefault();
       var pt = canvasPoint(api.canvas, e);
-      var col = Math.floor((pt.x - OX) / CELL);
+      // Slide the pane so its middle follows the finger, not its left edge:
+      // the pane lands where the finger points instead of a column or two
+      // to the right of it.
+      var col = Math.floor((pt.x - OX) / CELL) - Math.floor(cur.shape[0].length / 2);
       var guard = 0;
       while (cur.x < col && !collides(cur.shape, cur.x + 1, cur.y) && guard++ < 10) cur.x++;
       while (cur.x > col && !collides(cur.shape, cur.x - 1, cur.y) && guard++ < 10) cur.x--;
@@ -2237,6 +2312,11 @@
 
   // ================= Steeple Stack =================
   // Tower stacking; wind picks up from stone fifteen; height bonuses.
+  var STEEPLE_FEATURE_BUTTRESS = true; // Feature (flagged): once per run, a
+  // stone that would miss the tower outright is caught by the buttress and
+  // placed as one narrow foothold instead of toppling the steeple, so a
+  // single mistimed drop late in a tall run costs the tower's width, not
+  // the whole run.
   function mountSteeple(parent, onBack) {
     var api = createStage(parent, { title: 'Steeple Stack', onBack: onBack });
     var tower = [], moving = null, wind = 0, score = 0, best = readBest('steeple');
@@ -2245,6 +2325,8 @@
     var perfectT = 0; // seconds left to show the Perfect flash after a clean drop
     var perfectStreak = 0; // consecutive perfect drops; the bonus grows with it
     var lastPerfectBonus = 0; // points the last perfect drop paid, for the flash text
+    var steepleButtressUsed = false; // the one buttress save per run (feature, flagged)
+    var debris = []; // trimmed slivers, falling away after a cut drop
     // Perfect means essentially nothing was trimmed: at most PERFECT_TOL px
     // of the moving stone may hang over the tower edge. The stone moves
     // ~2-3px per frame at full swing, so 2px is less than one frame of
@@ -2277,9 +2359,12 @@
       applySteepleDiff();
       parishSubmitted['steeple'] = false;
       tower = []; score = 0; wind = 0; camOff = 0; state = 'playing';
+      perfectStreak = 0; perfectT = 0; lastPerfectBonus = 0; // a fresh run starts with no streak carried over
+      steepleButtressUsed = false; debris = [];
       api.hideOverlay(); newStone(); updateHud();
     }
     function drop() {
+      if (paused) return; // a tap on the field while paused must not place a stone
       if (state !== 'playing' || !moving) return;
       var top = tower.length ? tower[tower.length - 1] : { x: (GAME_W - BASE_W) / 2, w: BASE_W, y: BASE_Y };
       var left = Math.max(moving.x, top.x), right = Math.min(moving.x + moving.w, top.x + top.w);
@@ -2289,9 +2374,34 @@
         // A clean miss that early just drops the stone and lets the player
         // try again instead of ending the run before it has begun.
         if (tower.length < graceTopple) { api.showBanner('Missed \u2014 try again', 1400); newStone(); return; }
+        // The buttress (feature, flagged): once per run, a clean miss past
+        // the grace stones is caught and placed as one narrow foothold
+        // centred on the tower top, instead of ending the run. The next
+        // stone is only as wide as the foothold, so the save costs the
+        // tower's width and the run stays on a knife edge.
+        if (STEEPLE_FEATURE_BUTTRESS && !steepleButtressUsed && tower.length) {
+          steepleButtressUsed = true;
+          var fw = Math.min(14, top.w);
+          var fstone = { x: clamp(top.x + (top.w - fw) / 2, 0, GAME_W - fw), w: fw, y: top.y - 18 };
+          tower.push(fstone);
+          score += 1;
+          perfectStreak = 0;
+          camOff = Math.max(0, 18 * tower.length - 160);
+          if (tower.length >= windFrom) wind = (Math.random() - 0.5) * windMag;
+          api.showBanner('The buttress holds — one narrow stone', 1600);
+          updateHud();
+          newStone();
+          return;
+        }
         gameOver(); return;
       }
       var trimmed = moving.w - overlap; // px of the moving stone cut off by the tower edge
+      // The trimmed sliver falls away instead of vanishing: the cut reads
+      // on the tower, and a near miss looks like a near miss.
+      if (trimmed > 0) {
+        if (moving.x < left) debris.push({ x: moving.x, w: left - moving.x, y: top.y - 18, vy: 0, life: 0.9 });
+        if (moving.x + moving.w > right) debris.push({ x: right, w: moving.x + moving.w - right, y: top.y - 18, vy: 0, life: 0.9 });
+      }
       // Perfect only when essentially nothing was trimmed: a sliver cut off
       // means the drop was not perfect, however small the sliver. The stone
       // is placed exactly where it landed — the overhang is cut, the stone
@@ -2305,8 +2415,10 @@
       // go past the dozen stones the fixed view used to allow.
       camOff = Math.max(0, 18 * tower.length - 160);
       // Height milestones: every fifth stone pays a bonus and says so, so
-      // steady building is rewarded, not only perfect drops.
-      if (tower.length % 5 === 0) { score += 25; api.showBanner(tower.length + ' stones — the steeple rises! +25', 1400); }
+      // steady building is rewarded, not only perfect drops. Every tenth
+      // pays a further 100, named in the same banner so the score never
+      // jumps by more than the banner says.
+      if (tower.length % 5 === 0) { score += 25; api.showBanner(tower.length + ' stones — the steeple rises! +' + (25 + (tower.length % 10 === 0 ? 100 : 0)), 1400); }
       // A run of perfect drops is worth more than one alone: the streak
       // grows the bonus, so a steady hand is rewarded for staying steady.
       // Every third consecutive perfect also grows the stone just placed
@@ -2359,6 +2471,14 @@
         ctx.fillStyle = ['#6e1a26', '#b28a2e', '#2e5e4e', '#3a6ea5', '#8a6d3b'][i % 5];
         ctx.fillRect(s.x, s.y + camOff, s.w, 18);
         ctx.strokeStyle = '#33261a'; ctx.strokeRect(s.x, s.y + camOff, s.w, 18);
+      });
+      // Trimmed slivers, falling and fading where they were cut.
+      debris.forEach(function (d) {
+        ctx.globalAlpha = Math.max(0, d.life / 0.9);
+        ctx.fillStyle = '#b28a2e';
+        ctx.fillRect(d.x, d.y + camOff, d.w, 18);
+        ctx.strokeStyle = '#33261a'; ctx.strokeRect(d.x, d.y + camOff, d.w, 18);
+        ctx.globalAlpha = 1;
       });
       if (moving && state === 'playing') {
         ctx.fillStyle = '#b28a2e';
@@ -2415,6 +2535,10 @@
     function tick(dt) {
       if (paused || destroyed || state !== 'playing' || !moving) return;
       if (perfectT > 0) perfectT = Math.max(0, perfectT - dt);
+      if (debris.length) {
+        debris.forEach(function (d) { d.vy += 500 * dt; d.y += d.vy * dt; d.life -= dt; });
+        debris = debris.filter(function (d) { return d.life > 0; });
+      }
       moving.x += (moving.dir * moving.speed + wind) * dt;
       if (moving.x + moving.w >= GAME_W) { moving.x = GAME_W - moving.w; moving.dir = -1; }
       if (moving.x <= 0) { moving.x = 0; moving.dir = 1; }
@@ -2440,7 +2564,7 @@
     }
     api.canvas.addEventListener('pointerdown', function () { drop(); });
     api.actions.appendChild(el('p', 'game-note', gameNote('Tap the field or press Space to drop the stone. Space or Enter starts and builds again. The wind picks up once the tower grows tall.', 'Tap the field to drop the stone. The wind picks up once the tower grows tall.')));
-    api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples. A drop counts as perfect only if almost nothing is trimmed off it, and three perfects in a row grows the stone by 10. ' + gameMark('steeple') + '</p>' +
+    api.showOverlay('<h3>Steeple Stack</h3><p>Drop each stone squarely on the last. Miss the tower and it topples — but once per run the buttress catches a clean miss and leaves one narrow stone. A drop counts as perfect only if almost nothing is trimmed off it, and three perfects in a row grows the stone by 10. ' + gameMark('steeple') + '</p>' +
       diffPickerHtml('steeple', diff) +
       '<button type="button" class="big-btn press" id="steeple-start">Start building</button>' +
       kbdHint('Keyboard: Space or Enter starts building.'));
@@ -2466,13 +2590,16 @@
   // edge of the sanctuary on patrol, dangerous only if you blunder into
   // them. That leaves five real hunters instead of seven converging at
   // once, and they are all well slower than you (you move at 200, the
-  // fastest sin at 55), so a player who keeps moving and reads the field
-  // can stay ahead of the pack. The sins also start slow: a 4-second
-  // warmup at a third of their speed, so a player who needs a beat to
-  // read the field is not dead before they have moved.
+  // fastest sin at 52), so a player who keeps moving and reads the field
+  // can stay ahead of the pack. The sins also start slow: a short warmup
+  // (6 seconds on Medium) at a third of their speed, so a player who needs
+  // a beat to read the field is not dead before they have moved.
   // Patrollers walk this loop around the sanctuary edge: four waypoints
   // near the corners, in order, so two patrollers on different offsets
   // never stack on each other.
+  var FLEE_FEATURE_SHIELD = true; // Feature (flagged): every fifth halo
+  // earns a guardian halo that turns one catch aside, so daring halo runs
+  // build their own safety net instead of only adding points.
   var FLEE_PATROL = [[40, 40], [440, 40], [440, 280], [40, 280]];
   var FLEE_SINS = [
     { name: 'Pride', speed: 46, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
@@ -2499,6 +2626,9 @@
     applyFleeDiff();
     var nearCd = 0; // near-miss bonus cooldown
     var rings = []; // halo pickup rings: gold circles that bloom and fade
+    var fleeShield = false, fleeShieldBreaks = 0, fleeHalosTaken = 0, shieldGraceT = 0; // guardian halo (feature, flagged): held shield, times one broke, halos taken this run, and the grace second after a break
+    var fleeHudT = 0; // HUD refresh throttle: the scoreboard redraws 4 times a second, not every frame
+    var fleeLastDx = 0, fleeLastDy = -1; // last direction moved, so a dash from a standstill still carries Father somewhere
     var prevPx = px, prevPy = py, pvx = 0, pvy = 0;
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
     var keys = makeKeys();
@@ -2507,7 +2637,9 @@
       applyFleeDiff();
       parishSubmitted['flee'] = false;
       px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = bellFirst; warmupT = warmupSecs;
-      bellCount = 0; nearCd = 0;
+      bellCount = 0; nearCd = 0; rings = [];
+      fleeShield = false; fleeShieldBreaks = 0; fleeHalosTaken = 0; shieldGraceT = 0; fleeHudT = 0;
+      fleeLastDx = 0; fleeLastDy = -1;
       // The first bell rings after 30 seconds, not 60, so a casual player
       // has a realistic shot at the pushback that is the point of the game.
       // After the first bell it settles to every 60 seconds.
@@ -2526,7 +2658,25 @@
       halos.push({ x: px + 70, y: py - 50 }); spawnHalo(); spawnHalo();
       state = 'playing'; api.hideOverlay(); updateHud();
     }
-    function spawnHalo() { halos.push({ x: rand(30, GAME_W - 30), y: rand(30, GAME_H - 30) }); }
+    function spawnHalo() {
+      // A halo sitting on top of a sin is a trap, not a pickup: try a few
+      // spots and keep clear of the hunting sins and the player, so every
+      // halo on the floor is one a player can actually run down.
+      var best = null;
+      for (var t = 0; t < 8; t++) {
+        var cand = { x: rand(30, GAME_W - 30), y: rand(30, GAME_H - 30) };
+        var ok = Math.hypot(cand.x - px, cand.y - py) >= 30;
+        if (ok) {
+          for (var i = 0; i < sins.length; i++) {
+            if (elapsed < sins[i].releaseAt) continue;
+            if (Math.hypot(cand.x - sins[i].x, cand.y - sins[i].y) < 45) { ok = false; break; }
+          }
+        }
+        best = cand;
+        if (ok) break;
+      }
+      halos.push(best);
+    }
     function gameOver() {
       state = 'over';
       var finalScore = Math.floor(score);
@@ -2546,6 +2696,7 @@
       // The bell is the reprieve, so its countdown turns gold in the last
       // five seconds — the player can see the rescue coming and hold on.
       api.setHud('<span class="score">Score: ' + Math.floor(score) + '</span><span>Halos: +25 each</span>' +
+        (fleeShield ? '<span style="color:#e8b64c;font-weight:700;">Guardian halo</span>' : '') +
         '<span' + (bellT <= 5 ? ' style="color:#e8b64c;font-weight:700;"' : '') + '>Bell in: ' + Math.ceil(bellT) + 's</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
     function draw() {
@@ -2581,6 +2732,12 @@
       ctx.fillStyle = dashT > 0 ? '#b28a2e' : '#6e1a26';
       ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      // Guardian halo (feature, flagged): a gold ring around Father while
+      // the shield is held, so the safety net reads at a glance.
+      if (fleeShield) {
+        ctx.strokeStyle = '#e8b64c'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(px, py, 17, 0, Math.PI * 2); ctx.stroke();
+      }
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
       ctx.fillText('F', px, py + 4); ctx.textAlign = 'left';
       if (dashCd > 0) {
@@ -2615,6 +2772,7 @@
       if (dashT > 0) dashT -= dt;
       if (dashCd > 0) dashCd -= dt;
       if (nearCd > 0) nearCd -= dt;
+      if (shieldGraceT > 0) shieldGraceT -= dt;
       var ax = keys.axis();
       var dx = ax.x + dpadVec.x, dy = ax.y + dpadVec.y;
       // Direct touch: run toward the finger while it is on the floor.
@@ -2624,7 +2782,8 @@
         if (fl > 12) { dx += fdx / fl; dy += fdy / fl; }
       }
       var len = Math.hypot(dx, dy);
-      if (len > 0) { dx /= len; dy /= len; }
+      if (len > 0) { dx /= len; dy /= len; fleeLastDx = dx; fleeLastDy = dy; }
+      else if (dashT > 0) { dx = fleeLastDx; dy = fleeLastDy; } // a dash from a standstill carries Father in the last direction moved, instead of burning the cooldown on the spot
       var speed = dashT > 0 ? 420 : 200;
       px = clamp(px + dx * speed * dt, 14, GAME_W - 14);
       py = clamp(py + dy * speed * dt, 14, GAME_H - 14);
@@ -2665,20 +2824,44 @@
       for (var i = halos.length - 1; i >= 0; i--) {
         if (Math.hypot(halos[i].x - px, halos[i].y - py) < 20) {
           rings.push({ x: halos[i].x, y: halos[i].y, t: 0 });
-          halos.splice(i, 1); score += 25; spawnHalo(); updateHud();
+          halos.splice(i, 1); score += 25; fleeHalosTaken += 1; spawnHalo(); updateHud();
+          // Guardian halo (feature, flagged): every fifth halo earns a
+          // shield that turns one catch aside. Only one is held at a time.
+          if (FLEE_FEATURE_SHIELD && !fleeShield && fleeHalosTaken % 5 === 0) {
+            fleeShield = true;
+            api.showBanner('A guardian halo shields you — it will turn one catch aside', 1800);
+          }
         }
       }
-      if (dashT <= 0) {
+      if (dashT <= 0 && shieldGraceT <= 0) {
         for (var j = 0; j < sins.length; j++) {
           if (elapsed < sins[j].releaseAt) continue;
           var d = Math.hypot(sins[j].x - px, sins[j].y - py);
-          if (d < 20) { gameOver(); return; }
+          if (d < 20) {
+            // Guardian halo (feature, flagged): the shield breaks instead
+            // of the run ending, the sins are driven back a step, and a
+            // grace second keeps the next frame from catching Father
+            // again on the spot. The rest of this frame's checks are
+            // skipped: the grace covers them.
+            if (fleeShield) {
+              fleeShield = false; fleeShieldBreaks += 1; shieldGraceT = 1;
+              sins.forEach(function (s) {
+                var pdx = s.x - px, pdy = s.y - py, plen = Math.hypot(pdx, pdy) || 1;
+                s.x = clamp(s.x + (pdx / plen) * 60, 20, GAME_W - 20);
+                s.y = clamp(s.y + (pdy / plen) * 60, 20, GAME_H - 20);
+              });
+              api.showBanner('The guardian halo turns the sin aside!', 1800);
+              break;
+            }
+            gameOver(); return;
+          }
           // A near miss pays: brushing past a sin without being caught is
           // worth a little, so daring play beats circling at arm's length.
           if (d < 34 && nearCd <= 0) { nearCd = 2.5; score += 5; api.showBanner('Close call! +5', 900); }
         }
       }
-      updateHud();
+      fleeHudT -= dt;
+      if (fleeHudT <= 0) { fleeHudT = 0.25; updateHud(); }
     }
     function loop(t) {
       if (destroyed) return;
@@ -2728,16 +2911,21 @@
     api.canvas.addEventListener('pointerup', endFleeTouch);
     api.canvas.addEventListener('pointerleave', function () { fleeTouch = null; });
     api.canvas.addEventListener('pointercancel', function () { fleeTouch = null; });
+    var dpadHeld = {};
     makeDpad(api.stage, function (dx, dy, active) {
-      if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
+      var key = dx + ',' + dy;
+      if (active) dpadHeld[key] = [dx, dy]; else delete dpadHeld[key];
+      var hx = 0, hy = 0, ks = Object.keys(dpadHeld);
+      for (var hi = 0; hi < ks.length; hi++) { hx += dpadHeld[ks[hi]][0]; hy += dpadHeld[ks[hi]][1]; }
+      dpadVec.x = hx; dpadVec.y = hy;
     });
     var dashBtn = el('button', 'press', 'Grace-dash' + (hasKeyboard() ? ' (Space)' : '')); dashBtn.type = 'button';
     dashBtn.addEventListener('click', function () {
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', gameNote('Halos are +25. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.', 'Halos are +25. The bell rings and drives the sins back \u2014 survive until it rings. Drag on the floor to run, tap to dash.')));
-    api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. ' + gameMark('flee') + '</p>' +
+    api.actions.appendChild(el('p', 'game-note', gameNote('Halos are +25, and every fifth halo earns a guardian halo that turns one catch aside. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.', 'Halos are +25, and every fifth halo earns a guardian halo that turns one catch aside. The bell rings and drives the sins back \u2014 survive until it rings. Drag on the floor to run, tap to dash.')));
+    api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. Every fifth halo earns a guardian halo that turns one catch aside. ' + gameMark('flee') + '</p>' +
       diffPickerHtml('flee', diff) +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>' +
       kbdHint('Keyboard: Space or Enter starts running.'));
@@ -2757,6 +2945,9 @@
   // ================= Father's Crossing =================
   // Five traffic lanes, a river of logs and turtles, five church doors, a bell
   // timer, and a moth that circles the right door.
+  // Golden candle: one per level, waiting on a road lane. Stepping on it
+  // is +50 and +8s on the bell. Set false to play without it.
+  var CROSS_GOLDEN_CANDLE = true;
   function mountCross(parent, onBack) {
     var api = createStage(parent, { title: 'Father\u2019s Crossing', onBack: onBack });
     var LANE_Y = [258, 226, 194, 162, 130];
@@ -2764,6 +2955,7 @@
     var DOOR_X = [48, 144, 240, 336, 432];
     var px = GAME_W / 2, py = GAME_H - 18, lives = 3, score = 0, level = 1, best = readBest('cross'), bestPy = GAME_H - 18;
     var cars = [], floats = [], mothDoor = 0, bellT = 60;
+    var candle = null, bellWarned = false, doorWarned = false; // golden candle, low-bell warning, door-lineup warning
     var state = 'ready', paused = false, raf = 0, last = 0, destroyed = false;
     var keys = makeKeys();
     var dpadVec = { x: 0, y: 0 };
@@ -2791,7 +2983,10 @@
         for (var k = 0; k < n; k++) {
           // Each car keeps its own pace, so the gaps open and close instead
           // of the whole lane rolling along as one block.
-          cars.push({ y: y, x: rand(0, GAME_W), dir: dir, speed: speed * (0.85 + Math.random() * 0.35), w: rand(34, 52) });
+          // Cars start spread along the lane with jitter, so every lane
+          // opens with real gaps instead of a random pile-up that can
+          // wall the lane off before the player has moved.
+          cars.push({ y: y, x: clamp((k + 0.5) * (GAME_W / n) + rand(-40, 40), 20, GAME_W - 20), dir: dir, speed: speed * (0.85 + Math.random() * 0.35), w: rand(34, 52) });
         }
       });
       floats = [];
@@ -2800,19 +2995,33 @@
         var dir2 = r % 2 === 0 ? 1 : -1;
         var n2 = 3;
         for (var k2 = 0; k2 < n2; k2++) {
-          floats.push({ y: y, x: rand(0, GAME_W), dir: dir2, speed: (45 + level * 6) * floatMult, w: rand(52, 84), kind: k2 === 1 ? 'turtle' : 'log',
+          // Floats start spread along the river, so each row always offers
+          // a ride within reach instead of a random desert of open water.
+          floats.push({ y: y, x: clamp((k2 + 0.5) * (GAME_W / n2) + rand(-30, 30), 30, GAME_W - 30), dir: dir2, speed: (45 + level * 6) * floatMult, w: rand(52, 84), kind: k2 === 1 ? 'turtle' : 'log',
             diveCd: 3 + Math.random() * 3, diving: 0 }); // turtles dive now and then; logs never do
         }
       }
       mothDoor = randInt(0, 4);
+      bellWarned = false; doorWarned = false;
+      // The golden candle waits on a random road lane, clear of the start
+      // column, so reaching it is a small detour, not a free gift. Spawned
+      // last, after the moth door, so the level layout is unchanged.
+      candle = null;
+      if (CROSS_GOLDEN_CANDLE) {
+        var cy = LANE_Y[randInt(0, LANE_Y.length - 1)];
+        var cx = rand(40, GAME_W - 40);
+        if (Math.abs(cx - GAME_W / 2) < 60) cx = cx < GAME_W / 2 ? 60 : GAME_W - 60;
+        candle = { x: cx, y: cy };
+      }
     }
     function startGame() {
       applyCrossDiff();
       parishSubmitted['cross'] = false;
       px = GAME_W / 2; py = GAME_H - 18; lives = livesStart; score = 0; level = 1; bellT = bellStart;
+      bestPy = GAME_H - 18; riverT = 0; moveCd = 0; // bestPy gates the +10 forward-progress score; it must reset every game
       buildLevel(); state = 'playing'; api.hideOverlay(); updateHud();
     }
-    function resetSpot() { px = GAME_W / 2; py = GAME_H - 18; bestPy = GAME_H - 18; }
+    function resetSpot() { px = GAME_W / 2; py = GAME_H - 18; bestPy = GAME_H - 18; moveCd = 0; riverT = 0; doorWarned = false; }
     function loseLife(why) {
       lives -= 1; updateHud();
       if (lives <= 0) { gameOver(why); return; }
@@ -2890,6 +3099,12 @@
         ctx.fillStyle = f.kind === 'turtle' ? '#2e5e4e' : '#8a6d3b';
         ctx.fillRect(f.x - f.w / 2, f.y - 8, f.w, 16);
         if (f.kind === 'turtle' && f.diving <= 0) { ctx.fillStyle = '#fffdf7'; ctx.font = '10px Georgia'; ctx.fillText('~', f.x - 3, f.y + 3); }
+        // A turtle about to dive ripples first, so a rider gets a warning
+        // to step off instead of the ride vanishing without a tell.
+        if (f.kind === 'turtle' && f.diving <= 0 && f.diveCd < 0.8) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.ellipse(f.x, f.y, f.w / 2 + 4, 11, 0, 0, Math.PI * 2); ctx.stroke();
+        }
         ctx.globalAlpha = 1;
       });
       // Road lanes
@@ -2910,6 +3125,15 @@
         ctx.fillRect(c.x - c.dir * (c.w / 2) - 2, c.y - 6, 4, 3);
         ctx.fillRect(c.x - c.dir * (c.w / 2) - 2, c.y + 3, 4, 3);
       });
+      // The golden candle, while this level's is uncollected: a flickering
+      // gold flame on the road.
+      if (candle) {
+        var flick = 6 + Math.sin(performance.now() / 180) * 1.5;
+        ctx.fillStyle = '#ffd24d';
+        ctx.beginPath(); ctx.arc(candle.x, candle.y, flick, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#6e1a26'; ctx.font = 'bold 9px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('C', candle.x, candle.y + 3); ctx.textAlign = 'left';
+      }
       // Player
       ctx.fillStyle = '#6e1a26';
       ctx.beginPath(); ctx.arc(px, py, 11, 0, Math.PI * 2); ctx.fill();
@@ -2934,6 +3158,7 @@
       if (paused || destroyed || state !== 'playing') return;
       bellT -= dt;
       if (bellT <= 0) { gameOver('The bell rang — out of time'); return; }
+      if (!bellWarned && bellT <= 10 && bellT > 0) { bellWarned = true; api.showBanner('Hurry, the bell is nearly rung!', 1400); }
       if (moveCd > 0) moveCd -= dt;
       var ax = keys.axis();
       var dx = ax.x + dpadVec.x, dy = ax.y + dpadVec.y;
@@ -2952,6 +3177,11 @@
       // Forward progress pays: every new highest row is +10, so effort
       // reads on the scoreboard long before the first door is reached.
       if (py < bestPy) { bestPy = py; score += 10; }
+      // The golden candle: +50 and +8s on the bell, once per level.
+      if (candle && Math.abs(px - candle.x) < 16 && Math.abs(py - candle.y) < 14) {
+        candle = null; score += 50; bellT += 8;
+        api.showBanner('Golden candle! +50 and +8s on the bell', 1500);
+      }
       cars.forEach(function (c) {
         c.x += c.dir * c.speed * dt;
         if (c.x - c.w / 2 > GAME_W) c.x = -c.w / 2;
@@ -2992,10 +3222,19 @@
         var c = cars[i];
         if (Math.abs(py - c.y) < 12 && Math.abs(px - c.x) < c.w / 2 + 8) { loseLife('Hit by traffic'); return; }
       }
-      // Doors
+      // Doors: stepping up between doors holds the player at the bank
+      // instead of charging the nearest door, so a step drifted sideways
+      // by the river cannot cost a life on the wrong door.
       if (py <= 40) {
         var nearest = 0, bestD = 1e9;
         DOOR_X.forEach(function (x, idx) { var d = Math.abs(px - x); if (d < bestD) { bestD = d; nearest = idx; } });
+        if (bestD > 26) {
+          py = 44;
+          if (!doorWarned) { doorWarned = true; api.showBanner('Line up with a door first', 1200); }
+          updateHud();
+          return;
+        }
+        doorWarned = false;
         reachDoor(nearest);
         return;
       }
@@ -3039,11 +3278,16 @@
     api.canvas.addEventListener('pointerup', endCrossTouch);
     api.canvas.addEventListener('pointerleave', endCrossTouch);
     api.canvas.addEventListener('pointercancel', endCrossTouch);
+    var dpadHeld = {};
     makeDpad(api.stage, function (dx, dy, active) {
-      if (active) { dpadVec.x = dx; dpadVec.y = dy; } else { dpadVec.x = 0; dpadVec.y = 0; }
+      var key = dx + ',' + dy;
+      if (active) dpadHeld[key] = [dx, dy]; else delete dpadHeld[key];
+      var hx = 0, hy = 0, ks = Object.keys(dpadHeld);
+      for (var hi = 0; hi < ks.length; hi++) { hx += dpadHeld[ks[hi]][0]; hy += dpadHeld[ks[hi]][1]; }
+      dpadVec.x = hx; dpadVec.y = hy;
     });
     api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to move. Space or Enter starts and crosses again. Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. On touch, hold the field to walk toward your finger.', 'Cross the road, ride the logs and turtles, and enter the door the moth circles before the bell. Turtles dive now and then — do not trust one to stay up. Hold the field to walk toward your finger.')));
-    api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Every step forward is +10. Follow the moth to the right door. ' + gameMark('cross') + '</p>' +
+    api.showOverlay('<h3>Father\u2019s Crossing</h3><p>Five lanes of traffic, a river, and five church doors. Every step forward is +10. Follow the moth to the right door. ' + (CROSS_GOLDEN_CANDLE ? 'A golden candle waits on the road: +50 and +8s on the bell. ' : '') + gameMark('cross') + '</p>' +
       diffPickerHtml('cross', diff) +
       '<button type="button" class="big-btn press" id="cross-start">Start crossing</button>' +
       kbdHint('Keyboard: Space or Enter starts crossing.'));
@@ -3074,6 +3318,9 @@
   // 16 of 35 events, so every season draws a different hand) and lands in
   // about seven minutes.
   var PASTOR_WEEKS = 16;
+  // Second chance: once per season, take back the last week and choose
+  // again. Set false to play without it.
+  var PASTOR_UNDO_FEATURE = true;
   var PASTOR_DECK = [
     ["The leaky roof", "Rain has found its way through the nave roof, and a bucket now sits in the third pew. The roofing firm can start Monday - for a price.",
       ["Fix it properly, and fix it now", "The roof is mended and the third pew is dry again.", 1, -900, 8],
@@ -3255,7 +3502,10 @@
   }
   applyPastorDiff();
   var deck = [], week = 0, cong = startCong, funds = startFunds, happy = startHappy, over = false, started = false;
-    var histCong = [startCong], histHappy = [startHappy]; // the season's arc, for the trend chart
+    var histCong = [startCong], histHappy = [startHappy], histFunds = [startFunds]; // the season's arc, for the trend chart
+    var undoAvailable = false, undoUsed = false, undoSnapshot = null; // second chance: one take-back per season
+    var overdraftWarned = false; // the ledger warns once each time the funds slip below $0
+    var halfwayNoted = false; // the halfway ledger entry is written once, even after a take-back
     // The week's event: Holy Week is fixed at the halfway point (week 8),
     // every other week comes from the shuffled deck.
     function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week]; }
@@ -3284,17 +3534,35 @@
       // of only reading the totals.
       var dCong = histCong.length > 1 ? cong - histCong[histCong.length - 2] : 0;
       var dHappy = histHappy.length > 1 ? happy - histHappy[histHappy.length - 2] : 0;
+      var dFunds = histFunds.length > 1 ? funds - histFunds[histFunds.length - 2] : 0;
       var delta = function (d) {
         return d === 0 ? '' : ' <small style="color:' + (d > 0 ? '#2e7d32' : '#b8452a') + '">(' + (d > 0 ? '+' : '') + d + ')</small>';
       };
+      var deltaMoney = function (d) {
+        if (d === 0) return '';
+        return ' <small style="color:' + (d > 0 ? '#2e7d32' : '#b8452a') + '">(' + (d > 0 ? '+$' : '-$') + Math.abs(d).toLocaleString() + ')</small>';
+      };
+      // Danger warnings, in plain words, before the season ends on the
+      // player without warning: the overdraft rule, thinning pews, and
+      // failing spirits each get a line while there is still time to act.
+      var warns = [];
+      if (funds < 0) warns.push('Overdrawn: below -$500 the season ends');
+      if (cong < 30) warns.push('The pews are nearly empty');
+      if (happy < 15) warns.push('The parish is losing heart');
+      // This week's expected balance, from the parish as it stands, so the
+      // player can judge what a choice will cost against what comes in.
+      var expectColl = Math.round(cong * (happy / 100) * collMult);
+      var expectCosts = costBase + Math.round(cong * costPer);
       stats.innerHTML = '<span>Week ' + Math.min(week + 1, PASTOR_WEEKS) + ' of ' + PASTOR_WEEKS + '</span>' +
         '<span>Congregation: <b>' + cong + '</b>' + delta(dCong) + '</span>' +
-        '<span>Funds: <b>' + money(funds) + '</b></span>' +
+        '<span>Funds: <b>' + money(funds) + '</b>' + deltaMoney(dFunds) + '</span>' +
         '<span>Happiness: <b>' + happy + '</b>' + delta(dHappy) + '</span>' +
+        '<span class="small">This week, about: collection +' + money(expectColl) + ' &middot; costs -' + money(expectCosts) + '</span>' +
         // The season score, live: congregation + happiness + funds / 10, so
         // the player can see the number they are playing for as it moves.
         '<span>Score: <b>' + Math.max(0, Math.round(cong + happy + Math.max(0, funds) / 10)) + '</b></span>' +
         '<span>' + parishMood() + '</span>' +
+        (warns.length ? '<span style="color:#b8452a;font-weight:700;">' + esc(warns.join('. ')) + '.</span>' : '') +
         (diff !== 'medium' ? '<span>Difficulty: ' + DIFF_LABEL[diff] + '</span>' : '') +
         '<span>Best: ' + best + '</span>';
       // The season's arc, as a small chart: congregation in burgundy and
@@ -3347,7 +3615,7 @@
     function showWeek() {
       // Halfway through the season, the ledger notes the moment, so the
       // season has an arc instead of sixteen identical weeks.
-      if (week === 8) ledgerEntry('<b>Halfway through the season.</b> Eight weeks shepherded, eight to go — congregation ' + cong + ', funds ' + money(funds) + ', happiness ' + happy + '.');
+      if (week === 8 && !halfwayNoted) { halfwayNoted = true; ledgerEntry('<b>Halfway through the season.</b> Eight weeks shepherded, eight to go — congregation ' + cong + ', funds ' + money(funds) + ', happiness ' + happy + '.'); }
       var ev = currentEvent();
       // Deck entries are [title, text, choice, choice, choice]: the choices
       // are ev[2..4], not ev[2] itself. (An earlier build iterated ev[2],
@@ -3358,30 +3626,71 @@
       choices.forEach(function (ch, i) {
         html += '<button type="button" class="pastor-choice press" data-i="' + i + '">' + esc(ch[0]) + kbdChip(String(i + 1)) + '</button>';
       });
-      html += '</div>' + kbdHint('Keyboard: 1, 2 or 3 picks a choice.');
+      html += '</div>' + kbdHint('Keyboard: 1, 2 or 3 picks a choice.' + ((PASTOR_UNDO_FEATURE && undoAvailable && week > 0) ? ' U takes back last week.' : ''));
+      // Second chance, once per season: take back last week and choose
+      // again. Offered only after a choice has been made.
+      if (PASTOR_UNDO_FEATURE && undoAvailable && week > 0 && !over) {
+        html += '<p style="margin:10px 0 0;"><button type="button" class="linklike" id="pastor-undo">Take back last week (once per season)</button></p>';
+      }
       card.innerHTML = html;
       card.querySelectorAll('.pastor-choice').forEach(function (btn) {
         btn.addEventListener('click', function () { choose(parseInt(btn.getAttribute('data-i'), 10)); });
       });
+      var undoBtn = document.getElementById('pastor-undo');
+      if (undoBtn) undoBtn.addEventListener('click', undoWeek);
       renderStats();
     }
     function choose(i) {
       if (over) return;
       var ev = currentEvent();
       var ch = ev[2 + i];
+      // Snapshot before the choice, so the season's one take-back can
+      // restore the week exactly as it stood, ledger included.
+      if (PASTOR_UNDO_FEATURE && !undoUsed) {
+        undoSnapshot = { week: week, cong: cong, funds: funds, happy: happy,
+          histCong: histCong.slice(), histHappy: histHappy.slice(), histFunds: histFunds.slice(),
+          ledgerHtml: ledger.innerHTML, overdraftWarned: overdraftWarned, halfwayNoted: halfwayNoted };
+      }
+      var fundsBefore = funds;
       cong += ch[2]; funds += ch[3]; happy += ch[4];
       histCong.push(cong); histHappy.push(happy);
       var collection = Math.round(cong * (happy / 100) * collMult);
       var costs = costBase + Math.round(cong * costPer);
       funds += collection - costs;
+      histFunds.push(funds);
+      // The ledger names what the choice itself did, apart from the week's
+      // collection and costs, so the player can tell the decision from the
+      // arithmetic.
+      var fmtDelta = function (d, isMoney) {
+        if (d === 0) return '0';
+        return (d > 0 ? '+' : '-') + (isMoney ? '$' + Math.abs(d).toLocaleString() : Math.abs(d));
+      };
       ledgerEntry('<b>Week ' + (week + 1) + ' — ' + esc(ev[0]) + ':</b> ' + esc(ch[0]) + ' — ' + esc(ch[1]) +
-        '<br><span class="pastor-nums">Collection +' + money(collection) + ' &middot; Costs -' + money(costs) +
+        '<br><span class="pastor-nums">Choice: congregation ' + fmtDelta(ch[2]) + ' &middot; funds ' + fmtDelta(ch[3], true) + ' &middot; happiness ' + fmtDelta(ch[4]) +
+        '<br>Collection +' + money(collection) + ' &middot; Costs -' + money(costs) +
         ' &middot; Congregation ' + cong + ' &middot; Funds ' + money(funds) + ' &middot; Happiness ' + happy + '</span>');
+      if (funds < 0 && fundsBefore >= 0 && !overdraftWarned) {
+        overdraftWarned = true;
+        ledgerEntry('<b>The parish is overdrawn.</b> Below -$500 the season ends, so the next weeks need to bring money in.');
+      }
+      if (funds >= 0) overdraftWarned = false;
       week += 1;
+      undoAvailable = PASTOR_UNDO_FEATURE && !undoUsed;
       if (cong <= 0) { endSeason('The pews are empty — the parish has drifted away.'); return; }
       if (funds < -500) { endSeason('The parish is overdrawn beyond its $500 grace — the season ends.'); return; }
       if (happy <= 0) { endSeason('The parish has lost heart — the season ends.'); return; }
       if (week >= PASTOR_WEEKS) { endSeason('A full season shepherded — well done, Father.'); return; }
+      showWeek();
+    }
+    function undoWeek() {
+      if (!PASTOR_UNDO_FEATURE || !undoAvailable || !undoSnapshot || over) return;
+      var s = undoSnapshot;
+      week = s.week; cong = s.cong; funds = s.funds; happy = s.happy;
+      histCong = s.histCong.slice(); histHappy = s.histHappy.slice(); histFunds = s.histFunds.slice();
+      ledger.innerHTML = s.ledgerHtml;
+      overdraftWarned = s.overdraftWarned; halfwayNoted = s.halfwayNoted;
+      undoAvailable = false; undoUsed = true; undoSnapshot = null;
+      ledgerEntry('<i>Last week taken back. The one second chance is spent.</i>');
       showWeek();
     }
     function startSeason() {
@@ -3391,11 +3700,12 @@
       for (var i = deck.length - 1; i > 0; i--) { var j = randInt(0, i); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
       deck = deck.slice(0, PASTOR_WEEKS);
       week = 0; cong = startCong; funds = startFunds; happy = startHappy; over = false; started = true;
-      histCong = [startCong]; histHappy = [startHappy];
+      histCong = [startCong]; histHappy = [startHappy]; histFunds = [startFunds];
+      undoAvailable = false; undoUsed = false; undoSnapshot = null; overdraftWarned = false; halfwayNoted = false;
       ledger.innerHTML = '';
       showWeek();
     }
-    card.innerHTML = '<h3>Parish Pastor</h3><p>Shepherd your parish for 16 weeks. Every decision moves the congregation, the funds, and the happiness of the parish. Keep the pews full, the books out of the red, and the people glad. Your season score is congregation + happiness + funds &divide; 10. ' + gameMark('pastor') + '</p>' +
+    card.innerHTML = '<h3>Parish Pastor</h3><p>Shepherd your parish for 16 weeks. Every decision moves the congregation, the funds, and the happiness of the parish. Keep the pews full, the books out of the red, and the people glad. Your season score is congregation + happiness + funds &divide; 10. ' + (PASTOR_UNDO_FEATURE ? 'Once per season you may take back a week and choose again. ' : '') + gameMark('pastor') + '</p>' +
       diffPickerHtml('pastor', diff) +
       '<button type="button" class="big-btn press" id="pastor-start">Begin the season</button>' +
       kbdHint('Keyboard: Space or Enter begins the season · 1, 2 or 3 picks a choice.');
@@ -3412,6 +3722,7 @@
         if (!over && card.querySelector('.pastor-choice')) choose(parseInt(k, 10) - 1);
         return;
       }
+      if (k === 'u' && PASTOR_UNDO_FEATURE && undoAvailable && !over && card.querySelector('.pastor-choice')) { undoWeek(); return; }
       var go = (k === ' ' || k === 'enter');
       if (!go || kbdOnButton(e)) return;
       e.preventDefault();
@@ -3427,7 +3738,7 @@
 
   // ================= Catholic Trivia =================
   // Ten questions a round, drawn from the difficulty's pool of 30
-  // (90 questions in all). 100 points per right answer, 1,000 for a
+  // (180 questions in all). 100 points per right answer, 1,000 for a
   // perfect round. Every question shows the correct answer and a
   // one-line explanation after the player answers, so it teaches as
   // well as tests. Keyboard: 1-4 or A-D to answer, Enter for next.
@@ -3562,7 +3873,8 @@
   // Sloth 93%; frightened 62%. 3 lives; "The candles go dark" ends the run.
   // The maze wall layout is a rebuild (the inspection gave dimensions and
   // rules, not the wall map); the centre was opened so the chalice spawns
-  // at the demo's tile (9,10).
+  // at the demo's tile (9,10). Grace shield: one forgiven catch per life,
+  // with a 1.6s mercy window.
   var MAZE_MAP = [
     '###################',
     '#V.......#.......V#',
@@ -3574,7 +3886,7 @@
     '#....#..HHH..#....#',
     '#.##.#.#####.#.##.#',
     '#.................#',
-    '#.##.##....##.##.#',
+    '#.##.##....##.##.##', // row 10: the closing wall, so the right edge has no gap
     '#........#........#',
     '#.##.#.#####.#.##.#',
     '#....#...#...#....#',
@@ -3583,6 +3895,10 @@
   ];
   var MAZE_COLS = 19, MAZE_ROWS = 16, MAZE_CELL = 20, MAZE_OX = 50, MAZE_OY = 0;
   var MAZE_DIRS = [[0, -1], [-1, 0], [0, 1], [1, 0]];
+  // Grace shield: once per life, the first catch is forgiven and Father
+  // gets a brief mercy window instead of losing a life. Set false to play
+  // without it.
+  var MAZE_GRACE_SHIELD = true;
   function mountMaze(parent, onBack) {
     var api = createStage(parent, { title: 'Candle Maze', onBack: onBack });
     var tileX = function (c) { return MAZE_OX + c * MAZE_CELL + MAZE_CELL / 2; };
@@ -3603,6 +3919,7 @@
     var candles = {}, vials = {}, candlesTotal = 0, candlesEaten = 0;
     var player = null, sins = [], queued = { dx: -1, dy: 0 };
     var frightT = 0, frightMax = 0, frightChain = 0, modeIdx = 0, modeT = 7;
+    var shieldUp = true, mercyT = 0; // grace shield: one forgiven catch per life, then a mercy window
     var elapsed = 0, dyingT = 0, flawless = true, closeCd = 0;
     var chaliceSpawned = 0, chaliceActive = false, chaliceT = 0;
     var called25 = false, called10 = false;
@@ -3650,8 +3967,11 @@
           x: tileX(d.spawn[0]), y: tileY(d.spawn[1]), dx: 0, dy: 0,
           active: d.release === 0, leaving: true, state: 'normal', eyesPhase: 0, waitT: 0 };
       });
-      sins[0].dx = 0; sins[0].dy = -1; sins[0].tc = 9; sins[0].tr = 6;
+      // Wrath leaves through the house door, not through the wall above
+      // the house: first step sideways to the door column, then up.
+      sins[0].dx = -1; sins[0].dy = 0; sins[0].tc = 8; sins[0].tr = 7;
       modeIdx = 0; modeT = 7; frightT = 0; frightChain = 0; elapsed = 0;
+      dyingT = 0; mercyT = 0; shieldUp = true; // a fresh life starts shielded
     }
     function startGame() {
       applyMazeDiff();
@@ -3763,7 +4083,10 @@
         frightT = frightMax; frightChain = 0;
         if (Object.keys(candles).length + Object.keys(vials).length === 0) { nextLevel(); return; }
         updateHud();
-      } else if (chaliceActive && c === 9 && r === 10) {
+      }
+      // The chalice sits on a candle tile: it is collected on the same
+      // visit as the candle beneath it, not only on a second visit.
+      if (chaliceActive && c === 9 && r === 10 && state === 'playing') {
         chaliceActive = false;
         addScore(300 + 100 * (level - 1));
         api.showBanner('Chalice! +' + (300 + 100 * (level - 1)), 1600);
@@ -3771,7 +4094,10 @@
     }
     function sinTarget(s) {
       if (s.state === 'eyes') {
-        if (s.eyesPhase === 0) return [9, 6];
+        // Home is through the house door at column 8, not column 9: the
+        // door tile is 'D' at (8,6), while (9,6) is a wall no sin can ever
+        // enter, which stranded the eyes in the maze forever.
+        if (s.eyesPhase === 0) return [8, 6];
         return [9, 7];
       }
       if (s.leaving) return [9, 5];
@@ -3788,12 +4114,44 @@
       if (dTiles > 8) return [player.c, player.r];
       return s.corner;
     }
+    // Eyes find their way home with a shortest-path search, not a greedy
+    // step: greedy steps cycle in wall pockets (the top of the maze traps
+    // them rocking between two tiles) and never arrive. Runs once per tile
+    // arrival per eye, over a 19x16 grid, so it costs nothing.
+    function eyesStep(s, tc, tr) {
+      var key = function (c, r) { return c + ',' + r; };
+      var prev = {}, queue = [[s.c, s.r]], seen = {};
+      seen[key(s.c, s.r)] = true;
+      var found = false;
+      while (queue.length && !found) {
+        var cur = queue.shift();
+        for (var i = 0; i < MAZE_DIRS.length; i++) {
+          var nc = cur[0] + MAZE_DIRS[i][0], nr = cur[1] + MAZE_DIRS[i][1];
+          if (!sinOpen(nc, nr) || seen[key(nc, nr)]) continue;
+          seen[key(nc, nr)] = true; prev[key(nc, nr)] = key(cur[0], cur[1]);
+          if (nc === tc && nr === tr) { found = true; break; }
+          queue.push([nc, nr]);
+        }
+      }
+      if (!found) return null;
+      var startKey = key(s.c, s.r), firstKey = key(tc, tr);
+      while (prev[firstKey] && prev[firstKey] !== startKey) firstKey = prev[firstKey];
+      if (!prev[firstKey]) return null;
+      var parts = firstKey.split(',');
+      return [parseInt(parts[0], 10) - s.c, parseInt(parts[1], 10) - s.r];
+    }
     function sinDecide(s) {
       if (s.state === 'eyes') {
-        if (s.eyesPhase === 0 && s.c === 9 && s.r === 6) { s.eyesPhase = 1; }
+        // Phase 0 ends at the door or inside the house: any of these tiles
+        // means the eyes made it home.
+        if (s.eyesPhase === 0 && ((s.c === 8 && s.r === 6) || (s.r === 7 && s.c >= 8 && s.c <= 10))) { s.eyesPhase = 1; }
         if (s.eyesPhase === 1 && s.c === 9 && s.r === 7) {
           s.eyesPhase = 2; s.waitT = 0.5; s.dx = 0; s.dy = 0; return;
         }
+        var home = s.eyesPhase === 0 ? [8, 6] : [9, 7];
+        var step = eyesStep(s, home[0], home[1]);
+        if (step) { setDir(s, step[0], step[1]); return; }
+        // No path (should not happen): fall through to the greedy pick.
       }
       if (s.leaving && s.r <= 5) s.leaving = false;
       var target = sinTarget(s);
@@ -3889,6 +4247,15 @@
         ctx.fillStyle = '#6e1a26';
         ctx.beginPath(); ctx.arc(player.x, player.y, 9, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#b28a2e'; ctx.lineWidth = 2; ctx.stroke();
+        // The grace shield reads as a gold halo while it is up; during the
+        // mercy window the halo turns white, so the protection is visible.
+        if (mercyT > 0) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(player.x, player.y, 12, 0, Math.PI * 2); ctx.stroke();
+        } else if (MAZE_GRACE_SHIELD && shieldUp) {
+          ctx.strokeStyle = '#ffd24d'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(player.x, player.y, 12, 0, Math.PI * 2); ctx.stroke();
+        }
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Georgia'; ctx.textAlign = 'center';
         ctx.fillText('F', player.x, player.y + 3); ctx.textAlign = 'left';
         // Direction tick: a small gold triangle at the rim pointing where
@@ -3935,23 +4302,31 @@
       }
       if (chaliceActive) { chaliceT -= dt; if (chaliceT <= 0) chaliceActive = false; }
       if (closeCd > 0) closeCd -= dt;
+      if (mercyT > 0) mercyT -= dt;
       player.speed = playerSpeed();
       // Release sins on schedule
       sins.forEach(function (s) {
         if (!s.active && elapsed >= s.release) {
           s.active = true; s.leaving = true;
-          setDir(s, 0, -1);
+          // Leave through the door: step sideways toward the door column
+          // first, instead of straight up through the wall.
+          if (s.c > 8) setDir(s, -1, 0);
+          else if (s.c < 8) setDir(s, 1, 0);
+          else setDir(s, 0, -1);
         }
         if (s.state === 'eyes' && s.eyesPhase === 2) {
           s.waitT -= dt;
           if (s.waitT <= 0) {
             s.state = 'normal'; s.eyesPhase = 0; s.leaving = true;
             s.c = 9; s.r = 7; s.x = tileX(9); s.y = tileY(7);
-            setDir(s, 0, -1);
+            setDir(s, -1, 0); // out through the door, as on release
           }
         }
       });
       stepMover(player, dt);
+      // Collecting the last candle ends the vigil mid-tick: stop here so
+      // the sins cannot catch Father after the vigil is complete.
+      if (state !== 'playing') return;
       sins.forEach(function (s) {
         if (!s.active) return;
         s.speed = sinSpeed(s);
@@ -3960,6 +4335,9 @@
       // Collisions
       sins.forEach(function (s) {
         if (!s.active || s.state === 'eyes') return;
+        // A catch already landed this tick: the rest of the sins wait for
+        // the next life instead of costing two lives in one frame.
+        if (dyingT > 0 || state !== 'playing') return;
         var d = Math.hypot(s.x - player.x, s.y - player.y);
         if (frightT > 0) {
           if (d < 16) {
@@ -3970,8 +4348,20 @@
             s.tc = s.c; s.tr = s.r;
             sinDecide(s);
           }
+        } else if (mercyT > 0) {
+          // Mercy window: sins pass through harmlessly, and no close-call
+          // points are farmed while invulnerable.
         } else {
-          if (d < 13) { die(s.name); return; }
+          if (d < 13) {
+            // Grace shield: the first catch each life is forgiven, with a
+            // brief mercy window to get clear.
+            if (MAZE_GRACE_SHIELD && shieldUp) {
+              shieldUp = false; mercyT = 1.6;
+              api.showBanner('Grace shields you!', 1400);
+              return;
+            }
+            die(s.name); return;
+          }
           if (d >= 13 && d <= 21 && closeCd <= 0) { closeCd = 1.6; addScore(15); api.showBanner('Close call! +15', 1000); }
         }
       });
@@ -4036,7 +4426,7 @@
       else steer(0, dy > 0 ? 1 : -1);
     });
     api.actions.appendChild(el('p', 'game-note', gameNote('Arrows or WASD to steer, swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible. Space or Enter starts, begins the next vigil and restarts. R restarts.', 'Swipe or drag on the field, or use the pad. Light the candles to complete the vigil; the vials turn the sins edible.')));
-    api.showOverlay('<h3>Candle Maze</h3><p>Light the candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + gameMark('maze') + '</p>' +
+    api.showOverlay('<h3>Candle Maze</h3><p>Light the candles to complete the vigil while four sins hunt you. Holy water turns the tables. ' + (MAZE_GRACE_SHIELD ? 'Once per life, grace shields you from a catch. ' : '') + gameMark('maze') + '</p>' +
       diffPickerHtml('maze', diff) +
       '<button type="button" class="big-btn press" id="maze-start">Light the first candle</button>' +
       kbdHint('Keyboard: Space or Enter lights the first candle.'));
@@ -4066,9 +4456,14 @@
   // whenever a frame runs long. Dove stretches 2100-2950 and 5650-6500
   // Dove stretches 2100-2950 and 5650-6500 (gaps 118px); heavenward
   // (gravity-flip) stretch 3950-4700. Speed gates x1.25/x0.8/x1.3/x0.85/x1.25
-  // at 1500/3300/5100/7350/8450. One hit kills; practice mode respawns at
-  // lit candle checkpoints with 0.9s mercy and never touches bests.
+  // at 1500/3300/5100/7350/8450. One hit kills, except the run's one grace
+  // candle, which forgives a fall; practice mode respawns at lit candle
+  // checkpoints with 0.9s mercy and never touches bests.
   var DASH_COURSE = 9200, DASH_FLOOR = 280, DASH_CEIL = 40, DASH_CUBE = 24;
+  // Grace candle: once per run (outside practice), a fall is forgiven and
+  // the run resumes where it ended, with brief mercy. Set false to play
+  // without it.
+  var DASH_GRACE_FEATURE = true;
   // What killed the run, and what to do about it: the end screen says
   // more than the cause, so a death teaches the next attempt.
   var DASH_TIPS = {
@@ -4186,6 +4581,7 @@
       attempts = parseInt(localStorage.getItem('rmf-dash-attempts') || '0', 10) || 0;
     } catch (e) { /* storage unavailable */ }
     var checkpoint = null; // {dist, bonus, quarters}
+    var graceUsed = false; // the run's one grace candle, spent on the first forgiven fall
     var dust = []; // landing dust: small fading puffs where the cube lands
     var warned = {}; // mode-change warnings already shown this run, by boundary x
     function spawnDust(x, y) {
@@ -4204,7 +4600,7 @@
       gateIdx = -1; gateMult = 1; gateTarget = 1; bonus = 0; chain = 0;
       quarters = [false, false, false, false]; depthAwarded = false;
       coyoteT = 0; bufferT = 0; mercyT = 0; rot = 0; mode = 'normal'; runT = 0;
-      checkpoint = null; practiceDeaths = 0;
+      checkpoint = null; practiceDeaths = 0; graceUsed = false;
       warned = {};
       if (!practice) {
         attempts += 1;
@@ -4214,6 +4610,8 @@
     }
     function endRun(won, why) {
       state = 'over';
+      // Reaching the sanctuary pays the +250 the course promises.
+      if (won) bonus += 250;
       var pct = Math.min(100, Math.floor((dist / DASH_COURSE) * 100));
       var sc = score();
       var fb = best, newDepth = bestDepth;
@@ -4229,7 +4627,7 @@
       var tip = (!won && why && DASH_TIPS[why]) ? DASH_TIPS[why] : '';
       api.showOverlay('<h3>' + esc(title) + '</h3><p>' + (why ? esc(why) + '<br>' : '') +
         (tip ? esc(tip) + '<br>' : '') +
-        'Score: ' + sc + ' &middot; Reached: ' + pct + '% &middot; Best: ' + fb + '<br>' +
+        'Score: ' + sc + (won ? ' (incl. +250 for reaching the sanctuary)' : '') + ' &middot; Reached: ' + pct + '% &middot; Best: ' + fb + '<br>' +
         'Best depth: ' + newDepth + '% &middot; Attempt: ' + attempts +
         (practice ? '<br>Practice deaths: ' + practiceDeaths : '') + '</p>' +
         '<button type="button" class="big-btn press" id="dash-retry">Retry this course' + kbdChip('Space') + '</button> ' +
@@ -4246,6 +4644,20 @@
     }
     function die(why) {
       if (mercyT > 0) return;
+      // Grace candle: once per run, outside practice, the fall is forgiven
+      // and the run resumes where it ended, with brief mercy.
+      if (DASH_GRACE_FEATURE && !practice && !graceUsed) {
+        graceUsed = true;
+        if (mode === 'dove') { y = 160; vy = 0; grounded = false; }
+        else if (mode === 'flip') { y = DASH_CEIL + DASH_CUBE / 2; vy = 0; grounded = true; }
+        else { y = DASH_FLOOR - DASH_CUBE / 2; vy = 0; grounded = true; }
+        chain = 0; bufferT = 0; coyoteT = 0; rot = 0;
+        stepDx = 0; stepDy = 0; stepDr = 0;
+        mercyT = 1.2;
+        api.showBanner('Grace intervenes: the fall is forgiven, once per run', 1800);
+        updateHud();
+        return;
+      }
       if (practice && checkpoint) {
         practiceDeaths += 1;
         dist = checkpoint.dist; bonus = checkpoint.bonus;
@@ -4298,6 +4710,7 @@
       var h = '<span class="score">Score: ' + score() + '</span><span>' + pct + '%</span>' +
         '<span>' + (mode === 'dove' ? 'Dove flight' : mode === 'flip' ? 'Heavenward' : 'Running') + '</span>' +
         '<span>Speed x' + (Math.round(gateMult * 100) / 100) + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>' +
+        (DASH_GRACE_FEATURE && !practice && !graceUsed ? '<span>Grace ready</span>' : '') +
         (practice ? '<span>Practice</span>' : '');
       if (h !== lastHud) { lastHud = h; api.setHud(h); }
     }
@@ -4524,7 +4937,7 @@
         var g = mode === 'flip' ? -2600 : 2600;
         vy += g * dt;
         y += vy * dt;
-        if (!grounded) rot += dt * 6;
+        if (!grounded) rot += dt * 9.07; // one full turn per full jump (0.69s), so the cube lands square
         if (mode === 'flip') {
           if (y <= DASH_CEIL + DASH_CUBE / 2 && vy <= 0) {
             y = DASH_CEIL + DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0;
@@ -4536,7 +4949,7 @@
             for (var fi = 0; fi < layout.flipSpikes.length; fi++) {
               var fs = layout.flipSpikes[fi];
               if (dist + DASH_CUBE / 2 - 4 > fs.x && dist - DASH_CUBE / 2 + 4 < fs.x + fs.w &&
-                  y - DASH_CUBE / 2 < DASH_CEIL + 24) { die('Caught on a ceiling thorn'); return; }
+                  y - DASH_CUBE / 2 < DASH_CEIL + 20) { die('Caught on a ceiling thorn'); return; }
             }
           }
         } else {
@@ -4546,14 +4959,16 @@
             var p = layout.pews[pi];
             var top = DASH_FLOOR - p.h;
             if (dist + DASH_CUBE / 2 > p.x && dist - DASH_CUBE / 2 < p.x + p.w) {
-              if (vy >= 0 && prevBottom <= top + 6 && y + DASH_CUBE / 2 >= top) {
-                if (!grounded) spawnDust(dist, top);
+              // Landing reads generously at the pew edge: a cube arriving
+              // just below the top still lands, instead of dying on the side.
+              if (vy >= 0 && prevBottom <= top + 10 && y + DASH_CUBE / 2 >= top) {
+                if (!grounded) spawnDust(120, top); // screen x: the cube sits at 120 on screen
                 y = top - DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0; landed = true;
                 if (holding) { vy = -900; grounded = false; }
                 else if (bufferT > 0) { vy = -900; grounded = false; bufferT = 0; }
                 break;
               }
-              if (y + DASH_CUBE / 2 > top + 6 && y - DASH_CUBE / 2 < DASH_FLOOR) {
+              if (y + DASH_CUBE / 2 > top + 10 && y - DASH_CUBE / 2 < DASH_FLOOR) {
                 if (mercyT <= 0) { die('Ran into a pew'); return; }
               }
             }
@@ -4571,7 +4986,7 @@
             // Floor
             if (y >= DASH_FLOOR - DASH_CUBE / 2 && vy >= 0) {
               y = DASH_FLOOR - DASH_CUBE / 2; vy = 0;
-              if (!grounded) { grounded = true; rot = 0; chain = 0; spawnDust(dist, DASH_FLOOR); }
+              if (!grounded) { grounded = true; rot = 0; chain = 0; spawnDust(120, DASH_FLOOR); }
               if (holding) { vy = -900; grounded = false; }
               else if (bufferT > 0) { vy = -900; grounded = false; bufferT = 0; }
             }
@@ -4587,7 +5002,7 @@
             for (var si = 0; si < layout.spikes.length; si++) {
               var sp = layout.spikes[si];
               if (dist + DASH_CUBE / 2 - 4 > sp.x && dist - DASH_CUBE / 2 + 4 < sp.x + sp.w &&
-                  y + DASH_CUBE / 2 > DASH_FLOOR - 20) { die('Caught on a thorn'); return; }
+                  y + DASH_CUBE / 2 > DASH_FLOOR - 16) { die('Caught on a thorn'); return; }
             }
           }
         }
@@ -4640,7 +5055,7 @@
       dist = saveD; y = saveY; rot = saveR;
       raf = requestAnimationFrame(loop);
     }
-    function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
+    function doPause() { if (state === 'playing') { paused = true; holding = false; api.pauseBtn.textContent = 'Resume'; } }
     function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
     var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
     document.addEventListener('keydown', onKey);
@@ -4680,11 +5095,12 @@
     practiceBox.addEventListener('change', function () {
       if (state === 'playing') { practiceBox.checked = practice; return; }
       practice = practiceBox.checked;
+      updateHud();
     });
     practiceWrap.appendChild(practiceBox);
     practiceWrap.appendChild(document.createTextNode(' Practice mode (candle checkpoints, no bests)'));
     api.actions.appendChild(practiceWrap);
-    api.showOverlay('<h3>Sanctuary Dash</h3><p>The golden cube never stops. Jump the thorns, ride the pews, run under the swinging censers — never jump into one — and reach the sanctuary 9,200px down the nave. ' + gameMark('dash') + '</p>' +
+    api.showOverlay('<h3>Sanctuary Dash</h3><p>The golden cube never stops. Jump the thorns, ride the pews, run under the swinging censers — never jump into one — and reach the sanctuary 9,200px down the nave. ' + (DASH_GRACE_FEATURE ? 'Once per run, grace forgives a fall. ' : '') + gameMark('dash') + '</p>' +
       diffPickerHtml('dash', diff) +
       '<button type="button" class="big-btn press" id="dash-start">Start the run</button>' +
       kbdHint('Keyboard: Space or Enter starts the run.'));
