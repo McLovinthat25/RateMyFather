@@ -1138,13 +1138,15 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .trivia-running { color:var(--dim); font-size:14px; margin:14px 0 0; }
 .trivia-earned { font-weight:700; color:var(--text); }
 /* Name for the leaderboard: label above, input and Start button side
-   by side, so the whole thing reads as one game-start unit. The input
-   flexes wide enough that its placeholder never clips, and on a phone
-   the button drops to its own full-width line. Focus matches the
+   by side, styled as a twin of the hero search pair: same 16px corner
+   radius on both controls, same 8px gap, compact button, so the unit
+   reads as one clean row. The input flexes wide enough that its
+   placeholder never clips, and on a phone the button drops to its own
+   full-width line, like the search button does. Focus matches the
    site's other inputs: gold border plus a soft gold ring. */
 .trivia-start { margin:12px 0; max-width:560px; }
 .trivia-name-label { display:block; font-weight:600; margin:0 0 8px; }
-.trivia-start-controls { display:flex; flex-wrap:wrap; gap:10px; }
+.trivia-start-controls { display:flex; flex-wrap:wrap; gap:8px; }
 .trivia-start-controls input { flex:1 1 220px; min-width:0; font:inherit; font-size:16px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); box-shadow:var(--shadow-card); }
 .trivia-start-controls input::placeholder { color:var(--dim); }
 .trivia-start-controls input:focus { outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgb(178 138 46 / 0.28); }

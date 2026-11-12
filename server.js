@@ -1158,7 +1158,7 @@ app.get('/', async (req, res) => {
     ${triviaBoardHtml}
     <div class="trivia-start">
     <label class="trivia-name-label" for="trivia-name">Your name for the leaderboard</label>
-    <div class="trivia-start-controls"><input id="trivia-name" type="text" maxlength="20" autocomplete="off" placeholder="First name or nickname"><button type="button" class="btn btn--gold btn-pill press" id="trivia-start">Start the trivia</button></div>
+    <div class="trivia-start-controls"><input id="trivia-name" type="text" maxlength="20" autocomplete="off" placeholder="First name or nickname"><button type="button" class="btn btn--gold press" id="trivia-start">Start</button></div>
     </div>
     <div id="trivia-panel" aria-live="polite"></div>
     <script${cspNonceAttr()}>window.RMF_TRIVIA = ${JSON.stringify(triviaRound).replace(/</g, '\\u003c')};</script>
