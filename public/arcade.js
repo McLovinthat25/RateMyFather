@@ -3653,6 +3653,13 @@
       }
       var fundsBefore = funds;
       cong += ch[2]; funds += ch[3]; happy += ch[4];
+      // Happiness is a percentage, so it stays on a 0–100 scale: a long
+      // run of kind choices used to push it to 160+, which inflated the
+      // collection (it multiplies by happy / 100) and the season score.
+      // The floor keeps the low end on the same scale; the season still
+      // ends on happy <= 0 just below.
+      if (happy > 100) happy = 100;
+      if (happy < 0) happy = 0;
       histCong.push(cong); histHappy.push(happy);
       var collection = Math.round(cong * (happy / 100) * collMult);
       var costs = costBase + Math.round(cong * costPer);
