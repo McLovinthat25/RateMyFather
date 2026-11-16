@@ -3305,7 +3305,8 @@
   }
 
   // ================= Parish Pastor =================
-  // 16-week season, shuffled 16-of-35 deck, start 140 / 3000 / 65 on Medium.
+  // 16-week season, shuffled 15-of-35 deck plus the fixed Holy Week,
+  // start 140 / 3000 / 65 on Medium.
   // Ends early if cong <= 0, funds < -500, or happy <= 0. After each choice:
   // collection = round(cong * happy/100 * 2.2), costs = 120 + round(cong * 0.3).
   // Event titles, texts and choice labels/deltas are the demo deck as
@@ -3315,8 +3316,8 @@
   // the loop is identical every week and nothing new arrives after the
   // opening stretch, so a season ran past ten minutes of reading for a
   // casual player. Sixteen weeks is still a full season arc (four months,
-  // 16 of 35 events, so every season draws a different hand) and lands in
-  // about seven minutes.
+  // 15 of 35 events plus Holy Week, so every season draws a different hand)
+  // and lands in about seven minutes.
   var PASTOR_WEEKS = 16;
   // Second chance: once per season, take back the last week and choose
   // again. Set false to play without it.
@@ -3507,8 +3508,10 @@
     var overdraftWarned = false; // the ledger warns once each time the funds slip below $0
     var halfwayNoted = false; // the halfway ledger entry is written once, even after a take-back
     // The week's event: Holy Week is fixed at the halfway point (week 8),
-    // every other week comes from the shuffled deck.
-    function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week]; }
+    // every other week comes from the shuffled deck. The deck holds 15
+    // events, not 16: Holy Week fills the 16th week, so drawing 16 would
+    // silently waste one shuffled event every season (the old deck[7]).
+    function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week < 7 ? week : week - 1]; }
     var best = readBest('pastor');
     function parishName() {
       try {
@@ -3705,7 +3708,7 @@
       parishSubmitted['pastor'] = false;
       deck = PASTOR_DECK.slice();
       for (var i = deck.length - 1; i > 0; i--) { var j = randInt(0, i); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
-      deck = deck.slice(0, PASTOR_WEEKS);
+      deck = deck.slice(0, PASTOR_WEEKS - 1); // 15 deck events + Holy Week = 16 weeks
       week = 0; cong = startCong; funds = startFunds; happy = startHappy; over = false; started = true;
       histCong = [startCong]; histHappy = [startHappy]; histFunds = [startFunds];
       undoAvailable = false; undoUsed = false; undoSnapshot = null; overdraftWarned = false; halfwayNoted = false;
