@@ -3502,7 +3502,7 @@
     else { startCong = 140; startFunds = 3000; startHappy = 65; collMult = 2.2; costBase = 120; costPer = 0.3; }
   }
   applyPastorDiff();
-  var deck = [], week = 0, cong = startCong, funds = startFunds, happy = startHappy, over = false, started = false;
+  var deck = [], holyWeek = PASTOR_HOLY_WEEK, week = 0, cong = startCong, funds = startFunds, happy = startHappy, over = false, started = false;
     var histCong = [startCong], histHappy = [startHappy], histFunds = [startFunds]; // the season's arc, for the trend chart
     var undoAvailable = false, undoUsed = false, undoSnapshot = null; // second chance: one take-back per season
     var overdraftWarned = false; // the ledger warns once each time the funds slip below $0
@@ -3511,7 +3511,7 @@
     // every other week comes from the shuffled deck. The deck holds 15
     // events, not 16: Holy Week fills the 16th week, so drawing 16 would
     // silently waste one shuffled event every season (the old deck[7]).
-    function currentEvent() { return week === 7 ? PASTOR_HOLY_WEEK : deck[week < 7 ? week : week - 1]; }
+    function currentEvent() { return week === 7 ? holyWeek : deck[week < 7 ? week : week - 1]; }
     var best = readBest('pastor');
     function parishName() {
       try {
@@ -3706,9 +3706,24 @@
     function startSeason() {
       applyPastorDiff();
       parishSubmitted['pastor'] = false;
-      deck = PASTOR_DECK.slice();
+      // Fresh copies of the events, with each event's three choices
+      // shuffled: no slot is systematically the kind one. Pressing 1
+      // every week used to beat thoughtful play (always-1 averaged
+      // ~690 vs ~541 for random picks), because the generous option
+      // usually sat first. The source deck is never touched, and the
+      // shuffle happens once per season, so the one take-back re-deals
+      // the same week with the same choices in the same order.
+      function shuffleChoices(ev) {
+        var ch = [ev[2], ev[3], ev[4]];
+        for (var i = ch.length - 1; i > 0; i--) { var j = randInt(0, i); var t = ch[i]; ch[i] = ch[j]; ch[j] = t; }
+        ev[2] = ch[0]; ev[3] = ch[1]; ev[4] = ch[2];
+      }
+      deck = PASTOR_DECK.map(function (ev) { return ev.slice(); });
+      deck.forEach(shuffleChoices);
       for (var i = deck.length - 1; i > 0; i--) { var j = randInt(0, i); var t = deck[i]; deck[i] = deck[j]; deck[j] = t; }
       deck = deck.slice(0, PASTOR_WEEKS - 1); // 15 deck events + Holy Week = 16 weeks
+      holyWeek = PASTOR_HOLY_WEEK.slice();
+      shuffleChoices(holyWeek);
       week = 0; cong = startCong; funds = startFunds; happy = startHappy; over = false; started = true;
       histCong = [startCong]; histHappy = [startHappy]; histFunds = [startFunds];
       undoAvailable = false; undoUsed = false; undoSnapshot = null; overdraftWarned = false; halfwayNoted = false;
