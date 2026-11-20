@@ -4481,7 +4481,7 @@
   // whenever a frame runs long. Dove stretches 2100-2950 and 5650-6500
   // Dove stretches 2100-2950 and 5650-6500 (gaps 118px); heavenward
   // (gravity-flip) stretch 3950-4700. Speed gates x1.25/x0.8/x1.3/x0.85/x1.25
-  // at 1500/3300/5100/7350/8450. One hit kills, except the run's one grace
+  // at 1700/3300/5100/7350/8450. One hit kills, except the run's one grace
   // candle, which forgives a fall; practice mode respawns at lit candle
   // checkpoints with 0.9s mercy and never touches bests.
   var DASH_COURSE = 9200, DASH_FLOOR = 280, DASH_CEIL = 40, DASH_CUBE = 24;
@@ -4513,7 +4513,11 @@
     var rnd = dashRng(seed);
     var L = {
       spikes: [], pews: [], clouds: [], censers: [], orbs: [],
-      gates: [{ x: 1500, m: 1.25 }, { x: 3300, m: 0.8 }, { x: 5100, m: 1.3 }, { x: 7350, m: 0.85 }, { x: 8450, m: 1.25 }],
+      // The first gate sits past the first thorn cluster, not on it: the
+      // pew at 1300 pushes the first thorns to ~1534, so a gate at 1500
+      // stepped the speed up 25% in the middle of the player's first
+      // pew-jump-then-thorn-jump, the tightest sequence in the opening.
+      gates: [{ x: 1700, m: 1.25 }, { x: 3300, m: 0.8 }, { x: 5100, m: 1.3 }, { x: 7350, m: 0.85 }, { x: 8450, m: 1.25 }],
       doveCols: [], flipSpikes: [],
     };
     function inSpecial(x) {
