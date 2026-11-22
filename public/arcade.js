@@ -4521,7 +4521,14 @@
       doveCols: [], flipSpikes: [],
     };
     function inSpecial(x) {
-      return (x > 1980 && x < 3070) || (x > 3830 && x < 4820) || (x > 5530 && x < 6620);
+      // The dove exits drop the player to the floor: after a stretch
+      // ends the cube falls ~0.29-0.43s, travelling ~130-240px at full
+      // speed before it lands, so each dove zone runs past the latest
+      // landing (exit 2950 -> ~3147, exit 6500 -> ~6740) plus ~120px of
+      // runway. A pew, thorn or censer inside that runway is an
+      // unavoidable death, because the player cannot jump until they
+      // land and the press buffer only covers 0.12s before landing.
+      return (x > 1980 && x < 3260) || (x > 3830 && x < 4820) || (x > 5530 && x < 6850);
     }
     // Clear opening runway: the first thorn waits until 1400px on Medium (scaled by difficulty), so a new
     // player gets a few jumps in before the first thing to clear, and the
