@@ -4528,7 +4528,10 @@
       // runway. A pew, thorn or censer inside that runway is an
       // unavoidable death, because the player cannot jump until they
       // land and the press buffer only covers 0.12s before landing.
-      return (x > 1980 && x < 3260) || (x > 3830 && x < 4820) || (x > 5530 && x < 6850);
+      // The heavenward (flip) zone is the same idea at the other end:
+      // the cube lands back on the floor at ~4839 after the 4700 exit,
+      // so the zone runs to 4990, ~150px of runway past the landing.
+      return (x > 1980 && x < 3260) || (x > 3830 && x < 4990) || (x > 5530 && x < 6850);
     }
     // Clear opening runway: the first thorn waits until 1400px on Medium (scaled by difficulty), so a new
     // player gets a few jumps in before the first thing to clear, and the
@@ -4576,7 +4579,11 @@
         cx += 165 + rnd() * 45;
       }
     });
-    x = 4050;
+    // The first ceiling thorn waits until 4200: the cube lands on the
+    // ceiling at ~4041 after the 3950 mode change, so a thorn at 4050
+    // left 9px of runway — no time to react after landing. 4200 gives
+    // ~160px, the same half-second the pew-to-thorn rule allows.
+    x = 4200;
     while (x < 4650) {
       var n2 = 1 + Math.floor(rnd() * 2);
       for (var j = 0; j < n2; j++) L.flipSpikes.push({ x: x + j * 26, w: 24 });
