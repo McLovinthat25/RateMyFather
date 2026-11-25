@@ -154,7 +154,7 @@
       hud: hud, banner: banner, actions: actions, pauseBtn: pauseBtn, _bannerT: null,
       showOverlay: function (html) { overlay.innerHTML = html; overlay.style.display = 'flex'; fitOverlay(); },
       hideOverlay: function () { overlay.style.display = 'none'; overlay.innerHTML = ''; wrap.style.minHeight = ''; },
-      setHud: function (html) { hud.innerHTML = html; },
+      setHud: function (html) { if (html !== api._lastHud) { api._lastHud = html; hud.innerHTML = html; } },
       showBanner: function (text, ms) {
         banner.textContent = text; banner.style.display = 'block';
         clearTimeout(api._bannerT);
@@ -2984,7 +2984,7 @@
         var dir = i % 2 === 0 ? 1 : -1;
         // Level 1 is the welcome mat: slower cars and only three per lane, so
         // a first-time player can read the gaps and cross. It ramps up after.
-        var speed = (45 + level * 10) * carMult * (0.8 + Math.random() * 0.5);
+        var speed = (42 + level * 10) * carMult * (0.8 + Math.random() * 0.5);
         var n = level === 1 ? carBase : carBase + Math.floor(Math.random() * 2);
         for (var k = 0; k < n; k++) {
           // Each car keeps its own pace, so the gaps open and close instead
@@ -3003,7 +3003,7 @@
         for (var k2 = 0; k2 < n2; k2++) {
           // Floats start spread along the river, so each row always offers
           // a ride within reach instead of a random desert of open water.
-          floats.push({ y: y, x: clamp((k2 + 0.5) * (GAME_W / n2) + rand(-30, 30), 30, GAME_W - 30), dir: dir2, speed: (45 + level * 6) * floatMult, w: rand(52, 84), kind: k2 === 1 ? 'turtle' : 'log',
+          floats.push({ y: y, x: clamp((k2 + 0.5) * (GAME_W / n2) + rand(-30, 30), 30, GAME_W - 30), dir: dir2, speed: (45 + level * 6) * floatMult, w: rand(60, 92), kind: k2 === 1 ? 'turtle' : 'log',
             diveCd: 3 + Math.random() * 3, diving: 0 }); // turtles dive now and then; logs never do
         }
       }
