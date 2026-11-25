@@ -765,6 +765,7 @@
   var ballFlight = null; // the throw in the air: launch spot, target, flight time, arrived
   var passTimeLeft = 0, passTimeMax = 0, impeded = false, reachedX = false, reachedXT = 0, graceT = 0; // countdown to the catch spot and its full length; held-up flag; reached the X; time since reaching it (coverage breaks then); time left in the grace window after the ball lands
   var passRoute = null; // what kind of throw this is (depth + direction), for the HUD
+  var playKind = 'run'; // the current play, so spawn fairness can differ run vs pass
   var coverBurstT = 0; // seconds left of the coverage break burst after a catch
     var pvx = 0, pvy = 0; // runner's velocity, for the defence's lead
     var resultMain = '', resultSub = '', resultT = 0, timeGoneShown = false, hudT = 0;
@@ -878,7 +879,13 @@
             };
           }
           // Fair spawn: never on top of the runner, never on the catch spot.
-          if (Math.hypot(cand.x - px, cand.y - py) < 100) continue;
+          // On a run the front may set up closer (60px): at 100px no
+          // defender could ever reach the runner near the line, so a
+          // stuffed run was impossible and every carry gained 4+ yards
+          // before contact. 60px still gives the runner a beat to read
+          // the front and pick a gap.
+          var minSpawn = (line && playKind === 'run') ? 60 : 100;
+          if (Math.hypot(cand.x - px, cand.y - py) < minSpawn) continue;
           if (passTarget && Math.hypot(cand.x - passTarget.x, cand.y - passTarget.y) < 70) continue;
           // Random spawn: keep the line from stacking two men on one spot,
           // so the randomised positions still read as a spread-out defence.
@@ -1020,6 +1027,7 @@
       });
     }
     function startPlay(kind) {
+      playKind = kind;
       if (paused) doResume();
       playStartYards = yardsToGo();
       playStartPy = py;
@@ -1045,7 +1053,7 @@
       // itself; the fair-spawn checks keep men off the runner and off
       // each other.
       var maxReach = passLimit * 160; // deepest the gold X can sit
-      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 35, maxReach + 155] : [110, 195]);
+      spawnDefenders(defenderCount(), true, true, kind === 'pass' ? [maxReach + 35, maxReach + 155] : [55, 120]);
       // Blockers (Nov 10, Mikey: every once in a while, two men in front
       // of you to clear a lane — on Easy they are always there). A blocker
       // runs ahead of Father and ties up the nearest defender in his
@@ -1460,7 +1468,14 @@
           // beaten man still chases instead of standing in his lane.
           // After a catch the state is run too, but caught is set, so
           // the post-catch chase is untouched.
-          tx = clamp(px + pvx * 0.3, d.lane - 70, d.lane + 70);
+          // Close quarters change it: once the runner is within 70px
+          // of the man's depth, the lane gives way and he takes the
+          // runner directly. Playtests showed every run gaining 5+
+          // yards (mean 8.3, none stuffed) because a runner could
+          // simply run past a man frozen in his corridor; now the man
+          // in the gap actually contests the carry at the point of
+          // attack, so stuffed runs and short gains exist.
+          tx = Math.abs(py - d.y) < 70 ? (px + pvx * 0.3) : clamp(px + pvx * 0.3, d.lane - 70, d.lane + 70);
           ty = py + pvy * 0.3;
         }
         var want = Math.atan2(ty - d.y, tx - d.x);
@@ -1656,25 +1671,30 @@
         }
       }
     }
+    var bowlFieldGrad = null, bowlLightGrad = null;
     function draw() {
       var ctx = api.ctx;
       updateCam();
       // Field: a soft vertical gradient over the mown stripes, so the pitch
       // reads as a lit surface, not a flat green board. Stripes stay subtle.
-      var fieldGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
-      fieldGrad.addColorStop(0, '#21543a');
-      fieldGrad.addColorStop(1, '#1a4230');
-      ctx.fillStyle = fieldGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      // Both screen-space gradients are identical every frame, so they are
+      // built once per mount instead of twice per frame.
+      if (!bowlFieldGrad) {
+        bowlFieldGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+        bowlFieldGrad.addColorStop(0, '#21543a');
+        bowlFieldGrad.addColorStop(1, '#1a4230');
+        bowlLightGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+        bowlLightGrad.addColorStop(0, 'rgba(255,246,220,0.10)');
+        bowlLightGrad.addColorStop(0.5, 'rgba(255,246,220,0.0)');
+        bowlLightGrad.addColorStop(1, 'rgba(0,0,0,0.10)');
+      }
+      ctx.fillStyle = bowlFieldGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
       for (var band = 0; band < 10; band++) {
         ctx.fillStyle = band % 2 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.05)';
         ctx.fillRect(0, screenY(RUNGUN_END_Y + band * 78.4), GAME_W, 79.4);
       }
       // A soft light from above, fading toward the goal, for depth.
-      var light = ctx.createLinearGradient(0, 0, 0, GAME_H);
-      light.addColorStop(0, 'rgba(255,246,220,0.10)');
-      light.addColorStop(0.5, 'rgba(255,246,220,0.0)');
-      light.addColorStop(1, 'rgba(0,0,0,0.10)');
-      ctx.fillStyle = light; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      ctx.fillStyle = bowlLightGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
       ctx.strokeStyle = 'rgba(255,255,255,0.38)'; ctx.lineWidth = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = '11px Georgia';
       for (var y = 10; y <= 80; y += 10) {
@@ -4263,18 +4283,46 @@
       if (lives <= 0) { gameOver(); return; }
       dyingT = 1.1;
     }
-    function draw() {
-      var ctx = api.ctx;
-      ctx.fillStyle = '#1d1712'; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      // Walls
+    var wallLayer = null, wallTried = false;
+    function renderWallLayer() {
+      // The cloister walls never change, so they are painted once onto
+      // an offscreen canvas and blitted each frame instead of redrawing
+      // ~300 tiles (up to two rects each) 60 times a second. If an
+      // offscreen canvas is unavailable, the direct draw below is used.
+      wallTried = true;
+      var cv = null, c2 = null;
+      try { cv = document.createElement('canvas'); cv.width = GAME_W; cv.height = GAME_H; c2 = cv.getContext('2d'); } catch (e) { c2 = null; }
+      if (!c2) return;
+      c2.fillStyle = '#1d1712'; c2.fillRect(0, 0, GAME_W, GAME_H);
       for (var r = 0; r < MAZE_ROWS; r++) for (var c = 0; c < MAZE_COLS; c++) {
         var ch = MAZE_MAP[r][c];
         var px = MAZE_OX + c * MAZE_CELL, py = MAZE_OY + r * MAZE_CELL;
         if (ch === '#') {
-          ctx.fillStyle = '#33261a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
-          ctx.fillStyle = '#4a3a28'; ctx.fillRect(px + 1, py + 1, MAZE_CELL - 2, MAZE_CELL - 2);
+          c2.fillStyle = '#33261a'; c2.fillRect(px, py, MAZE_CELL, MAZE_CELL);
+          c2.fillStyle = '#4a3a28'; c2.fillRect(px + 1, py + 1, MAZE_CELL - 2, MAZE_CELL - 2);
         } else if (ch === 'H') {
-          ctx.fillStyle = '#2a211a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
+          c2.fillStyle = '#2a211a'; c2.fillRect(px, py, MAZE_CELL, MAZE_CELL);
+        }
+      }
+      wallLayer = cv;
+    }
+    function draw() {
+      var ctx = api.ctx;
+      if (!wallTried) renderWallLayer();
+      if (wallLayer) {
+        ctx.drawImage(wallLayer, 0, 0);
+      } else {
+        ctx.fillStyle = '#1d1712'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        // Walls
+        for (var r = 0; r < MAZE_ROWS; r++) for (var c = 0; c < MAZE_COLS; c++) {
+          var ch = MAZE_MAP[r][c];
+          var px = MAZE_OX + c * MAZE_CELL, py = MAZE_OY + r * MAZE_CELL;
+          if (ch === '#') {
+            ctx.fillStyle = '#33261a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
+            ctx.fillStyle = '#4a3a28'; ctx.fillRect(px + 1, py + 1, MAZE_CELL - 2, MAZE_CELL - 2);
+          } else if (ch === 'H') {
+            ctx.fillStyle = '#2a211a'; ctx.fillRect(px, py, MAZE_CELL, MAZE_CELL);
+          }
         }
       }
       var pulse = Object.keys(candles).length <= 10 ? (0.5 + 0.5 * Math.sin(performance.now() / 200)) : 1;
