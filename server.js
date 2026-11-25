@@ -1310,16 +1310,34 @@ function stateName(code) { return STATE_NAMES[code] || code; }
 
 // ---- Mass times link (outbound link only, no data copied) ----
 // MassTimes.org is a JavaScript app. Its own deep link format is
-// /map?SearchQueryTerm=<City>, <State>: the app itself sets that query
-// param when it geocodes a place search, and its search results are
-// indexed under that URL (for example /map?SearchQueryTerm=Madison,
+// /map?SearchQueryTerm=<place>: the app itself sets that query param
+// when it geocodes a place search, and its search results are indexed
+// under that URL (for example /map?SearchQueryTerm=Madison,
 // Wisconsin). The link only sends the visitor there; no Mass times are
-// copied, scraped, or stored. Fallback chain: city + state, then state
-// alone, then the MassTimes.org home page, so the link always appears.
+// copied, scraped, or stored.
+// The term now leads with the parish name, so the map centers on the
+// parish itself instead of the city center: "St. Patrick, Erie,
+// Pennsylvania" geocodes to the church (verified against Nominatim,
+// which resolves the bare name to the church and the street address to
+// the same point). A trailing " Parish" is stripped first, because the
+// geocoder returns nothing for "St. Patrick Parish, Erie,
+// Pennsylvania" but resolves the bare name. Values that are not a
+// place at all ("Retired", "On Duty Outside the Diocese") are dropped.
+// Fallback chain: parish + city + state, then city + state, then
+// state alone, then the MassTimes.org home page, so the link always
+// appears.
+function massTimesParish(p) {
+  const raw = String(p.parish || '').trim();
+  if (!raw) return '';
+  const low = raw.toLowerCase();
+  if (low === 'retired' || low.includes('on duty')) return '';
+  return raw.replace(/\s+parish$/i, '').trim();
+}
 function massTimesUrl(p) {
+  const parish = massTimesParish(p);
   const city = String(p.city || '').trim();
   const state = stateName(String(p.state || '').trim());
-  const term = city && state ? `${city}, ${state}` : (state || city || '');
+  const term = [parish, city, state].filter(Boolean).join(', ');
   if (!term) return 'https://masstimes.org/';
   return 'https://masstimes.org/map?SearchQueryTerm=' + encodeURIComponent(term);
 }
