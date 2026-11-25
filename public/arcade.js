@@ -2353,7 +2353,11 @@
     applySteepleDiff();
     function newStone() {
       var w = tower.length ? tower[tower.length - 1].w : BASE_W;
-      moving = { x: -w / 2, w: w, dir: 1, speed: stoneBase + tower.length * stonePer };
+      // Narrow stones swing slower: the swing speed scales down as the
+      // tower narrows, so a deep run on a thin tower stays humanly
+      // playable instead of demanding frame-perfect drops at full pace.
+      var soft = clamp(w / 70, 0.6, 1);
+      moving = { x: -w / 2, w: w, dir: 1, speed: (stoneBase + tower.length * stonePer) * soft };
     }
     function startGame() {
       applySteepleDiff();
@@ -2369,11 +2373,18 @@
       var top = tower.length ? tower[tower.length - 1] : { x: (GAME_W - BASE_W) / 2, w: BASE_W, y: BASE_Y };
       var left = Math.max(moving.x, top.x), right = Math.min(moving.x + moving.w, top.x + top.w);
       var overlap = right - left;
-      if (overlap <= 0) {
+      if (overlap < 6) {
+        // Too thin to hold: a landing that keeps less than 6px of stone
+        // crumbles away instead of balancing the tower on a sliver the
+        // player can neither see nor build on. It counts as a miss for
+        // the grace stones and the buttress, and the falling stone shows
+        // why the run ended.
+        var crumbled = overlap > 0;
+        if (crumbled) debris.push({ x: moving.x, w: moving.w, y: top.y - 18, vy: 0, life: 0.9 });
         // Early grace: the first three stones are for learning the swing.
         // A clean miss that early just drops the stone and lets the player
         // try again instead of ending the run before it has begun.
-        if (tower.length < graceTopple) { api.showBanner('Missed \u2014 try again', 1400); newStone(); return; }
+        if (tower.length < graceTopple) { api.showBanner(crumbled ? 'Too thin \u2014 the sliver crumbles' : 'Missed \u2014 try again', 1400); newStone(); return; }
         // The buttress (feature, flagged): once per run, a clean miss past
         // the grace stones is caught and placed as one narrow foothold
         // centred on the tower top, instead of ending the run. The next
@@ -2461,9 +2472,17 @@
         (perfectStreak > 1 ? '<span>Perfect x' + perfectStreak + '</span>' : '') +
         '<span>' + (tower.length >= windFrom ? 'Wind: ' + (wind >= 0 ? '→' : '←') + ' ' + Math.abs(Math.round(wind)) : 'Calm air') + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
     }
+    var steepleBg = null;
     function draw() {
       var ctx = api.ctx;
-      ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      // Warm sky gradient, built once per mount instead of every frame.
+      if (!steepleBg) {
+        steepleBg = ctx.createLinearGradient(0, 0, 0, GAME_H);
+        steepleBg.addColorStop(0, '#fffdf7');
+        steepleBg.addColorStop(0.75, '#f7ecd7');
+        steepleBg.addColorStop(1, '#efdfc2');
+      }
+      ctx.fillStyle = steepleBg; ctx.fillRect(0, 0, GAME_W, GAME_H);
       ctx.fillStyle = '#2e5e4e'; ctx.fillRect(0, GAME_H - 14 + camOff, GAME_W, 14);
       ctx.fillStyle = '#6e1a26';
       ctx.fillRect((GAME_W - BASE_W) / 2, BASE_Y + camOff, BASE_W, 14);
