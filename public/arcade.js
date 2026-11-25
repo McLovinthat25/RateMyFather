@@ -1984,6 +1984,7 @@
     applyStackDiff();
     var state = 'ready', paused = false, dropT = 0, raf = 0, last = 0, destroyed = false;
     var lockT = 0, lockResets = 0, stackRun = 0; // lock delay at the floor; run id, so a level-up banner from an old game never fires into a new one
+    var clearingRows = null, clearT = 0; // rows flashing before they collapse; the next pane waits for the flash
     var LOCK_DELAY = 0.45, MAX_LOCK_RESETS = 12; // a pane resting on the floor (or the stack) waits this long before it locks, and a nudge or turn restarts the wait (up to 12 times), so a pane can still be slid into place at speed instead of locking the instant it touches down
     function resetGrid() { grid = []; for (var y = 0; y < ROWS; y++) { grid.push(new Array(COLS).fill(null)); } }
     function shuffledBag() {
@@ -2036,10 +2037,9 @@
       // Every pane placed pays a little, so the score moves before the
       // first line clears and a new player sees progress from the start.
       score += 5;
-      var cleared = 0;
-      for (var y = ROWS - 1; y >= 0; y--) {
-        if (grid[y].every(Boolean)) { grid.splice(y, 1); grid.unshift(new Array(COLS).fill(null)); cleared++; y++; }
-      }
+      var full = [];
+      for (var y = ROWS - 1; y >= 0; y--) { if (grid[y].every(Boolean)) full.push(y); }
+      var cleared = full.length;
       if (cleared) {
         var oldLevel = level;
         combo += 1;
@@ -2053,8 +2053,25 @@
         var clearName = ['', 'Single', 'Double', 'Triple', 'Tetris'][cleared];
         api.showBanner(clearName + '! +' + (STACK_POINTS[cleared] * oldLevel + (combo > 1 ? (combo - 1) * 50 * oldLevel : 0)) + (combo > 1 ? ' \u00b7 Combo x' + combo : ''), 1300);
         if (level > oldLevel) { var runAtClear = stackRun; setTimeout(function () { if (runAtClear === stackRun && state === 'playing') api.showBanner('Level ' + level + ' — the panes fall faster', 1500); }, 1300); }
-      } else combo = 0;
+        updateHud();
+        // The cleared rows flash amber-gold for a beat before they
+        // collapse, so a clear reads as an event instead of the rows
+        // vanishing the instant the pane lands. The next pane waits.
+        clearingRows = full; clearT = 0.16; cur = null;
+        return;
+      }
+      combo = 0;
       updateHud();
+      spawn();
+    }
+    function finishClear() {
+      // Rebuild without the cleared rows and pad the top with fresh
+      // rows: splicing one row at a time shifts the indices of the
+      // rows above it, which would leave a cleared row behind.
+      var keep = grid.filter(function (row, y) { return clearingRows.indexOf(y) < 0; });
+      while (keep.length < ROWS) keep.unshift(new Array(COLS).fill(null));
+      grid = keep;
+      clearingRows = null;
       spawn();
     }
     function ghostY() { var y = cur.y; while (!collides(cur.shape, cur.x, y + 1)) y++; return y; }
@@ -2076,7 +2093,7 @@
       applyStackDiff();
       parishSubmitted['stack'] = false;
       stackRun += 1;
-      resetGrid(); bag = []; peekBag = null; held = null; canHold = true; score = 0; lines = 0; level = 1; combo = 0; dropT = 0; lockT = 0; lockResets = 0;
+      resetGrid(); bag = []; peekBag = null; held = null; canHold = true; score = 0; lines = 0; level = 1; combo = 0; dropT = 0; lockT = 0; lockResets = 0; clearingRows = null; clearT = 0;
       state = 'playing'; api.hideOverlay(); spawn(); updateHud();
     }
     function updateHud() {
@@ -2099,14 +2116,28 @@
       api.ctx.strokeStyle = 'rgba(56,41,26,0.6)';
       api.ctx.strokeRect(px + 1, py + 1, CELL - 2, CELL - 2);
     }
+    var stackBg = null;
     function draw() {
       var ctx = api.ctx;
-      ctx.fillStyle = '#1d1712'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      // Warm backdrop with a soft glow behind the window, built once per
+      // mount instead of every frame; the window sits in a chapel gloom
+      // rather than on a flat black board.
+      if (!stackBg) {
+        stackBg = ctx.createRadialGradient(GAME_W / 2, GAME_H / 2, 60, GAME_W / 2, GAME_H / 2, 340);
+        stackBg.addColorStop(0, '#2e2118');
+        stackBg.addColorStop(1, '#171008');
+      }
+      ctx.fillStyle = stackBg; ctx.fillRect(0, 0, GAME_W, GAME_H);
       ctx.fillStyle = '#fffdf7'; ctx.fillRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
       ctx.strokeStyle = '#33261a'; ctx.lineWidth = 2;
       ctx.strokeRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
       for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
         if (grid[y][x]) drawCell(x, y, STACK_COLORS[grid[y][x]]);
+      }
+      if (clearingRows) {
+        var fa = 0.3 + 0.4 * (1 - clearT / 0.16);
+        ctx.fillStyle = 'rgba(232,185,76,' + fa.toFixed(2) + ')';
+        clearingRows.forEach(function (y) { ctx.fillRect(OX, OY + y * CELL, COLS * CELL, CELL); });
       }
       if (cur && state === 'playing') {
         var gy = ghostY();
@@ -2185,6 +2216,7 @@
     }
     function tick(dt) {
       if (paused || destroyed || state !== 'playing') return;
+      if (clearingRows) { clearT -= dt; if (clearT <= 0) finishClear(); return; }
       // Lock delay: a pane resting on the floor or the stack waits before
       // it locks, so it can still be slid or turned into place at speed.
       // Nudges and turns restart the wait (capped), gravity does not run
@@ -2217,10 +2249,10 @@
     // A nudge or turn restarts the lock wait (capped), so a grounded pane
     // can be worked into place instead of locking mid-adjustment.
     function bumpLock() { if (lockT > 0 && lockResets < MAX_LOCK_RESETS) { lockT = 0; lockResets++; } }
-    function moveLeft() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x - 1, cur.y)) { cur.x--; bumpLock(); } }
-    function moveRight() { if (state === 'playing' && !paused && !collides(cur.shape, cur.x + 1, cur.y)) { cur.x++; bumpLock(); } }
+    function moveLeft() { if (state === 'playing' && !paused && cur && !collides(cur.shape, cur.x - 1, cur.y)) { cur.x--; bumpLock(); } }
+    function moveRight() { if (state === 'playing' && !paused && cur && !collides(cur.shape, cur.x + 1, cur.y)) { cur.x++; bumpLock(); } }
     function rotateCur() {
-      if (state !== 'playing' || paused) return;
+      if (state !== 'playing' || paused || !cur) return;
       var r = rotate(cur.shape);
       // Wall kicks: a turn against the wall or a stack tries a nudge left,
       // right, then further out, then up a row, before refusing — so turning
@@ -2230,8 +2262,8 @@
         if (!collides(r, cur.x + kicks[i][0], cur.y + kicks[i][1])) { cur.x += kicks[i][0]; cur.y += kicks[i][1]; cur.shape = r; bumpLock(); return; }
       }
     }
-    function softDrop() { if (state !== 'playing' || paused) return; if (!collides(cur.shape, cur.x, cur.y + 1)) { cur.y++; score += 1; updateHud(); } else lock(); }
-    function slam() { if (state !== 'playing' || paused) return; var y0 = cur.y; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; score += (cur.y - y0) * 2; lock(); }
+    function softDrop() { if (state !== 'playing' || paused || !cur) return; if (!collides(cur.shape, cur.x, cur.y + 1)) { cur.y++; score += 1; updateHud(); } else lock(); }
+    function slam() { if (state !== 'playing' || paused || !cur) return; var y0 = cur.y; while (!collides(cur.shape, cur.x, cur.y + 1)) cur.y++; score += (cur.y - y0) * 2; lock(); }
     document.addEventListener('keydown', onKey);
     // Keyboard play for the whole loop: Space or Enter starts and plays
     // again, arrows move and turn, C holds, Space slams. The typing and
