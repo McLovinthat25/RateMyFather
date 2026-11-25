@@ -2604,8 +2604,8 @@
   // so the safety net stays earned late in a run instead of permanent.
   var FLEE_PATROL = [[40, 40], [440, 40], [440, 280], [40, 280]];
   var FLEE_SINS = [
-    { name: 'Pride', speed: 46, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
-    { name: 'Lust', speed: 46, color: '#b8452a', hunt: 'chase' }, { name: 'Envy', speed: 44, color: '#2e5e4e', hunt: 'flank' },
+    { name: 'Pride', speed: 44, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
+    { name: 'Lust', speed: 44, color: '#b8452a', hunt: 'chase' }, { name: 'Envy', speed: 44, color: '#2e5e4e', hunt: 'flank' },
     { name: 'Gluttony', speed: 44, color: '#8a6d3b', hunt: 'patrol' }, { name: 'Wrath', speed: 48, color: '#6e1a26', hunt: 'chase' },
     { name: 'Sloth', speed: 32, color: '#6f6259', hunt: 'chase' },
   ];
@@ -2623,7 +2623,7 @@
       // Medium is the current game.
       if (diff === 'easy') { sinMult = 0.75; bellFirst = 25; bellEvery = 50; warmupSecs = 8; releaseSchedule = [0, 0, 0, 18, 28, 40, 52]; }
       else if (diff === 'hard') { sinMult = 1.3; bellFirst = 35; bellEvery = 70; warmupSecs = 4; releaseSchedule = [0, 0, 0, 8, 14, 20, 26]; }
-      else { sinMult = 1; bellFirst = 30; bellEvery = 60; warmupSecs = 6; releaseSchedule = [0, 0, 0, 12, 20, 30, 40]; }
+      else { sinMult = 1; bellFirst = 25; bellEvery = 60; warmupSecs = 8; releaseSchedule = [0, 8, 3, 18, 28, 38, 48]; }
     }
     applyFleeDiff();
     var nearCd = 0; // near-miss bonus cooldown
@@ -2804,7 +2804,7 @@
         // fixed waypoints around the edge and never hunts you. During the
         // warmup every sin moves at a third of pace.
         var tx = px, ty = py;
-        if (s.hunt === 'lead') { tx = px + pvx * 0.25; ty = py + pvy * 0.25; }
+        if (s.hunt === 'lead') { tx = px + pvx * 0.2; ty = py + pvy * 0.2; }
         else if (s.hunt === 'flank') {
           var fdx = px - s.x, fdy = py - s.y, fl = Math.hypot(fdx, fdy) || 1;
           tx = px + (-fdy / fl) * 45 * s.side; ty = py + (fdx / fl) * 45 * s.side;
@@ -2843,7 +2843,7 @@
         for (var j = 0; j < sins.length; j++) {
           if (elapsed < sins[j].releaseAt) continue;
           var d = Math.hypot(sins[j].x - px, sins[j].y - py);
-          if (d < 20) {
+          if (d < 18) {
             // Guardian halo (feature, flagged): the shield breaks instead
             // of the run ending, the sins are driven back a step, and a
             // grace second keeps the next frame from catching Father
