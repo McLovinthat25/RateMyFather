@@ -2432,10 +2432,7 @@ app.post('/priest/:id/review', async (req, res) => {
   if (burst.rows[0].n >= BURST_LIMIT) {
     return res.status(429).send(page('Review refused', `<h1>Review refused</h1><p>Too many reviews in a short time. After ${BURST_LIMIT} reviews in an hour from one source, further reviews are refused. Please try again later.</p>`));
   }
-  // All new reviews are held for owner approval before going live. The
-  // screening outcome still decides the flag and reason, but nothing
-  // auto-publishes anymore.
-  let status = 'pending';
+  let status = screen.outcome === 'approve' ? 'approved' : 'pending';
   let abuseFlag = !!screen.abuseFlag;
   let flagReason = screen.outcome === 'hold' ? screen.reason : null;
   // Spike check: SPIKE_THRESHOLD+ reviews of this priest in 24h force-holds this one.
@@ -2445,8 +2442,12 @@ app.post('/priest/:id/review', async (req, res) => {
     `INSERT INTO reviews (priest_id, pace, homily, likability, church_beauty, mass_context, attendance_duration, body, status, source_token_hash, abuse_flag, flag_reason)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
     [pid, pace, homily, likability, churchBeauty, massContext || null, attendance, body || null, status, token, abuseFlag, flagReason]);
-  await audit('review_held', 'review', ins.rows[0].id, flagReason);
-  res.send(page('Review held for moderation', `<h1>Thank you</h1><p>Your review is held for moderation and is <strong>not public</strong>. A held review counts toward nothing: no averages, no counts, no listings. Nothing is live until the owner approves it.</p><p><a href="/priest/${pid}">Back to profile</a></p>`));
+  await audit(status === 'approved' ? 'review_auto_approved' : 'review_held', 'review', ins.rows[0].id, flagReason);
+  if (status === 'approved') {
+    res.send(page('Review published', `<h1>Thank you</h1><p>Your review passed screening and is now public. It can still be removed later if it is reported and found to break the rules.</p><p><a href="/priest/${pid}">Back to profile</a></p>`));
+  } else {
+    res.send(page('Review held for moderation', `<h1>Thank you</h1><p>Your review is held for moderation and is <strong>not public</strong>. A held review counts toward nothing: no averages, no counts, no listings. Nothing is live until it passes screening.</p><p><a href="/priest/${pid}">Back to profile</a></p>`));
+  }
 });
 
 // ---------- public feed-in: add priest, report, correction, legal ----------
@@ -2597,9 +2598,9 @@ app.get('/how', (req, res) => res.send(page('How ratings work', `<div class="pro
   <p>Each review also says how long the reviewer has attended the parish or known the priest, from a first-time visitor to a lifelong parishioner, and that is printed on the review so readers can weigh it.</p></section>
   <section class="how-section"><h2>How reviews are checked</h2>
   <ul class="how-list">
-    <li>All reviews are held for owner approval before going live.</li>
+    <li>Star-only and clearly clean reviews may auto-approve.</li>
     <li>Borderline reviews wait in the moderation queue.</li>
-    <li>Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag.</li>
+    <li>Possible unverified factual allegations (misconduct, crimes, improper behavior) are force-held with an abuse flag and never auto-approved.</li>
     <li>Reviews containing phone numbers or email addresses are refused outright.</li>
     <li>Reviews containing bad language are refused outright.</li>
     <li>A repeat review of the same priest from the same source is refused.</li>
@@ -2629,7 +2630,7 @@ app.get('/privacy', (req, res) => res.send(infoPage('Privacy Policy', `<p>What i
   <p>Nothing else is collected. There is no advertising on this site.</p>
   <p>To request removal of personal information you submitted, use the <a href="/legal">Legal notices</a> page. Contact details you provide in a legal notice are never published.</p>`)));
 app.get('/moderation', (req, res) => res.send(infoPage('Content & Moderation Policy', `<p>All moderation is owner-only and enforced on the server. Public buttons (report, correction, legal notice) only flag the queue; they never approve, reject, or delete anything.</p>
-  <p>All reviews are held for owner approval before going live. Possible unverified factual allegations are force-held with an abuse flag. Reviews with private contact details are refused. Reviews with bad language are refused. Repeat reviews of the same priest from the same source are refused. Hourly bursts (over 5 per source) are refused. 24-hour spikes (10 or more per priest) are force-held.</p>
+  <p>Star-only and clearly clean reviews may auto-approve. Borderline reviews wait for a human owner decision. Possible unverified factual allegations are force-held with an abuse flag and never auto-approved. Reviews with private contact details are refused. Reviews with bad language are refused. Repeat reviews of the same priest from the same source are refused. Hourly bursts (over 5 per source) are refused. 24-hour spikes (10 or more per priest) are force-held.</p>
   <p>The owner can approve or reject pending reviews and user-added profiles, delete reviews and user-added profiles, and resolve reports, corrections, and legal notices. Directory profiles are never deleted.</p>
   <p>Review of reviews and deletion are owner-only functions, enforced server side, not merely hidden in the interface.</p>`)));
 
@@ -2778,10 +2779,10 @@ app.get('/owner', requireOwner, async (req, res) => {
   const corrRows = pendingCorrections.map((r) => `<li>Priest ${r.priest_id}: ${esc(r.type)}: ${esc(r.details)} ${act('correction-resolve', r.id)}Resolve</button></form></li>`).join('') || '<li>None</li>';
   const legalRows = pendingLegal.map((r) => `<li>${esc(r.details.slice(0, 200))} ${act('legal-resolve', r.id)}Resolve</button></form></li>`).join('') || '<li>None</li>';
   res.send(page('Owner moderation', `<h1>Owner moderation queue</h1>
-    <p><a href="/owner/audit">View moderation audit list</a></p>
+    <p><a href="/owner/audit">View auto-approved audit list</a></p>
     <form action="/owner/logout" method="post"><button type="submit">Sign out</button></form>
     <h2>Abuse-flagged reviews &mdash; review these first</h2>
-    <p class="small">These reviews were force-held because they may contain an unverified factual allegation (misconduct, a crime, or improper behavior). They are not public until an owner approves them. Read each one and approve, reject, or delete it.</p>
+    <p class="small">These reviews were force-held because they may contain an unverified factual allegation (misconduct, a crime, or improper behavior). They are never auto-approved and are not public. Read each one and approve, reject, or delete it.</p>
     <ul>${abuseRows}</ul>
     <h2>Pending reviews</h2><ul>${reviewRows}</ul>
     <h2>Pending user-added priests</h2><ul>${priestRows}</ul>
@@ -2793,7 +2794,7 @@ app.get('/owner', requireOwner, async (req, res) => {
 app.get('/owner/audit', requireOwner, async (req, res) => {
   const rows = (await pool.query(`SELECT * FROM moderation_audit ORDER BY created_at DESC LIMIT 200`)).rows;
   const list = rows.map((r) => `<li>${esc(r.created_at.toISOString())} ${esc(r.action)} ${esc(r.target_type)} ${esc(r.target_id == null ? '' : String(r.target_id))} ${esc(r.detail || '')}</li>`).join('') || '<li>No audit entries yet.</li>';
-  res.send(page('Moderation audit', `<h1>Moderation audit</h1><p>Includes past auto-approved reviews.</p><ul>${list}</ul><p><a href="/owner">Back to queue</a></p>`));
+  res.send(page('Moderation audit', `<h1>Moderation audit</h1><p>Includes auto-approved reviews.</p><ul>${list}</ul><p><a href="/owner">Back to queue</a></p>`));
 });
 
 // Every mutation below passes requireOwner BEFORE touching data.
