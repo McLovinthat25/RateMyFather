@@ -1131,10 +1131,6 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .trivia-feedback p { margin:8px 0; }
 .trivia-time { color:var(--dim); }
 .trivia-best-update { font-weight:600; }
-/* Kahoot countdown: a draining gold bar plus the points on offer, so the
-   player can see the value of a fast answer fall in real time. */
-.trivia-countdown { height:8px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); overflow:hidden; max-width:640px; margin:0 0 14px; }
-.trivia-countdown span { display:block; height:100%; width:100%; background:var(--gold); transition:width .1s linear; }
 .trivia-running { color:var(--dim); font-size:14px; margin:14px 0 0; }
 .trivia-earned { font-weight:700; color:var(--text); }
 /* Name for the leaderboard: label above, input and Start button side

@@ -1,18 +1,18 @@
-// Daily trivia, Kahoot style: a round of three questions, one at a time,
-// four multiple choice answers each, 10 seconds per question. A right
-// answer earns 500 to 1,000 points depending on speed: answer instantly
-// for 1,000, at the buzzer for 500. A wrong answer, or no answer before
-// the timer runs out, earns nothing for that question. The points on
-// offer tick down live while the countdown bar drains, so the player
-// can feel the speed matter. After each answer the correct one is shown
-// with a one-line explanation and the points earned, then the next
-// question. The round posts its points, correct count, total time, and
-// an optional display name for the shared daily leaderboard (top five
-// names and points for the day, most points first, fastest time breaking
-// ties). The name is remembered in this browser only, so a returning
-// player does not type it twice. A blocked name is refused by the
-// server and the score is not saved under it; the player is asked to
-// pick a different name.
+// Daily trivia: a round of three questions, one at a time, four
+// multiple choice answers each. There is no timer and no time limit:
+// take as long as you like on a question. A right answer earns 500 to
+// 1,000 points depending on speed: answer instantly for 1,000, and the
+// points on offer tick down to a floor of 500, where they stay, so a
+// slow right answer is still worth 500. A wrong answer earns nothing
+// for that question. After each answer the correct one is shown with a
+// one-line explanation and the points earned, then the next question.
+// The round posts its points, correct count, total time, and an optional
+// display name for the shared daily leaderboard (top five names and
+// points for the day, most points first, fastest time breaking ties).
+// The name is remembered in this browser only, so a returning player
+// does not type it twice. A blocked name is refused by the server and
+// the score is not saved under it; the player is asked to pick a
+// different name.
 // The day's questions come from window.RMF_TRIVIA (rendered into the
 // homepage by the server); the answer order is shuffled per round so the
 // right answer is not always in the same spot. Keyboard: 1-4 or A-D
@@ -30,7 +30,10 @@
   var state = null; // { i, points, correct, startedAt, finishedAt, answered, qStartedAt }
   var timerId = null;
   var LETTERS = ['A', 'B', 'C', 'D'];
-  var QUESTION_SECONDS = 10;
+  // How long the points on offer take to decay from 1,000 to the 500
+  // floor. This is not a time limit: after it passes, a right answer
+  // is still worth 500 and there is no time-out.
+  var POINTS_DECAY_SECONDS = 10;
   var NAME_KEY = 'rmf_trivia_name';
 
   function shuffle(a) {
@@ -50,12 +53,13 @@
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  // Kahoot scoring: a right answer is worth 500 points at the buzzer,
-  // 1,000 instantly, sliding linearly in between. Wrong is 0.
+  // A right answer is worth 1,000 instantly, decaying linearly to a
+  // floor of 500 over POINTS_DECAY_SECONDS, where it stays no matter
+  // how long the player takes. Wrong is 0.
   function pointsFor(correct, elapsedMs) {
     if (!correct) return 0;
-    var t = Math.max(0, Math.min(QUESTION_SECONDS * 1000, elapsedMs));
-    return 500 + Math.round(500 * (1 - t / (QUESTION_SECONDS * 1000)));
+    var t = Math.max(0, Math.min(POINTS_DECAY_SECONDS * 1000, elapsedMs));
+    return 500 + Math.round(500 * (1 - t / (POINTS_DECAY_SECONDS * 1000)));
   }
 
   function readName() {
@@ -70,35 +74,25 @@
     } catch (e) { /* private mode: the name just is not remembered */ }
   }
 
-  function stopTimer() {
+  function stopTicker() {
     if (timerId !== null) { clearInterval(timerId); timerId = null; }
   }
 
-  function startTimer() {
-    stopTimer();
+  // The points on offer tick down live (1,000 toward the 500 floor) so
+  // the player can feel the speed matter. There is no clock, no
+  // countdown, and no time-out: the ticker only moves the points.
+  function startTicker() {
+    stopTicker();
     if (typeof setInterval !== 'function') return;
     timerId = setInterval(function () {
       if (!state || state.answered) return;
       var elapsed = Date.now() - state.qStartedAt;
-      var remain = Math.max(0, QUESTION_SECONDS - elapsed / 1000);
-      var bar = document.getElementById('trivia-countdown-fill');
-      var pts = document.getElementById('trivia-countdown-points');
-      var secs = document.getElementById('trivia-countdown-secs');
-      if (bar) bar.style.width = (remain / QUESTION_SECONDS * 100) + '%';
+      var pts = document.getElementById('trivia-offer-points');
       if (pts) pts.textContent = fmtPoints(pointsFor(true, elapsed)) + ' pts';
-      if (secs) secs.textContent = Math.ceil(remain) + 's';
-      if (elapsed >= QUESTION_SECONDS * 1000) timeOut();
     }, 100);
   }
 
-  function timeOut() {
-    if (!state || state.answered) return;
-    state.answered = true;
-    stopTimer();
-    showFeedback(null, 0, true);
-  }
-
-  function showFeedback(btn, earned, timedOut) {
+  function showFeedback(btn, earned) {
     var q = questions[state.i];
     if (state.i + 1 >= questions.length) {
       state.finishedAt = Date.now();
@@ -109,11 +103,7 @@
       else if (b === btn) b.classList.add('is-wrong');
     });
     var feedback = panel.querySelector('.trivia-feedback');
-    var verdict = timedOut
-      ? 'Time ran out.'
-      : earned > 0
-        ? 'Correct.'
-        : 'Not quite.';
+    var verdict = earned > 0 ? 'Correct.' : 'Not quite.';
     var pointsLine = earned > 0
       ? '<p class="trivia-earned">+' + fmtPoints(earned) + ' points' + (earned >= 900 ? ' — quick!' : '') + '</p>'
       : '<p class="trivia-earned">No points for this one.</p>';
@@ -136,8 +126,7 @@
     if (!q) { renderDone(); return; }
     state.qStartedAt = Date.now();
     var order = shuffle([0, 1, 2, 3]);
-    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + ' &middot; <span id="trivia-countdown-secs">10s</span> &middot; <span id="trivia-countdown-points">1,000 pts</span></p>'
-      + '<div class="trivia-countdown" aria-hidden="true"><span id="trivia-countdown-fill"></span></div>'
+    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + ' &middot; <span id="trivia-offer-points">1,000 pts</span></p>'
       + '<h3 class="trivia-q">' + q.q + '</h3>'
       + '<div class="trivia-answers">' + order.map(function (oi, pos) {
         return '<button type="button" class="trivia-answer" data-pos="' + pos + '" data-correct="' + (oi === q.correct ? '1' : '0') + '" aria-label="' + LETTERS[pos] + ': ' + q.answers[oi].replace(/"/g, '&quot;') + '"><span class="trivia-key" aria-hidden="true">' + LETTERS[pos] + '</span><span class="trivia-answer-text">' + q.answers[oi] + '</span></button>';
@@ -145,17 +134,17 @@
       + '<p class="trivia-running">Score so far: <strong>' + fmtPoints(state.points) + ' points</strong></p>'
       + '<div class="trivia-feedback" hidden></div>';
     panel.innerHTML = html;
-    startTimer();
+    startTicker();
     panel.querySelectorAll('.trivia-answer').forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (state.answered) return;
         state.answered = true;
-        stopTimer();
+        stopTicker();
         var elapsed = Date.now() - state.qStartedAt;
         var right = btn.getAttribute('data-correct') === '1';
         var earned = pointsFor(right, elapsed);
         if (right) { state.points += earned; state.correct++; }
-        showFeedback(btn, earned, false);
+        showFeedback(btn, earned);
       });
     });
   }
@@ -192,7 +181,7 @@
   }
 
   function renderDone() {
-    stopTimer();
+    stopTicker();
     var ms = (state.finishedAt || Date.now()) - state.startedAt;
     var total = questions.length;
     panel.innerHTML = '<h3 class="trivia-q">You scored ' + fmtPoints(state.points) + ' points.</h3>'
