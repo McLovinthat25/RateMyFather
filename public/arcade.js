@@ -696,16 +696,77 @@
   // Swatch picker for the Bowl start screen: each button shows the home
   // and away discs side by side, so the pair reads at a glance. The
   // current one reads burgundy with a gold outline.
+  // Segmented one-row pickers for the Bowl start card (Nov 25, Mikey:
+  // the uniform pills wrapped onto two clunky rows). Every picker is a
+  // single flex row of equal segments, so it fits the card on one line
+  // on desktop and phone alike, with the current choice in burgundy.
+  var BOWL_SEG_STYLE = 'flex:1 1 0;min-width:0;margin:0;padding:6px 2px;';
+  var BOWL_SEG_ON = 'background:#6e1a26;color:#f7ecd4;box-shadow:0 0 0 2px #b28a2e;';
+  function bowlSegLabel(text) {
+    return '<div style="font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#6b5636;margin-bottom:4px;">' + text + '</div>';
+  }
+  function bowlSegRow(inner) { return '<div style="display:flex;gap:4px;">' + inner + '</div>'; }
   function uniformPickerHtml(cur) {
-    return '<div class="uniform-row" style="margin:0 0 14px;">' +
-      '<div style="font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#6b5636;margin-bottom:6px;">Uniforms</div>' +
+    return '<div class="uniform-row" style="margin:0 0 9px;">' + bowlSegLabel('Uniforms') + bowlSegRow(
       BOWL_UNIFORMS.map(function (u) {
         var on = u.id === cur;
-        return '<button type="button" class="press uniform-btn" data-uniform="' + u.id + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="margin:0 4px;padding:7px 10px;' + (on ? 'background:#6e1a26;color:#f7ecd4;box-shadow:0 0 0 2px #b28a2e;' : '') + '">' +
-          '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + u.home.bright + ';border:2px solid ' + u.home.ring + ';vertical-align:middle;"></span>' +
-          '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + u.away.bright + ';border:2px solid ' + u.away.ring + ';vertical-align:middle;margin-left:5px;"></span>' +
-          '<span style="margin-left:7px;vertical-align:middle;">' + u.name + '</span></button>';
-      }).join('') + '</div>';
+        return '<button type="button" class="press uniform-btn" data-uniform="' + u.id + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="' + BOWL_SEG_STYLE + (on ? BOWL_SEG_ON : '') + '">' +
+          '<span style="display:block;margin-bottom:3px;">' +
+          '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' + u.home.bright + ';border:2px solid ' + u.home.ring + ';vertical-align:middle;"></span>' +
+          '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' + u.away.bright + ';border:2px solid ' + u.away.ring + ';vertical-align:middle;margin-left:3px;"></span></span>' +
+          '<span style="display:block;font-size:10px;letter-spacing:.03em;">' + u.name + '</span></button>';
+      }).join('')) + '</div>';
+  }
+  // The Bowl's own compact difficulty row: same .diff-btn wiring as the
+  // shared picker, but segmented to match the other start-card rows.
+  // (No gold ring in the on-style: wireDiffButtons resets background
+  // and colour only, so a ring would never clear.)
+  function bowlDiffRowHtml(cur) {
+    return '<div class="diff-row" style="margin:0 0 9px;">' + bowlSegLabel('Difficulty') + bowlSegRow(
+      DIFFS.map(function (d) {
+        var on = d === cur;
+        return '<button type="button" class="press diff-btn" data-diff="' + d + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="' + BOWL_SEG_STYLE + 'font-size:12px;' + (on ? 'background:#6e1a26;color:#f7ecd4;' : '') + '">' + DIFF_LABEL[d] + '</button>';
+      }).join('')) + '</div>';
+  }
+  // Field surfaces (Nov 25, Mikey: a field colour choice, with a
+  // stained-glass option). Classic is the mown green the game has
+  // always had; Stained Glass lays the pitch out in jewel-tone panes
+  // with dark leading, in burgundy, amber and deep blue; Midnight is a
+  // deep blue night pitch. The choice is remembered like the uniforms,
+  // and the yard lines and numbers brighten on the dark surfaces so
+  // the markings read on every field.
+  var BOWL_FIELDS = [
+    { id: 'classic', name: 'Classic', swatch: 'linear-gradient(180deg,#21543a,#1a4230)' },
+    { id: 'stained', name: 'Stained Glass', swatch: 'repeating-linear-gradient(90deg,#5e1a24 0 6px,#7a5a17 6px 12px,#1d3557 12px 18px,#3d2a57 18px 24px)' },
+    { id: 'midnight', name: 'Midnight', swatch: 'linear-gradient(180deg,#26304f,#171f36)' },
+  ];
+  var BOWL_STAINED_TONES = ['#5e1a24', '#7a5a17', '#1d3557', '#3d2a57'];
+  function bowlField(id) { for (var i = 0; i < BOWL_FIELDS.length; i++) if (BOWL_FIELDS[i].id === id) return BOWL_FIELDS[i]; return BOWL_FIELDS[0]; }
+  function readBowlField() { return bowlField(storeGet('rmf-parish-bowl-field')); }
+  function fieldPickerHtml(cur) {
+    return '<div class="field-row" style="margin:0 0 9px;">' + bowlSegLabel('Field') + bowlSegRow(
+      BOWL_FIELDS.map(function (f) {
+        var on = f.id === cur;
+        return '<button type="button" class="press field-btn" data-field="' + f.id + '" aria-pressed="' + (on ? 'true' : 'false') + '" style="' + BOWL_SEG_STYLE + (on ? BOWL_SEG_ON : '') + '">' +
+          '<span style="display:inline-block;width:22px;height:12px;border-radius:3px;border:1px solid rgba(43,29,18,.5);background:' + f.swatch + ';vertical-align:-2px;margin-right:5px;"></span>' +
+          '<span style="font-size:11px;">' + f.name + '</span></button>';
+      }).join('')) + '</div>';
+  }
+  function wireFieldButtons(root, get, set) {
+    if (!root) return;
+    var btns = root.querySelectorAll('.field-btn');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        set(b.getAttribute('data-field'));
+        btns.forEach(function (x) {
+          var on = x.getAttribute('data-field') === get();
+          x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          x.style.background = on ? '#6e1a26' : '';
+          x.style.color = on ? '#f7ecd4' : '';
+          x.style.boxShadow = on ? '0 0 0 2px #b28a2e' : '';
+        });
+      });
+    });
   }
   function wireUniformButtons(root, get, set) {
     if (!root) return;
@@ -730,6 +791,7 @@
     var priestName = storeGet('rmf-parish-bowl-priest') || 'Father';
     var diff = readDiff('rungun'); // Easy / Medium / Hard; Medium is the tuned default
     var uniform = readBowlUniform(); // kit choice, remembered in the browser
+    var field = readBowlField(); // field surface choice, remembered the same way
     var defLo = 100, defHi = 125, covLo = 110, covHi = 130, defBase = 3;
     var passLimit = BOWL_PASS_TIME_LIMIT, oppChance = 0.5, waveSecs = BOWL_WAVE_SECONDS;
     var blockerChance = 0.35, blockerCount = 2; // how often blockers line up, and how many
@@ -1277,11 +1339,14 @@
       state = 'choose'; showChoose();
     }
     // ---- designed overlay card: parchment panel, burgundy frame, gold rule ----
-    function bowlCard(eyebrow, title, body, extra) {
-      return '<div style="background:' + BOWL_PARCHMENT + ';border:3px solid ' + BOWL_BURGUNDY + ';border-radius:16px;padding:24px 22px 20px;max-width:430px;margin:0 auto;text-align:center;box-shadow:0 14px 34px rgba(20,8,6,.45);color:' + BOWL_INK + ';font-family:Georgia,serif;">' +
-        '<div style="font-size:11px;font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:' + BOWL_BURGUNDY_BRIGHT + '">' + eyebrow + '</div>' +
-        '<div style="font-size:32px;font-weight:700;line-height:1.05;margin:10px 0 2px;letter-spacing:.01em;">' + title + '</div>' +
-        '<div style="width:64px;height:3px;background:' + BOWL_GOLD + ';margin:12px auto;"></div>' +
+    function bowlCard(eyebrow, title, body, extra, slim) {
+      // Slim is the start card only (Nov 25, Mikey: the start screen
+      // scrolled internally and cut the button off): tighter padding,
+      // title and rule spacing so the whole card fits on one page.
+      return '<div style="background:' + BOWL_PARCHMENT + ';border:3px solid ' + BOWL_BURGUNDY + ';border-radius:16px;padding:' + (slim ? '15px 16px 12px' : '24px 22px 20px') + ';max-width:430px;margin:0 auto;text-align:center;box-shadow:0 14px 34px rgba(20,8,6,.45);color:' + BOWL_INK + ';font-family:Georgia,serif;">' +
+        '<div style="font-size:' + (slim ? '10px' : '11px') + ';font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:' + BOWL_BURGUNDY_BRIGHT + '">' + eyebrow + '</div>' +
+        '<div style="font-size:' + (slim ? '25px' : '32px') + ';font-weight:700;line-height:1.05;margin:' + (slim ? '6px 0 1px' : '10px 0 2px') + ';letter-spacing:.01em;">' + title + '</div>' +
+        '<div style="width:64px;height:3px;background:' + BOWL_GOLD + ';margin:' + (slim ? '7px auto' : '12px auto') + ';"></div>' +
         body + (extra || '') + '</div>';
     }
     function bowlBtn(id, label) {
@@ -1302,17 +1367,26 @@
       state = 'ready';
       customizing = false;
       api.showOverlay(bowlCard(esc(parishName) + ' vs ' + esc(opponent), 'The Parish Bowl',
-        '<p style="margin:0 0 6px;font-size:15px;line-height:1.45;">Four quarters of 45 seconds. Run or pass your way down the field — four downs to gain ten yards, and a touchdown is worth the yards plus a hundred. St Swithin\u2019s drive after every quarter. Every once in a while two blockers line up in front of you to clear a lane — on Easy they are always there.</p>' +
-        '<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">' + gameMark('rungun') + '</p>',
-        diffPickerHtml('rungun', diff) +
+        '<p style="margin:0 0 10px;font-size:13.5px;line-height:1.4;max-width:none;">Four 45-second quarters. Run or pass: four downs to gain ten yards, a touchdown worth the yards plus a hundred. St Swithin\u2019s drive after every quarter. Two blockers sometimes clear your lane \u2014 always, on Easy. <span style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b5636;">' + gameMark('rungun') + '</span></p>',
+        bowlDiffRowHtml(diff) +
         uniformPickerHtml(uniform.id) +
+        fieldPickerHtml(field.id) +
         bowlBtn('bowl-kickoff', 'Kick off for ' + esc(parishName)) +
         keyHint('Keyboard: Space or Enter kicks off · R runs, T throws.') +
-        '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>'));
+        '<button type="button" class="linklike" id="bowl-custom">Play as your home parish priest</button>', true));
       wireDiffButtons(api.overlay, 'rungun', function () { return diff; }, function (d) { diff = d; writeDiff('rungun', d); applyBowlDiff(); });
       wireUniformButtons(api.overlay, function () { return uniform.id; }, function (u) { uniform = bowlUniform(u); storeSet('rmf-parish-bowl-uniform', u); });
+      wireFieldButtons(api.overlay, function () { return field.id; }, function (f) { field = bowlField(f); storeSet('rmf-parish-bowl-field', f); });
       var kick = document.getElementById('bowl-kickoff');
-      if (kick) kick.addEventListener('click', function () { state = 'choose'; showChoose(); });
+      if (kick) {
+        // A touch smaller than the shared big button and kept to one
+        // line, so the start card stays on one screen.
+        kick.style.fontSize = '15px';
+        kick.style.padding = '11px 12px';
+        kick.style.maxWidth = '100%';
+        kick.style.whiteSpace = 'nowrap';
+        kick.addEventListener('click', function () { state = 'choose'; showChoose(); });
+      }
       var custom = document.getElementById('bowl-custom');
       if (custom) custom.addEventListener('click', showCustomize);
       updateHud();
@@ -1698,32 +1772,62 @@
         }
       }
     }
-    var bowlFieldGrad = null, bowlLightGrad = null;
+    var bowlFieldGrad = null, bowlLightGrad = null, bowlGradField = null;
     function draw() {
       var ctx = api.ctx;
       updateCam();
-      // Field: a soft vertical gradient over the mown stripes, so the pitch
-      // reads as a lit surface, not a flat green board. Stripes stay subtle.
-      // Both screen-space gradients are identical every frame, so they are
-      // built once per mount instead of twice per frame.
-      if (!bowlFieldGrad) {
+      // Field: the chosen surface (see BOWL_FIELDS). Classic is a soft
+      // vertical gradient over the mown stripes, so the pitch reads as a
+      // lit surface, not a flat green board; Midnight is the same shape
+      // in deep blue; Stained Glass lays jewel-tone panes with dark
+      // leading where the panes meet, instead of stripes. The gradients
+      // are built once per surface instead of every frame, and the yard
+      // lines and numbers brighten on the dark surfaces so the markings
+      // read on every field.
+      if (!bowlFieldGrad || bowlGradField !== field.id) {
+        bowlGradField = field.id;
         bowlFieldGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
-        bowlFieldGrad.addColorStop(0, '#21543a');
-        bowlFieldGrad.addColorStop(1, '#1a4230');
-        bowlLightGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
-        bowlLightGrad.addColorStop(0, 'rgba(255,246,220,0.10)');
-        bowlLightGrad.addColorStop(0.5, 'rgba(255,246,220,0.0)');
-        bowlLightGrad.addColorStop(1, 'rgba(0,0,0,0.10)');
+        if (field.id === 'midnight') {
+          bowlFieldGrad.addColorStop(0, '#26304f');
+          bowlFieldGrad.addColorStop(1, '#171f36');
+        } else {
+          bowlFieldGrad.addColorStop(0, '#21543a');
+          bowlFieldGrad.addColorStop(1, '#1a4230');
+        }
+        if (!bowlLightGrad) {
+          bowlLightGrad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+          bowlLightGrad.addColorStop(0, 'rgba(255,246,220,0.10)');
+          bowlLightGrad.addColorStop(0.5, 'rgba(255,246,220,0.0)');
+          bowlLightGrad.addColorStop(1, 'rgba(0,0,0,0.10)');
+        }
       }
-      ctx.fillStyle = bowlFieldGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      for (var band = 0; band < 10; band++) {
-        ctx.fillStyle = band % 2 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.05)';
-        ctx.fillRect(0, screenY(RUNGUN_END_Y + band * 78.4), GAME_W, 79.4);
+      if (field.id === 'stained') {
+        // Base coat first: the panes only cover the marked field, so the
+        // ground behind the start line needs its own deep tone.
+        ctx.fillStyle = '#241118'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        for (var pane = 0; pane < 10; pane++) {
+          ctx.fillStyle = BOWL_STAINED_TONES[pane % BOWL_STAINED_TONES.length];
+          ctx.fillRect(0, screenY(RUNGUN_END_Y + pane * 78.4), GAME_W, 79.4);
+        }
+        ctx.strokeStyle = 'rgba(12,7,4,0.6)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var lead = 1; lead < 10; lead++) {
+          var leadY = screenY(RUNGUN_END_Y + lead * 78.4);
+          ctx.moveTo(0, leadY); ctx.lineTo(GAME_W, leadY);
+        }
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = bowlFieldGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        for (var band = 0; band < 10; band++) {
+          ctx.fillStyle = band % 2 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.05)';
+          ctx.fillRect(0, screenY(RUNGUN_END_Y + band * 78.4), GAME_W, 79.4);
+        }
       }
       // A soft light from above, fading toward the goal, for depth.
       ctx.fillStyle = bowlLightGrad; ctx.fillRect(0, 0, GAME_W, GAME_H);
-      ctx.strokeStyle = 'rgba(255,255,255,0.38)'; ctx.lineWidth = 1;
-      ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = '11px Georgia';
+      var darkField = field.id !== 'classic';
+      ctx.strokeStyle = darkField ? 'rgba(255,255,255,0.52)' : 'rgba(255,255,255,0.38)'; ctx.lineWidth = 1;
+      ctx.fillStyle = darkField ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.62)'; ctx.font = '11px Georgia';
       for (var y = 10; y <= 80; y += 10) {
         var fy = screenY(RUNGUN_END_Y + y * PX_PER_YARD);
         ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(GAME_W, fy); ctx.stroke();
