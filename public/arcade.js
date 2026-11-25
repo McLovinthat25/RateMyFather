@@ -343,7 +343,7 @@
     { id: 'maze', title: 'Candle Maze', blurb: 'Light 110 candles to complete the vigil while four sins hunt you. Holy water turns the tables.', verdict: 'Best for steady nerves.', how: 'Arrows or WASD to steer, or swipe and drag on the field. Father walks on his own. Once per life, grace shields you from a catch.', howTouch: 'Swipe and drag on the field to steer. Father walks on his own. Once per life, grace shields you from a catch.', mount: mountMaze },
     { id: 'steeple', title: 'Steeple Stack', blurb: 'Stack the stones into the tallest steeple. Mind the wind after stone fifteen.', verdict: 'Best for patient builders.', how: 'Tap or press Space to drop a stone on the tower. Once per run the buttress catches a clean miss.', howTouch: 'Tap to drop a stone on the tower. Once per run the buttress catches a clean miss.', mount: mountSteeple },
     { id: 'dash', title: 'Sanctuary Dash', blurb: 'The golden cube never stops. Jump the thorns, ride the pews, and reach the sanctuary 9,200px down the nave.', verdict: 'Best for quick reflexes.', how: 'Space, Up, W, click or tap to jump. Hold to keep hopping. Once per run, grace forgives a fall.', howTouch: 'Tap to jump. Hold to keep hopping. Once per run, grace forgives a fall.', mount: mountDash },
-    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash. Every fifth halo earns a guardian halo that turns one catch aside.', howTouch: 'Drag on the floor to run, tap to dash. Every fifth halo earns a guardian halo that turns one catch aside.', mount: mountFlee },
+    { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash. Halos earn guardian halos that turn one catch aside — each new one takes more halos than the last.', howTouch: 'Drag on the floor to run, tap to dash. Halos earn guardian halos that turn one catch aside — each new one takes more halos than the last.', mount: mountFlee },
     { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door. A golden candle waits on the road: +50 and +8s on the bell.', howTouch: 'Touch and hold the field to walk toward your finger. Follow the moth to the right door. A golden candle waits on the road: +50 and +8s on the bell.', mount: mountCross },
     { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger. Once per season you may take back a week.', howTouch: 'Tap a choice each week. Watch the ledger. Once per season you may take back a week.', mount: mountPastor },
   ];
@@ -2597,9 +2597,11 @@
   // Patrollers walk this loop around the sanctuary edge: four waypoints
   // near the corners, in order, so two patrollers on different offsets
   // never stack on each other.
-  var FLEE_FEATURE_SHIELD = true; // Feature (flagged): every fifth halo
-  // earns a guardian halo that turns one catch aside, so daring halo runs
-  // build their own safety net instead of only adding points.
+  var FLEE_FEATURE_SHIELD = true; // Feature (flagged): halos earn a
+  // guardian halo that turns one catch aside, so daring halo runs
+  // build their own safety net instead of only adding points. Each
+  // new shield costs more halos than the last (5, then 10, then 15),
+  // so the safety net stays earned late in a run instead of permanent.
   var FLEE_PATROL = [[40, 40], [440, 40], [440, 280], [40, 280]];
   var FLEE_SINS = [
     { name: 'Pride', speed: 46, color: '#5b2a4a', hunt: 'lead' }, { name: 'Greed', speed: 52, color: '#b28a2e', hunt: 'patrol' },
@@ -2626,7 +2628,7 @@
     applyFleeDiff();
     var nearCd = 0; // near-miss bonus cooldown
     var rings = []; // halo pickup rings: gold circles that bloom and fade
-    var fleeShield = false, fleeShieldBreaks = 0, fleeHalosTaken = 0, shieldGraceT = 0; // guardian halo (feature, flagged): held shield, times one broke, halos taken this run, and the grace second after a break
+    var fleeShield = false, fleeShieldBreaks = 0, fleeHalosSinceShield = 0, fleeShieldsEarned = 0, shieldGraceT = 0; // guardian halo (feature, flagged): held shield, times one broke, halos since the last shield was earned, shields earned this run, and the grace second after a break
     var fleeHudT = 0; // HUD refresh throttle: the scoreboard redraws 4 times a second, not every frame
     var fleeLastDx = 0, fleeLastDy = -1; // last direction moved, so a dash from a standstill still carries Father somewhere
     var prevPx = px, prevPy = py, pvx = 0, pvy = 0;
@@ -2638,7 +2640,7 @@
       parishSubmitted['flee'] = false;
       px = GAME_W / 2; py = GAME_H / 2; score = 0; elapsed = 0; bellT = bellFirst; warmupT = warmupSecs;
       bellCount = 0; nearCd = 0; rings = [];
-      fleeShield = false; fleeShieldBreaks = 0; fleeHalosTaken = 0; shieldGraceT = 0; fleeHudT = 0;
+      fleeShield = false; fleeShieldBreaks = 0; fleeHalosSinceShield = 0; fleeShieldsEarned = 0; shieldGraceT = 0; fleeHudT = 0;
       fleeLastDx = 0; fleeLastDy = -1;
       // The first bell rings after 30 seconds, not 60, so a casual player
       // has a realistic shot at the pushback that is the point of the game.
@@ -2824,11 +2826,15 @@
       for (var i = halos.length - 1; i >= 0; i--) {
         if (Math.hypot(halos[i].x - px, halos[i].y - py) < 20) {
           rings.push({ x: halos[i].x, y: halos[i].y, t: 0 });
-          halos.splice(i, 1); score += 25; fleeHalosTaken += 1; spawnHalo(); updateHud();
-          // Guardian halo (feature, flagged): every fifth halo earns a
-          // shield that turns one catch aside. Only one is held at a time.
-          if (FLEE_FEATURE_SHIELD && !fleeShield && fleeHalosTaken % 5 === 0) {
-            fleeShield = true;
+          halos.splice(i, 1); score += 25; if (!fleeShield) fleeHalosSinceShield += 1; spawnHalo(); updateHud();
+          // Guardian halo (feature, flagged): halos earn a shield that
+          // turns one catch aside. Only one is held at a time, and each
+          // new shield costs more halos than the last (5, then 10,
+          // then 15, ...), so the net stays earned late in a run.
+          // Halos only count toward the next shield while unshielded:
+          // a shield held for a long run must not bank its replacement.
+          if (FLEE_FEATURE_SHIELD && !fleeShield && fleeHalosSinceShield >= 5 * (fleeShieldsEarned + 1)) {
+            fleeShield = true; fleeShieldsEarned += 1; fleeHalosSinceShield = 0;
             api.showBanner('A guardian halo shields you — it will turn one catch aside', 1800);
           }
         }
@@ -2924,8 +2930,8 @@
       if (state === 'playing' && !paused && dashCd <= 0) { dashT = 0.45; dashCd = 2; }
     });
     api.actions.appendChild(dashBtn);
-    api.actions.appendChild(el('p', 'game-note', gameNote('Halos are +25, and every fifth halo earns a guardian halo that turns one catch aside. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.', 'Halos are +25, and every fifth halo earns a guardian halo that turns one catch aside. The bell rings and drives the sins back \u2014 survive until it rings. Drag on the floor to run, tap to dash.')));
-    api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. Every fifth halo earns a guardian halo that turns one catch aside. ' + gameMark('flee') + '</p>' +
+    api.actions.appendChild(el('p', 'game-note', gameNote('Halos are +25, and halos earn guardian halos that turn one catch aside — each new one takes more than the last. Space dashes through the sins. Space or Enter starts and runs again. The bell rings and drives the sins back \u2014 survive until it rings. On touch, drag on the floor to run, tap to dash.', 'Halos are +25, and halos earn guardian halos that turn one catch aside — each new one takes more than the last. The bell rings and drives the sins back \u2014 survive until it rings. Drag on the floor to run, tap to dash.')));
+    api.showOverlay('<h3>Flee the Sins</h3><p>Seven sins are chasing you. Grab halos, dash with grace, and survive until the bell rings \u2014 it drives the sins back. Halos earn guardian halos that turn one catch aside, and each new one takes more than the last. ' + gameMark('flee') + '</p>' +
       diffPickerHtml('flee', diff) +
       '<button type="button" class="big-btn press" id="flee-start">Start running</button>' +
       kbdHint('Keyboard: Space or Enter starts running.'));
