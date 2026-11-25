@@ -1,10 +1,13 @@
 // Daily trivia: a round of three questions, one at a time, four
-// multiple choice answers each. There is no timer and no time limit:
-// take as long as you like on a question. A right answer earns 500 to
-// 1,000 points depending on speed: answer instantly for 1,000, and the
-// points on offer tick down to a floor of 500, where they stay, so a
-// slow right answer is still worth 500. A wrong answer earns nothing
-// for that question. After each answer the correct one is shown with a
+// multiple choice answers each. There is no timer, no countdown, and
+// no time limit: take as long as you like on a question. A right
+// answer earns 500 to 1,000 points depending on speed: answer
+// instantly for 1,000, and the value decays behind the scenes to a
+// floor of 500, where it stays, so a slow right answer is still worth
+// 500. The decaying value is never shown while a question is open:
+// the player only sees what an answer earned after answering. A
+// wrong answer earns nothing for that question. After each answer
+// the correct one is shown with a
 // one-line explanation and the points earned, then the next question.
 // The round posts its points, correct count, total time, and an optional
 // display name for the shared daily leaderboard (top five names and
@@ -28,7 +31,6 @@
   var bestLine = document.getElementById('trivia-best');
   var board = document.getElementById('trivia-board');
   var state = null; // { i, points, correct, startedAt, finishedAt, answered, qStartedAt }
-  var timerId = null;
   var LETTERS = ['A', 'B', 'C', 'D'];
   // How long the points on offer take to decay from 1,000 to the 500
   // floor. This is not a time limit: after it passes, a right answer
@@ -74,24 +76,6 @@
     } catch (e) { /* private mode: the name just is not remembered */ }
   }
 
-  function stopTicker() {
-    if (timerId !== null) { clearInterval(timerId); timerId = null; }
-  }
-
-  // The points on offer tick down live (1,000 toward the 500 floor) so
-  // the player can feel the speed matter. There is no clock, no
-  // countdown, and no time-out: the ticker only moves the points.
-  function startTicker() {
-    stopTicker();
-    if (typeof setInterval !== 'function') return;
-    timerId = setInterval(function () {
-      if (!state || state.answered) return;
-      var elapsed = Date.now() - state.qStartedAt;
-      var pts = document.getElementById('trivia-offer-points');
-      if (pts) pts.textContent = fmtPoints(pointsFor(true, elapsed)) + ' pts';
-    }, 100);
-  }
-
   function showFeedback(btn, earned) {
     var q = questions[state.i];
     if (state.i + 1 >= questions.length) {
@@ -126,7 +110,7 @@
     if (!q) { renderDone(); return; }
     state.qStartedAt = Date.now();
     var order = shuffle([0, 1, 2, 3]);
-    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + ' &middot; <span id="trivia-offer-points">1,000 pts</span></p>'
+    var html = '<p class="trivia-count">Question ' + (state.i + 1) + ' of ' + questions.length + ' &middot; ' + q.topic + '</p>'
       + '<h3 class="trivia-q">' + q.q + '</h3>'
       + '<div class="trivia-answers">' + order.map(function (oi, pos) {
         return '<button type="button" class="trivia-answer" data-pos="' + pos + '" data-correct="' + (oi === q.correct ? '1' : '0') + '" aria-label="' + LETTERS[pos] + ': ' + q.answers[oi].replace(/"/g, '&quot;') + '"><span class="trivia-key" aria-hidden="true">' + LETTERS[pos] + '</span><span class="trivia-answer-text">' + q.answers[oi] + '</span></button>';
@@ -134,12 +118,10 @@
       + '<p class="trivia-running">Score so far: <strong>' + fmtPoints(state.points) + ' points</strong></p>'
       + '<div class="trivia-feedback" hidden></div>';
     panel.innerHTML = html;
-    startTicker();
     panel.querySelectorAll('.trivia-answer').forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (state.answered) return;
         state.answered = true;
-        stopTicker();
         var elapsed = Date.now() - state.qStartedAt;
         var right = btn.getAttribute('data-correct') === '1';
         var earned = pointsFor(right, elapsed);
@@ -181,7 +163,6 @@
   }
 
   function renderDone() {
-    stopTicker();
     var ms = (state.finishedAt || Date.now()) - state.startedAt;
     var total = questions.length;
     panel.innerHTML = '<h3 class="trivia-q">You scored ' + fmtPoints(state.points) + ' points.</h3>'
