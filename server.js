@@ -1342,13 +1342,16 @@ function massTimesUrl(p) {
   return 'https://masstimes.org/map?SearchQueryTerm=' + encodeURIComponent(term);
 }
 function massTimesHtml(p) {
+  const parish = massTimesParish(p);
   const city = String(p.city || '').trim();
   const state = stateName(String(p.state || '').trim());
-  const place = city && state ? `${city}, ${state}` : (state || city || 'your area');
+  const place = city && state ? `${city}, ${state}` : (state || city || '');
+  const heading = parish ? `Find Mass times at ${parish}` : `Find Mass times near ${place || 'your area'}`;
+  const where = [parish, place].filter(Boolean).join(', ') || 'your area';
   return `<section class="mass-times-box card--ruled" aria-label="Mass times">
     <p class="eyebrow">Going to Mass</p>
-    <h3>Find Mass times near ${esc(place)}</h3>
-    <p class="small">Mass times are listed on MassTimes.org, a separate site. This link takes you there for ${esc(place)}. RateMyFather does not copy or store their times.</p>
+    <h3>${esc(heading)}</h3>
+    <p class="small">Mass times are listed on MassTimes.org, a separate site. This link takes you there for ${esc(where)}. RateMyFather does not copy or store their times.</p>
     <p><a class="btn btn--gold" href="${massTimesUrl(p)}" target="_blank" rel="noopener">Find Mass times on MassTimes.org <span aria-hidden="true">&#8599;</span></a></p>
     <p class="small">Prefer an app? <a href="https://play.google.com/store/apps/details?id=com.itsharedservices.hdsmyc.app&amp;hl=en" target="_blank" rel="noopener">Catholic Mass Times on Google Play</a> &middot; <a href="https://apps.apple.com/us/app/catholic-mass-times/id789923520" target="_blank" rel="noopener">Catholic Mass Times on the App Store</a> (both leave this site).</p>
   </section>`;
