@@ -1135,6 +1135,7 @@
       // it does not touch the play, the pass, or the score.
       if (playYards > 0) { popYards = playYards; popT = 1.4; }
       var note = '';
+      var turnoverOnDowns = false;
       if (flags.touchdown) {
         tds += 1;
         py = RUNGUN_START_Y; px = GAME_W / 2;
@@ -1145,6 +1146,7 @@
         down += 1;
         if (down > 4) {
           note = ' Turnover on downs — back to the 80.';
+          turnoverOnDowns = true;
           py = RUNGUN_START_Y; px = GAME_W / 2;
           down = 1; seriesStart = 80; seriesGain = 0;
           drivePlays = 0; driveYards = 0; qTurnover = true;
@@ -1163,6 +1165,7 @@
           down += 1;
           if (down > 4) {
             note = ' Turnover on downs — back to the 80.';
+            turnoverOnDowns = true;
             py = RUNGUN_START_Y; px = GAME_W / 2;
             down = 1; seriesStart = 80; seriesGain = 0;
             drivePlays = 0; driveYards = 0; qTurnover = true;
@@ -1170,9 +1173,33 @@
         }
       }
       resultMain = main; resultSub = sub + note;
-      resultT = 1.6; state = 'result';
       coachLine = main + ' ' + sub + note;
+      // A failed fourth down gets its own screen, not just a suffix on
+      // the 1.6-second result slab: the end of a drive was easy to miss
+      // entirely, and the game simply reappeared at the 80 with a fresh
+      // 1ST & 10 as if nothing had happened.
+      if (turnoverOnDowns) { showTurnoverOnDowns(main, sub); }
+      else { resultT = 1.6; state = 'result'; }
       updateHud();
+    }
+    // The turnover-on-downs screen, in the same card style as half time
+    // and full time. The booking is already done by endPlay: the ball is
+    // back at the 80 with a fresh set of downs, and qTurnover is set, so
+    // St Swithin's take their field-position edge when the quarter turns
+    // — the game's standing way of booking the change of possession,
+    // since their drives resolve at the quarter break. This screen just
+    // makes the moment land before the next drive is chosen.
+    function showTurnoverOnDowns(main, sub) {
+      state = 'turnover';
+      api.showOverlay(bowlCard('Quarter ' + quarter + ' · ' + esc(parishName), 'Turnover on downs',
+        '<p style="margin:0 0 4px;font-size:15px;">' + esc(main) + ' ' + esc(sub) + '</p>' +
+        '<p style="margin:0 0 16px;font-size:15px;line-height:1.45;">Four downs and the line to gain was not made, so the drive is over and St Swithin\u2019s take over. Your next drive starts back at the 80.</p>',
+        bowlBtn('bowl-turnover-next', 'Next drive') + keyHint('Keyboard: Space or Enter starts the next drive.')));
+      var nx = document.getElementById('bowl-turnover-next');
+      if (nx) nx.addEventListener('click', continueAfterTurnover);
+    }
+    function continueAfterTurnover() {
+      if (clock <= 0) { endQuarter(); } else { showChoose(); }
     }
     function endQuarter() {
       // St Swithin's drive after every quarter, per the demo: the Monsignor
@@ -1959,6 +1986,8 @@
         if (go) resetGame();
       } else if (state === 'result') {
         if (go) { if (clock <= 0) endQuarter(); else showChoose(); }
+      } else if (state === 'turnover') {
+        if (go) continueAfterTurnover();
       }
     }
     document.addEventListener('keydown', onBowlKey);
