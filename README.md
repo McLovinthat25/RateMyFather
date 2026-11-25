@@ -50,16 +50,17 @@ it exits with a clear message saying the parser output is not present yet.
 
 - Reviews containing phone numbers or email addresses (regex) are refused outright.
 - Text matching the documented allegation keyword list (misconduct, crimes,
-  improper behavior) is force-held with an abuse flag and never auto-approved.
-- Star-only and clearly clean, short written reviews may auto-approve; anything
-  borderline (long text or borderline wording) waits in the moderation queue.
+  improper behavior) is force-held with an abuse flag.
+- All new reviews are held for owner approval before going live; clean reviews
+  are held without a flag, anything borderline (long text or borderline wording)
+  waits in the moderation queue with a flag reason.
 - A repeat review of the same priest from the same source is refused outright.
   Source identity is a SHA-256 hash of IP plus user agent; only the hash is stored.
 - After 5 reviews in an hour from one source, further reviews are refused.
 - At 10+ reviews of one priest in 24 hours, further reviews of that priest are
   force-held and flagged as a spike.
-- Confirmation copy is honest per path: a held review is not public and counts
-  toward nothing; an auto-approved review passed screening and can still be removed.
+- Confirmation copy is honest: a held review is not public and counts toward
+  nothing; nothing goes live until the owner approves it.
 
 ## How moderation is enforced (server side, `server.js`)
 
