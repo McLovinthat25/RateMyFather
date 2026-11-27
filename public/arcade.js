@@ -2827,7 +2827,10 @@
       // Medium is the current game.
       if (diff === 'easy') { sinMult = 0.75; bellFirst = 25; bellEvery = 50; warmupSecs = 8; releaseSchedule = [0, 0, 0, 18, 28, 40, 52]; }
       else if (diff === 'hard') { sinMult = 1.3; bellFirst = 35; bellEvery = 70; warmupSecs = 4; releaseSchedule = [0, 0, 0, 8, 14, 20, 26]; }
-      else { sinMult = 1; bellFirst = 25; bellEvery = 60; warmupSecs = 8; releaseSchedule = [0, 8, 3, 18, 28, 38, 48]; }
+      // Medium: Lust joins at 10s, not 3s, so the opening is a single
+      // hunter (Pride) while a casual player learns the arena; the second
+      // chaser arrives just after the 8s warmup ends.
+      else { sinMult = 1; bellFirst = 25; bellEvery = 60; warmupSecs = 8; releaseSchedule = [0, 8, 10, 18, 28, 38, 48]; }
     }
     applyFleeDiff();
     var nearCd = 0; // near-miss bonus cooldown
@@ -2856,9 +2859,10 @@
           x: rand(30, GAME_W - 30), y: i < 4 ? 20 : GAME_H - 20,
           side: i % 2 === 0 ? 1 : -1, phase: rand(0, Math.PI * 2),
           wp: i % 4,
-          // Staggered release: only three sins hunt at first, a new one joins
-          // every twelve seconds. A casual player gets a real chance to learn
-          // the arena before all seven are closing in at once.
+          // Staggered release: Pride hunts from the start, Greed patrols
+          // from 8s, Lust joins at 10s, then a new sin every ten seconds.
+          // A casual player gets a real chance to learn the arena before
+          // all seven are closing in at once.
           releaseAt: releaseSchedule[i] || 0, announced: false };
       });
       halos.push({ x: px + 70, y: py - 50 }); spawnHalo(); spawnHalo();
