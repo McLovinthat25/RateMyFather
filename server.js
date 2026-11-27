@@ -572,7 +572,7 @@ function cspNonceAttr() {
 // deliberate. When the server is overloaded, a follow-up request for a
 // stylesheet or script may fail, but this one response still plays.
 // The game is "The Lost Sheep": sheep pop out of the bushes and you tap them
-// to round them up, minding the wolf. It is new — none of the eight arcade
+// to round them up, minding the wolf. It is new — none of the ten arcade
 // games is a tap-the-target roundup — and it is client side only: no fetch,
 // no database, no server calls of any kind. Best score lives in
 // localStorage only, and the page echoes no user input.
@@ -1249,7 +1249,7 @@ app.get('/', async (req, res) => {
       <div class="breather-text">
       <p class="eyebrow">Take a breather</p>
       <h2>Need a breather?</h2>
-      <p class="explainer">Take a break between Masses with eight little games in the arcade. Best scores live only in your browser.</p>
+      <p class="explainer">Take a break between Masses with ten little games in the arcade. Best scores live only in your browser.</p>
       </div>
       <a class="btn btn--gold btn-pill press" href="/games">Play the arcade</a>
     </section>

@@ -346,6 +346,8 @@
     { id: 'flee', title: 'Flee the Sins', blurb: 'Outrun the seven sins. Grab halos, dash with grace, and mind the confession bell.', verdict: 'Best for a chase.', how: 'Arrows to move, Space for a grace-dash. On a phone, drag on the floor to run, tap to dash. Halos earn guardian halos that turn one catch aside — each new one takes more halos than the last.', howTouch: 'Drag on the floor to run, tap to dash. Halos earn guardian halos that turn one catch aside — each new one takes more halos than the last.', mount: mountFlee },
     { id: 'cross', title: 'Father\u2019s Crossing', blurb: 'Cross the road and the river to reach the church doors before the bell.', verdict: 'Best for careful crossers.', how: 'Arrows or WASD to move, Space or Enter starts, or touch and hold the field to walk toward your finger. Follow the moth to the right door. A golden candle waits on the road: +50 and +8s on the bell.', howTouch: 'Touch and hold the field to walk toward your finger. Follow the moth to the right door. A golden candle waits on the road: +50 and +8s on the bell.', mount: mountCross },
     { id: 'pastor', title: 'Parish Pastor', blurb: 'Run the parish for 16 weeks. Balance the congregation, the funds, and everyone\u2019s happiness.', verdict: 'Best for planners.', how: 'Press 1, 2 or 3 to pick a choice each week, or click one. Space or Enter begins the season. Watch the ledger. Once per season you may take back a week.', howTouch: 'Tap a choice each week. Watch the ledger. Once per season you may take back a week.', mount: mountPastor },
+    { id: 'defence', title: 'Cathedral Defence', blurb: 'The seven sins are marching on the cathedral. Raise bell, candle, font and choir along the path and turn them back.', verdict: 'Best for strategists.', how: 'Pick a tower (keys 1 to 4 or tap its button), then tap a grass plot to place it. Tap a placed tower to see its damage, range and rate and to upgrade it along one of two paths. B or the Begin wave button sends the next wave; the preview names what is coming.', howTouch: 'Tap a tower button, then tap a grass plot to place it. Tap a placed tower to see its numbers and upgrade it. Tap Begin wave when you are ready; the preview names what is coming.', mount: mountDefence },
+    { id: 'pilgrim', title: 'The Pilgrim Path', blurb: 'One stick figure, one calling. Pray, study, serve and work, and rise from seminarian to bishop, one day at a time.', verdict: 'Best for dreamers.', how: 'Press 1 to 4 to choose a place each day, or click one: chapel, library, parish hall or town. Space or Enter rests and ends the day. Every rank asks for a mix of Faith, Wisdom and Charity, and Reputation besides.', howTouch: 'Tap a place each day: chapel, library, parish hall or town. Tap Rest to end the day. Every rank asks for a mix of Faith, Wisdom and Charity, and Reputation besides.', mount: mountPilgrim },
   ];
 
   // ---- arcade shelf ----
@@ -434,7 +436,7 @@
   // Top parishes across the country, per game. The player's home parish
   // row is marked when it is on the board.
   var currentBoardGame = 'rungun';
-  var BOARD_GAME_LABELS = { rungun: 'Parish Bowl', stack: 'Blocks', maze: 'Candle Maze', steeple: 'Steeple Stack', dash: 'Sanctuary Dash', flee: 'Flee the Sins', cross: 'Crossing', pastor: 'Parish Pastor', trivia: 'Trivia' };
+  var BOARD_GAME_LABELS = { rungun: 'Parish Bowl', stack: 'Blocks', maze: 'Candle Maze', steeple: 'Steeple Stack', dash: 'Sanctuary Dash', flee: 'Flee the Sins', cross: 'Crossing', pastor: 'Parish Pastor', defence: 'Defence', pilgrim: 'Pilgrim', trivia: 'Trivia' };
   function leaderboardPanel() {
     var panel = el('div', 'game-card');
     panel.style.marginTop = '14px';
@@ -507,7 +509,7 @@
     root.innerHTML = '';
     var head = el('div', 'arcade-head');
     head.appendChild(el('h2', '', 'The Arcade'));
-    head.appendChild(el('p', 'small', 'Nine little games. Best scores live only in your browser.'));
+    head.appendChild(el('p', 'small', 'Ten little games. Best scores live only in your browser.'));
     var tools = el('div', 'arcade-tools');
     var surprise = el('button', 'press', 'Surprise me'); surprise.type = 'button';
     surprise.addEventListener('click', function () {
@@ -533,6 +535,9 @@
       // so it is reachable on a phone without scrolling past a long paragraph.
       var row = el('div', 'play-row');
       row.appendChild(el('span', 'best', gameMark(g.id)));
+      // The card names the difficulty the game will open at, so every
+      // card carries the same three facts: name, description, level.
+      row.appendChild(el('span', 'diff-tag', DIFF_LABEL[readDiff(g.id)]));
       var play = el('button', 'press', 'Play'); play.type = 'button';
       play.addEventListener('click', function () { openGame(g.id); });
       row.appendChild(play);
@@ -1831,8 +1836,17 @@
       for (var y = 10; y <= 80; y += 10) {
         var fy = screenY(RUNGUN_END_Y + y * PX_PER_YARD);
         ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(GAME_W, fy); ctx.stroke();
-        ctx.fillText(String(80 - y), 8, fy - 5);
+        // Field numbers count up from the offence's own goal line to 50
+        // at midfield, then back down toward the far goal line. Here y is
+        // yards still to go to the far goal: before midfield (y >= 50) the
+        // number is 100 - y, and past midfield it is y.
+        var yardLabel = String(y >= 50 ? 100 - y : y);
+        ctx.fillText(yardLabel, 8, fy - 5);
+        ctx.textAlign = 'right';
+        ctx.fillText(yardLabel, GAME_W - 8, fy - 5);
+        ctx.textAlign = 'left';
       }
+      ctx.fillStyle = darkField ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.62)';
       // First-down line: gold, dashed, so the target is visible on the field.
       var lineToGain = seriesStart - 10;
       if (lineToGain > 0 && lineToGain < 80) {
@@ -3687,6 +3701,233 @@
     ["One combined service, kept short", "A thin congregation, and a few disappointed faces.", -2, -100, -3],
     ["Cancel the Vigil, keep Good Friday only", "The Easter people stay home, and word gets around.", -8, 150, -10]];
 
+  // Parish Pastor event illustrations: one simple cartoon scene per
+  // event, drawn as inline SVG so a week reads as a little picture of
+  // what is happening, not just a paragraph. Titles are the keys, taken
+  // exactly as written in PASTOR_DECK (plus Holy Week); titles are never
+  // personalised, so the map is looked up on the raw deck title.
+  var PASTOR_SCENES = {
+    'The leaky roof': 'roof',
+    'The choir feud': 'choir',
+    'Bingo, twice a week?': 'bingo',
+    'The boiler has died': 'boiler',
+    'A generous offer, with strings': 'donation',
+    'The pantry shelves are bare': 'pantry',
+    'The bishop is coming': 'bishop',
+    'The youth lock-in': 'lockin',
+    'The parking war': 'parking',
+    'No catechists': 'school',
+    'One Saturday, two bookings': 'wedding',
+    'The homily that travelled': 'phone',
+    'The confession queue': 'confession',
+    'The school subsidy': 'subsidy',
+    'The snow Sunday': 'snow',
+    'Margaret retires': 'retire',
+    'The dog on the steps': 'dog',
+    'The votive candles': 'candles',
+    'Festival season': 'festival',
+    'A baptism, and a question': 'baptism',
+    'The organs last note': 'organ',
+    'The pageant': 'pageant',
+    'The funeral request': 'funeral',
+    'The finance councils warning': 'ledger',
+    'The pew that is theirs': 'pew',
+    'The seminarian': 'seminarian',
+    'The journalists question': 'reporter',
+    'The coffee cart proposal': 'coffee',
+    'The parish mission': 'mission',
+    'The relic comes to town': 'relic',
+    'The Corpus Christi procession': 'procession',
+    'The Latin Mass request': 'latin',
+    'The 3 a.m. hour': 'adoration',
+    'The Lenten fish fry': 'fishfry',
+    'The missionarys collection': 'missionary',
+    'Holy Week': 'holyweek'
+  };
+  function pastorSceneSvg(title) {
+    var id = PASTOR_SCENES[title] || 'church';
+    var B = '#6e1a26', B2 = '#7d2430', G = '#b28a2e', Y = '#e9bc4a', P = '#fffdf7',
+      W = '#f3e9d2', S = '#9db8c6', K = '#3a2a22', GR = '#5d7d4a', SK = '#eec39a';
+    function r(x, y, w, h, f, rx) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (rx || 0) + '" fill="' + f + '"/>'; }
+    function c(x, y, rad, f) { return '<circle cx="' + x + '" cy="' + y + '" r="' + rad + '" fill="' + f + '"/>'; }
+    function e(x, y, rx, ry, f) { return '<ellipse cx="' + x + '" cy="' + y + '" rx="' + rx + '" ry="' + ry + '" fill="' + f + '"/>'; }
+    function l(x1, y1, x2, y2, f, w) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + f + '" stroke-width="' + (w || 2) + '" stroke-linecap="round"/>'; }
+    function p(d, f) { return '<path d="' + d + '" fill="' + f + '"/>'; }
+    function ps(d, f, w) { return '<path d="' + d + '" fill="none" stroke="' + f + '" stroke-width="' + (w || 2) + '" stroke-linecap="round"/>'; }
+    function t(x, y, str, size, f) { return '<text x="' + x + '" y="' + y + '" font-family="sans-serif" font-size="' + size + '" font-weight="bold" fill="' + f + '" text-anchor="middle">' + str + '</text>'; }
+    function person(x, y, coat, hair) { // stands on ground line y
+      return c(x, y - 30, 7, SK) + p('M' + (x - 7) + ' ' + (y - 31) + ' a7 6 0 0 1 14 0 Z', hair || '#5a3a22') +
+        r(x - 7, y - 23, 14, 19, coat, 5) + r(x - 6, y - 4, 5, 9, K, 2) + r(x + 1, y - 4, 5, 9, K, 2);
+    }
+    function priest(x, y) { return person(x, y, K, K) + r(x - 2, y - 23, 4, 5, P, 1); }
+    function church(x, y) { // a small church, door on ground line y
+      return r(x - 42, y - 50, 84, 50, B2, 4) + p('M' + (x - 50) + ' ' + (y - 50) + ' L' + x + ' ' + (y - 78) + ' L' + (x + 50) + ' ' + (y - 50) + ' Z', B) +
+        r(x - 8, y - 92, 16, 26, B, 3) + p('M' + (x - 11) + ' ' + (y - 92) + ' L' + x + ' ' + (y - 104) + ' L' + (x + 11) + ' ' + (y - 92) + ' Z', B) +
+        l(x, y - 112, x, y - 100, G, 3) + l(x - 4, y - 108, x + 4, y - 108, G, 3) +
+        c(x - 24, y - 34, 7, Y) + c(x + 24, y - 34, 7, Y) + p('M' + (x - 8) + ' ' + y + ' v-16 a8 8 0 0 1 16 0 v16 Z', W);
+    }
+    function tree(x, y) { return r(x - 2, y - 14, 4, 14, '#7a5230', 2) + c(x, y - 22, 11, GR) + c(x - 9, y - 15, 8, GR) + c(x + 9, y - 15, 8, GR); }
+    function candle(x, y, h) { return r(x - 3, y - h, 6, h, P, 2) + e(x, y - h - 4, 3, 5, Y) + c(x, y - h - 4, 1.6, '#e07b2a'); }
+    function coin(x, y, rad) { return c(x, y, rad, Y) + c(x, y, rad - 3, '#f6d67c') + t(x, y + 4, '$', rad, G); }
+    function note(x, y, f) { return c(x, y, 5, f || B) + l(x + 5, y, x + 5, y - 16, f || B, 2) + p('M' + (x + 5) + ' ' + (y - 16) + ' q9 2 7 10 q-3 -6 -7 -6 Z', f || B); }
+    function car(x, y, f) {
+      return p('M' + (x - 30) + ' ' + y + ' v-10 q0 -6 8 -7 l6 -9 q2 -3 8 -3 h16 q6 0 9 4 l5 8 q8 1 8 8 v10 Z', f) +
+        r(x - 16, y - 24, 13, 9, S, 2) + r(x + 3, y - 24, 13, 9, S, 2) + c(x - 17, y + 1, 6, K) + c(x + 18, y + 1, 6, K) + c(x - 17, y + 1, 2.5, W) + c(x + 18, y + 1, 2.5, W);
+    }
+    function flowers(x, y) {
+      var s = l(x, y + 14, x - 5, y, GR, 2) + l(x, y + 14, x + 5, y, GR, 2) + l(x, y + 14, x, y - 3, GR, 2);
+      return s + c(x - 6, y - 2, 4, '#d97b9b') + c(x + 6, y - 2, 4, Y) + c(x, y - 6, 4, B2);
+    }
+    var s = '';
+    if (id === 'roof') {
+      s = church(105, 128) + c(255, 30, 20, S) + c(282, 26, 25, S) + c(310, 32, 18, '#b9ccd6') +
+        l(245, 52, 240, 66, '#6d9db8', 2) + l(268, 54, 263, 68, '#6d9db8', 2) + l(292, 52, 287, 66, '#6d9db8', 2) + l(315, 54, 310, 68, '#6d9db8', 2) +
+        l(140, 62, 140, 92, '#6d9db8', 2) + p('M228 128 l5 -14 h18 l5 14 Z', G) + r(226, 110, 32, 5, B, 2) + c(242, 104, 3, '#6d9db8');
+    } else if (id === 'choir') {
+      s = r(52, 30, 12, 62, G, 3) + r(70, 22, 12, 70, G, 3) + r(88, 30, 12, 62, G, 3) +
+        person(165, 122, B2, K) + person(225, 122, '#33566b', '#222') + r(148, 88, 30, 20, P, 2) + r(208, 88, 30, 20, P, 2) +
+        note(140, 52) + note(205, 38, G) + note(262, 58, B2) + note(292, 40, G);
+    } else if (id === 'bingo') {
+      s = r(58, 34, 92, 62, P, 6) + l(58, 55, 150, 55, W, 2) + l(58, 76, 150, 76, W, 2) + l(89, 34, 89, 96, W, 2) + l(120, 34, 120, 96, W, 2) +
+        t(73, 50, '7', 13, B) + t(104, 71, '22', 13, G) + t(135, 92, '41', 13, B2) +
+        r(180, 104, 130, 10, '#8a5a34', 4) + c(215, 92, 13, B2) + t(215, 97, 'B', 12, P) + c(255, 90, 13, G) + t(255, 95, 'I', 12, P) + c(295, 92, 13, '#33566b') + t(295, 97, 'N', 12, P) + person(330, 118, B, '#888');
+    } else if (id === 'boiler') {
+      s = r(120, 42, 90, 84, '#5b4a42', 10) + c(165, 72, 17, '#8a6a55') + c(165, 72, 10, Y) + r(132, 108, 66, 10, B, 3) +
+        l(140, 42, 140, 22, K, 4) + l(190, 42, 190, 22, K, 4) + ps('M132 30 q6 -8 12 0 M186 30 q6 -8 12 0', S, 2) +
+        r(258, 30, 62, 62, S, 4) + r(258, 58, 62, 4, P, 0) + r(287, 30, 4, 62, P, 0) + c(272, 44, 3, P) + c(305, 76, 3, P) + c(276, 80, 3, P) +
+        person(70, 126, '#33566b', K) + ps('M52 96 q4 -5 8 0 M84 96 q4 -5 8 0', '#6d9db8', 2);
+    } else if (id === 'donation') {
+      s = church(78, 126) + coin(185, 66, 24) + ps('M209 60 q44 -22 66 6 M209 74 q40 4 58 30', G, 2) +
+        l(292, 66, 306, 112, '#7a5230', 4) + p('M292 66 q16 -8 20 2 q-8 8 -20 -2 Z', K) + person(255, 128, B2, '#888') + t(185, 122, 'strings attached', 11, B);
+    } else if (id === 'pantry') {
+      s = r(70, 36, 220, 8, '#8a5a34', 2) + r(70, 72, 220, 8, '#8a5a34', 2) + r(70, 108, 220, 8, '#8a5a34', 2) +
+        r(86, 18, 14, 18, B2, 2) + r(108, 22, 12, 14, G, 2) + r(252, 54, 14, 18, '#33566b', 2) + r(88, 90, 14, 18, GR, 2) +
+        t(180, 62, 'nearly empty', 12, B) + person(322, 126, GR, K) + p('M300 126 l4 -12 h20 l4 12 Z', G);
+    } else if (id === 'bishop') {
+      s = church(82, 126) + tree(300, 126) + tree(330, 126) +
+        p('M196 44 L214 82 h-36 Z', P) + r(178, 82, 36, 4, G, 2) + l(196, 56, 196, 70, B, 3) + l(190, 62, 202, 62, B, 3) +
+        person(196, 128, B2, '#888') + r(189, 98, 14, 8, Y, 2) + ps('M226 62 q14 2 10 16', G, 3) + l(232, 76, 232, 128, G, 3) + flowers(150, 112) + flowers(246, 112);
+    } else if (id === 'lockin') {
+      s = r(48, 28, 264, 98, B2, 8) + r(64, 44, 52, 40, '#33566b', 4) + c(98, 58, 8, Y) + ps('M84 44 q-4 20 0 40 M104 44 q4 20 0 40', P, 1) +
+        e(190, 96, 26, 20, Y) + e(190, 96, 19, 13, '#e07b2a') + c(182, 90, 4, B) + c(198, 100, 4, GR) + c(196, 88, 3, B2) +
+        r(238, 100, 56, 14, '#33566b', 7) + r(140, 112, 56, 14, B, 7) + person(150, 84, G, K) + person(268, 84, GR, '#222');
+    } else if (id === 'parking') {
+      s = church(180, 74) + r(30, 116, 300, 10, '#8d8578', 4) + l(45, 121, 315, 121, P, 2) + car(88, 112, B2) + car(196, 112, '#33566b') + car(292, 112, G) +
+        ps('M120 84 q14 -12 26 0 M228 84 q14 -12 26 0', B, 2);
+    } else if (id === 'school') {
+      s = r(56, 30, 150, 66, '#33523f', 6) + t(131, 58, 'A B C', 17, P) + t(131, 82, '+  +  +', 12, Y) +
+        person(248, 118, B2, K) + l(256, 96, 274, 82, SK, 4) +
+        r(56, 112, 52, 10, '#8a5a34', 3) + r(140, 112, 52, 10, '#8a5a34', 3) + r(224, 112, 52, 10, '#8a5a34', 3) +
+        c(82, 104, 7, SK) + c(166, 104, 7, SK) + c(300, 104, 7, SK);
+    } else if (id === 'wedding') {
+      s = church(180, 92) + person(148, 128, K, K) + person(214, 128, P, '#7a5230') + r(203, 98, 22, 10, P, 4) +
+        c(168, 52, 11, 'none') + '<circle cx="168" cy="52" r="11" fill="none" stroke="' + Y + '" stroke-width="4"/>' + '<circle cx="192" cy="52" r="11" fill="none" stroke="' + G + '" stroke-width="4"/>' +
+        p('M84 44 q6 -8 12 0 q6 -8 12 0 q0 10 -12 16 q-12 -6 -12 -16 Z', B2) + flowers(120, 112) + flowers(244, 112);
+    } else if (id === 'phone') {
+      s = r(140, 16, 82, 118, K, 12) + r(148, 30, 66, 82, S, 4) + priest(181, 92) + p('M172 66 L192 76 L172 86 Z', P) + c(181, 122, 4, P) +
+        c(96, 62, 12, B2) + t(96, 67, '1', 12, P) + c(268, 48, 12, Y) + t(268, 53, '2', 12, K) + c(272, 94, 12, G) + t(272, 99, '3', 12, P) +
+        person(82, 128, B, K) + person(292, 128, GR, '#222');
+    } else if (id === 'confession') {
+      s = r(56, 30, 120, 96, '#7a5230', 6) + p('M72 126 v-58 a14 14 0 0 1 28 0 v58 Z', B) + p('M122 126 v-58 a14 14 0 0 1 28 0 v58 Z', B2) +
+        l(116, 34, 116, 22, G, 3) + l(110, 28, 122, 28, G, 3) +
+        person(216, 126, '#33566b', K) + person(258, 126, GR, '#888') + person(300, 126, B2, '#222') + t(258, 60, 'one by one', 11, B);
+    } else if (id === 'subsidy') {
+      s = r(92, 56, 130, 70, B2, 4) + p('M84 56 L157 24 L230 56 Z', B) + l(157, 24, 157, 10, G, 3) + p('M157 10 h20 l-5 5 l5 5 h-20 Z', Y) +
+        t(157, 84, 'SCHOOL', 13, P) + r(146, 98, 22, 28, W, 3) + coin(282, 62, 20) + ps('M262 76 q-16 22 -34 28', G, 3) + person(58, 126, GR, K);
+    } else if (id === 'snow') {
+      s = church(180, 122) + p('M124 52 L180 22 L236 52 q-28 8 -56 0 q-28 -8 -56 0 Z', P) + r(20, 118, 320, 14, P, 6) +
+        c(62, 34, 3, P) + c(110, 18, 3, P) + c(258, 26, 3, P) + c(308, 44, 3, P) + c(84, 66, 3, P) + c(292, 76, 3, P) + c(226, 12, 3, P) +
+        person(92, 124, B2, K) + r(84, 92, 17, 5, Y, 2) + person(272, 124, '#33566b', '#222');
+    } else if (id === 'retire') {
+      s = ps('M36 22 q144 26 288 0', G, 2) + p('M70 30 l8 14 l-16 0 Z', B2) + p('M140 36 l8 14 l-16 0 Z', Y) + p('M215 36 l8 14 l-16 0 Z', GR) + p('M282 30 l8 14 l-16 0 Z', B) +
+        person(180, 124, B2, '#c9c9c9') + flowers(204, 96) + r(96, 104, 52, 10, '#8a5a34', 3) + e(122, 100, 20, 7, P) + c(122, 94, 4, B2) + person(268, 124, GR, K) + person(96, 124, '#33566b', '#222');
+    } else if (id === 'dog') {
+      s = church(104, 96) + r(48, 96, 130, 10, '#cbbd9d', 3) + r(62, 106, 130, 10, '#bfae8c', 3) + r(76, 116, 130, 10, '#cbbd9d', 3) +
+        e(258, 106, 26, 13, '#b98a56') + c(286, 96, 12, '#b98a56') + p('M282 88 q12 -8 10 6 q-8 4 -12 -2 Z', '#8a5a34') + l(232, 100, 218, 90, '#b98a56', 5) +
+        c(272, 94, 2, K) + r(276, 104, 16, 5, B2, 2) + l(246, 116, 244, 126, '#8a5a34', 4) + l(272, 116, 274, 126, '#8a5a34', 4) + person(326, 126, Y, K);
+    } else if (id === 'candles') {
+      s = r(70, 108, 220, 10, '#8a5a34', 3) + r(92, 76, 176, 8, '#8a5a34', 3) + r(116, 46, 128, 8, '#8a5a34', 3) +
+        candle(104, 108, 18) + candle(140, 108, 24) + candle(180, 108, 18) + candle(220, 108, 24) + candle(256, 108, 18) +
+        candle(128, 76, 18) + candle(168, 76, 22) + candle(208, 76, 18) + candle(238, 76, 20) +
+        candle(150, 46, 16) + candle(184, 46, 20) + candle(216, 46, 16) + c(180, 62, 30, Y) + candle(180, 108, 34);
+    } else if (id === 'festival') {
+      s = ps('M20 18 q160 34 320 0', B, 2) + p('M58 26 l9 16 l-18 0 Z', B2) + p('M122 34 l9 16 l-18 0 Z', Y) + p('M188 36 l9 16 l-18 0 Z', GR) + p('M254 32 l9 16 l-18 0 Z', B) + p('M308 24 l9 16 l-18 0 Z', Y) +
+        r(52, 76, 84, 50, P, 4) + p('M48 76 L94 56 L140 76 Z', B2) + r(226, 76, 84, 50, P, 4) + p('M222 76 L268 56 L314 76 Z', G) +
+        c(268, 100, 5, B) + note(94, 104, B) + person(180, 128, GR, K);
+    } else if (id === 'baptism') {
+      s = church(84, 126) + p('M196 126 l6 -34 h44 l6 34 Z', '#cbbd9d') + e(226, 90, 34, 10, S) + e(226, 88, 26, 7, '#6d9db8') +
+        l(226, 34, 226, 58, G, 4) + l(216, 44, 236, 44, G, 4) + ps('M226 66 q-4 8 0 12 q4 -4 0 -12', '#6d9db8', 2) +
+        person(292, 126, B2, K) + person(322, 126, '#33566b', '#222') + e(306, 92, 13, 8, P) + c(316, 88, 5, SK);
+    } else if (id === 'organ') {
+      var pipes = '', px;
+      for (px = 0; px < 9; px++) { var ph = 44 + (px % 3) * 12 + (px === 4 ? 18 : 0); pipes += r(96 + px * 19, 88 - ph, 13, ph, px % 2 ? G : '#c9a44a', 4); }
+      s = pipes + r(82, 88, 196, 14, '#7a5230', 3) + r(104, 102, 152, 10, P, 2) + l(116, 107, 244, 107, K, 2) +
+        person(180, 132, K, K) + note(52, 52, B2) + note(306, 44, G);
+    } else if (id === 'pageant') {
+      s = r(44, 118, 272, 8, '#8a5a34', 3) + p('M180 12 l4 10 l11 1 l-8 7 l2 11 l-9 -6 l-9 6 l2 -11 l-8 -7 l11 -1 Z', Y) +
+        person(104, 118, '#33566b', K) + c(104, 80, 9, 'none') + person(150, 118, B2, '#222') + person(238, 118, GR, K) +
+        r(176, 96, 42, 20, '#8a5a34', 3) + l(180, 96, 172, 84, G, 3) + l(214, 96, 222, 84, G, 3) + e(197, 98, 9, 6, P) + c(203, 94, 4, SK) + person(282, 118, G, '#888');
+    } else if (id === 'funeral') {
+      s = church(96, 126) + c(238, 78, 30, GR) + c(238, 78, 22, W) + c(222, 66, 5, '#d97b9b') + c(254, 66, 5, P) + c(238, 56, 5, Y) + c(222, 90, 5, P) + c(254, 90, 5, '#d97b9b') + c(238, 100, 5, Y) +
+        ps('M238 108 v16 M226 116 q12 -6 24 0', GR, 3) + person(306, 126, K, K) + person(176, 126, K, '#888');
+    } else if (id === 'ledger') {
+      s = p('M92 34 L176 24 v92 L92 126 Z', P) + p('M268 34 L184 24 v92 L268 126 Z', '#fdf6e3') + l(180, 24, 180, 116, W, 3) +
+        l(108, 48, 162, 42, S, 2) + l(108, 64, 162, 58, S, 2) + l(108, 80, 150, 75, B2, 3) + l(198, 42, 252, 48, S, 2) + l(198, 58, 252, 64, S, 2) + l(198, 74, 240, 79, B2, 3) +
+        coin(66, 116, 13) + coin(292, 116, 13) + c(310, 52, 13, 'none') + '<circle cx="310" cy="52" r="13" fill="none" stroke="' + K + '" stroke-width="3"/>' + l(300, 62, 282, 80, K, 3);
+    } else if (id === 'pew') {
+      s = r(44, 62, 272, 14, '#8a5a34', 4) + r(44, 82, 272, 26, '#a06a3c', 4) + r(44, 116, 272, 12, '#8a5a34', 4) +
+        person(96, 62, B2, K) + person(128, 62, B2, '#222') + person(238, 62, '#33566b', K) + person(268, 62, GR, '#888') +
+        r(158, 40, 44, 20, P, 3) + t(180, 54, 'OURS?', 10, B) + ps('M140 34 q8 -8 16 0 M212 34 q8 -8 16 0', B, 2);
+    } else if (id === 'seminarian') {
+      s = church(92, 126) + person(216, 126, B, K) + r(226, 92, 22, 28, G, 3) + l(237, 96, 237, 116, P, 2) +
+        c(216, 52, 10, Y) + t(216, 58, '!', 14, K) + ps('M150 118 q18 -6 30 0 M258 118 q14 -5 26 0', '#cbbd9d', 3) + person(308, 126, GR, '#222');
+    } else if (id === 'reporter') {
+      s = church(84, 126) + r(196, 52, 74, 58, P, 3) + t(233, 70, 'NEWS', 12, B) + l(206, 82, 260, 82, S, 2) + l(206, 94, 260, 94, S, 2) +
+        person(292, 126, '#33566b', '#7a5230') + l(282, 98, 262, 86, SK, 4) + c(258, 84, 7, K) + t(150, 48, '?', 26, G);
+    } else if (id === 'coffee') {
+      s = r(112, 66, 120, 52, '#8a5a34', 5) + p('M104 66 L180 44 L256 66 Z', B2) + l(132, 58, 138, 66, P, 3) + l(168, 52, 172, 66, P, 3) + l(204, 52, 200, 66, P, 3) +
+        r(128, 84, 20, 14, P, 2) + r(162, 84, 20, 14, P, 2) + ps('M136 78 q3 -6 0 -10 M170 78 q3 -6 0 -10', S, 2) + c(136, 126, 9, K) + c(216, 126, 9, K) +
+        person(70, 126, GR, K) + person(282, 126, B, '#222') + person(180, 66 + 60, B2, K);
+    } else if (id === 'mission') {
+      s = p('M148 126 l8 -52 h48 l8 52 Z', '#7a5230') + r(142, 70, 76, 8, '#8a5a34', 2) + priest(180, 76) + l(166, 56, 148, 42, SK, 4) + l(194, 56, 214, 44, SK, 4) +
+        ps('M128 36 q-10 8 0 16 M232 36 q10 8 0 16', G, 2) +
+        c(92, 118, 10, '#5a3a22') + c(128, 122, 10, K) + c(232, 122, 10, '#888') + c(268, 118, 10, '#5a3a22') + r(60, 126, 240, 8, '#8a5a34', 3);
+    } else if (id === 'relic') {
+      s = r(96, 108, 168, 12, '#8a5a34', 3) + c(180, 62, 24, Y) + c(180, 62, 15, '#f6d67c') + l(180, 52, 180, 72, B, 3) + l(171, 60, 189, 60, B, 3) +
+        l(180, 86, 180, 108, G, 5) + p('M162 108 h36 l6 8 h-48 Z', G) +
+        l(148, 40, 138, 28, G, 2) + l(212, 40, 222, 28, G, 2) + l(180, 32, 180, 18, G, 2) + candle(112, 108, 26) + candle(248, 108, 26);
+    } else if (id === 'procession') {
+      s = church(180, 70) + r(104, 58, 152, 12, Y, 5) + l(112, 70, 112, 126, '#7a5230', 4) + l(248, 70, 248, 126, '#7a5230', 4) + l(180, 70, 180, 126, '#7a5230', 3) +
+        priest(180, 126) + person(96, 126, B2, K) + person(264, 126, B, '#222') + r(258, 84, 10, 34, B2, 2) + l(263, 84, 263, 76, G, 2);
+    } else if (id === 'latin') {
+      s = r(84, 96, 192, 26, P, 3) + r(84, 96, 192, 8, W, 3) + l(180, 30, 180, 78, G, 5) + l(164, 46, 196, 46, G, 5) +
+        candle(116, 96, 30) + candle(244, 96, 30) + p('M148 96 L178 86 v10 L148 106 Z', B2) + p('M212 96 L182 86 v10 L212 106 Z', B) +
+        ps('M138 62 q6 -8 0 -16 M226 62 q6 -8 0 -16', S, 2) + person(64, 128, K, K) + person(300, 128, K, '#888');
+    } else if (id === 'adoration') {
+      s = c(84, 44, 26, P) + l(84, 44, 84, 28, K, 3) + l(84, 44, 98, 50, K, 3) + t(84, 128, '3 a.m.', 13, B) +
+        c(222, 58, 20, Y) + c(222, 58, 12, '#f6d67c') + l(222, 50, 222, 66, B, 3) + l(215, 57, 229, 57, B, 3) + l(222, 78, 222, 106, G, 5) + p('M206 106 h32 l5 8 h-42 Z', G) +
+        c(306, 30, 9, S) + p('M300 24 a9 9 0 1 0 12 12 a11 11 0 0 1 -12 -12 Z', W) + priest(150, 126);
+    } else if (id === 'fishfry') {
+      s = r(64, 104, 180, 10, '#8a5a34', 3) + e(150, 92, 44, 16, K) + e(150, 90, 36, 11, '#5b4a42') +
+        p('M124 90 q14 -12 28 0 q-6 8 -14 9 l4 6 l-10 -2 l-6 5 q-4 -8 -2 -18 Z', Y) + ps('M132 68 q4 -7 0 -13 M158 66 q4 -7 0 -13 M182 68 q4 -7 0 -13', S, 2) +
+        person(262, 126, P, K) + r(250, 98, 24, 10, B2, 2) + t(86, 62, 'FRIDAY', 12, B);
+    } else if (id === 'missionary') {
+      s = c(248, 66, 38, '#6d9db8') + p('M224 44 q14 -6 18 4 q-12 8 -20 2 q-2 -4 2 -6 Z', GR) + p('M252 78 q16 -4 20 8 q-14 8 -24 0 q0 -6 4 -8 Z', GR) + e(248, 66, 38, 38, 'none') +
+        r(84, 84, 56, 34, '#8d8578', 3) + p('M78 84 L112 62 L146 84 Z', B2) + l(112, 62, 112, 92, '#7a5230', 3) + p('M104 92 h16 l-3 12 h-10 Z', G) +
+        person(176, 126, B2, K) + r(188, 96, 14, 18, G, 3);
+    } else if (id === 'holyweek') {
+      s = c(180, 118, 52, Y) + church(72, 126) + l(180, 26, 180, 104, '#7a5230', 6) + l(158, 48, 202, 48, '#7a5230', 6) + r(120, 104, 120, 8, GR, 3) +
+        ps('M128 108 q-16 -22 -30 -24 M138 110 q-6 -26 -20 -34 M232 108 q16 -22 30 -24 M222 110 q6 -26 20 -34', GR, 4) +
+        person(268, 126, B2, K) + person(96 + 200, 126, P, '#222');
+    } else { // 'church' fallback
+      s = church(150, 126) + tree(248, 126) + tree(282, 126) + priest(216, 126);
+    }
+    return '<svg viewBox="0 0 360 150" width="100%" role="img" aria-label="Parish Pastor event illustration" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="0" y="0" width="360" height="150" rx="10" fill="#f7ecd4"/>' +
+      '<circle cx="326" cy="24" r="13" fill="#f6d67c"/>' +
+      '<rect x="0" y="126" width="360" height="24" fill="#e7d9b4"/>' + s + '</svg>';
+  }
+
   function mountPastor(parent, onBack) {
     var wrap = el('div', 'pastor-wrap');
     var head = el('div', 'game-head');
@@ -3839,7 +4080,7 @@
       // which is the first choice array, and rendered five garbage buttons
       // while every pick corrupted the numbers to NaN.)
       var choices = ev.slice(2);
-      var html = '<h3>Week ' + (week + 1) + ' — ' + esc(ev[0]) + '</h3><p>' + esc(personalise(ev[1])) + '</p><div class="pastor-choices">';
+      var html = '<h3>Week ' + (week + 1) + ' — ' + esc(ev[0]) + '</h3><div class="pastor-scene">' + pastorSceneSvg(ev[0]) + '</div><p>' + esc(personalise(ev[1])) + '</p><div class="pastor-choices">';
       choices.forEach(function (ch, i) {
         html += '<button type="button" class="pastor-choice press" data-i="' + i + '">' + esc(ch[0]) + kbdChip(String(i + 1)) + '</button>';
       });
@@ -4750,8 +4991,12 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  function genDashLayout(seed, dens) {
+  function genDashLayout(seed, dens, gapScale, flipScale, doveStepScale) {
     dens = dens || 1; // obstacle spacing: Easy spreads the course out, Hard packs it tighter
+    // Extra Easy-only breathing room, all 1 (the classic layout) unless a
+    // difficulty passes more: dove gap height, ceiling-thorn spacing in
+    // the heavenward stretch, and dove column spacing.
+    gapScale = gapScale || 1; flipScale = flipScale || 1; doveStepScale = doveStepScale || 1;
     var rnd = dashRng(seed);
     var L = {
       spikes: [], pews: [], clouds: [], censers: [], orbs: [],
@@ -4817,8 +5062,8 @@
         // from column to column instead of teleporting up and down.
         if (prevC !== null) gapC = clamp(prevC + clamp(gapC - prevC, -55, 55), 110, 220);
         prevC = gapC;
-        L.doveCols.push({ x: cx, w: 26, gapTop: gapC - 59, gapBottom: gapC + 59 });
-        cx += 165 + rnd() * 45;
+        L.doveCols.push({ x: cx, w: 26, gapTop: gapC - 59 * gapScale, gapBottom: gapC + 59 * gapScale });
+        cx += (165 + rnd() * 45) * doveStepScale;
       }
     });
     // The first ceiling thorn waits until 4200: the cube lands on the
@@ -4829,7 +5074,7 @@
     while (x < 4650) {
       var n2 = 1 + Math.floor(rnd() * 2);
       for (var j = 0; j < n2; j++) L.flipSpikes.push({ x: x + j * 26, w: 24 });
-      x += 320 + rnd() * 220;
+      x += (320 + rnd() * 220) * flipScale;
     }
     return L;
   }
@@ -4843,15 +5088,49 @@
     var seed = Math.floor(Math.random() * 1e9);
     var diff = readDiff('dash'); // Easy / Medium / Hard; Medium is the tuned default
     var dashDens = 1, dashBase = 235, dashSlope = 0.045, dashCap = 430;
+    // Forgiveness knobs, all at their classic values on Medium and Hard.
+    // Easy alone turns them: wider dove gaps, sparser ceiling thorns and
+    // dove columns, gentler speed gates, a higher and floatier jump, a
+    // longer press buffer / coyote window, smaller thorn / censer
+    // hitboxes, and slower dove rise and fall.
+    var dashGapScale = 1, dashFlipScale = 1, dashDoveStep = 1, dashGateFactor = 1;
+    var dashJump = 900, dashGrav = 2600, dashRot = 9.07, dashBuffer = 0.12, dashHitInset = 0;
+    var dashDoveRise = 240, dashDoveFall = 300;
     function applyDashDiff() {
-      // Easy: a slower cube and a roomier course. Hard: a faster cube
-      // and tighter obstacles. Medium is the current game.
-      if (diff === 'easy') { dashDens = 1.25; dashBase = 210; dashSlope = 0.04; dashCap = 380; }
-      else if (diff === 'hard') { dashDens = 0.8; dashBase = 260; dashSlope = 0.05; dashCap = 470; }
-      else { dashDens = 1; dashBase = 235; dashSlope = 0.045; dashCap = 430; }
+      // Easy: a much slower cube and a much roomier, gentler course.
+      // Hard: a faster cube and tighter obstacles. Medium is the
+      // current game, value for value.
+      if (diff === 'easy') {
+        dashDens = 1.55; dashBase = 180; dashSlope = 0.03; dashCap = 315;
+        dashGapScale = 1.4; dashFlipScale = 1.5; dashDoveStep = 1.25; dashGateFactor = 0.45;
+        dashJump = 950; dashGrav = 2400; dashRot = Math.PI * dashGrav / dashJump; dashBuffer = 0.18; dashHitInset = 4;
+        dashDoveRise = 215; dashDoveFall = 265;
+      }
+      else if (diff === 'hard') {
+        dashDens = 0.8; dashBase = 260; dashSlope = 0.05; dashCap = 470;
+        dashGapScale = 1; dashFlipScale = 1; dashDoveStep = 1; dashGateFactor = 1;
+        dashJump = 900; dashGrav = 2600; dashRot = 9.07; dashBuffer = 0.12; dashHitInset = 0;
+        dashDoveRise = 240; dashDoveFall = 300;
+      }
+      else {
+        dashDens = 1; dashBase = 235; dashSlope = 0.045; dashCap = 430;
+        dashGapScale = 1; dashFlipScale = 1; dashDoveStep = 1; dashGateFactor = 1;
+        dashJump = 900; dashGrav = 2600; dashRot = 9.07; dashBuffer = 0.12; dashHitInset = 0;
+        dashDoveRise = 240; dashDoveFall = 300;
+      }
     }
     applyDashDiff();
-    var layout = genDashLayout(seed, dashDens);
+    function makeDashLayout() {
+      var L = genDashLayout(seed, dashDens, dashGapScale, dashFlipScale, dashDoveStep);
+      // Gentler gates on Easy only: each multiplier moves part-way back
+      // toward x1, so the stepped speed jumps shrink. A factor of 1
+      // (Medium and Hard) leaves the gate list untouched.
+      if (dashGateFactor !== 1) {
+        L.gates.forEach(function (g) { g.m = 1 + (g.m - 1) * dashGateFactor; });
+      }
+      return L;
+    }
+    var layout = makeDashLayout();
     var practice = false, practiceDeaths = 0;
     var dist = 0, y = DASH_FLOOR - DASH_CUBE / 2, vy = 0, grounded = true;
     var gateIdx = -1, gateMult = 1, gateTarget = 1, bonus = 0, chain = 0;
@@ -4879,7 +5158,7 @@
     function startRun(newSeed) {
       applyDashDiff();
       parishSubmitted['dash'] = false;
-      if (typeof newSeed === 'number') { seed = newSeed; layout = genDashLayout(seed, dashDens); }
+      if (typeof newSeed === 'number') { seed = newSeed; layout = makeDashLayout(); }
       dist = 0; y = DASH_FLOOR - DASH_CUBE / 2; vy = 0; grounded = true;
       stepDx = 0; stepDy = 0; stepDr = 0;
       gateIdx = -1; gateMult = 1; gateTarget = 1; bonus = 0; chain = 0;
@@ -4963,9 +5242,9 @@
     function doJump() {
       if (state !== 'playing' || paused) return;
       if (mode === 'dove') return; // dove is hold-to-rise, not jump
-      bufferT = 0.12;
+      bufferT = dashBuffer;
       if (grounded || coyoteT > 0) {
-        vy = mode === 'flip' ? 900 : -900;
+        vy = mode === 'flip' ? dashJump : -dashJump;
         grounded = false; coyoteT = 0; bufferT = 0;
         return;
       }
@@ -4976,7 +5255,7 @@
         var d = Math.hypot(o.x - dist, o.y - y);
         if (d < 58) {
           o.used = true;
-          vy = mode === 'flip' ? 900 : -900;
+          vy = mode === 'flip' ? dashJump : -dashJump;
           bonus += 15 + chain * 10;
           chain += 1;
           api.showBanner('Halo hop! +' + (15 + (chain - 1) * 10), 900);
@@ -5207,7 +5486,7 @@
         }
       }
       if (mode === 'dove') {
-        var targetVy = holding ? -240 : 300;
+        var targetVy = holding ? -dashDoveRise : dashDoveFall;
         vy += (targetVy - vy) * Math.min(1, dt * 12);
         y += vy * dt;
         if (y + DASH_CUBE / 2 >= DASH_FLOOR) { die('The dove touched the floor'); return; }
@@ -5215,26 +5494,26 @@
         for (var ci = 0; ci < layout.doveCols.length; ci++) {
           var col = layout.doveCols[ci];
           if (dist + DASH_CUBE / 2 > col.x && dist - DASH_CUBE / 2 < col.x + col.w) {
-            if (y - DASH_CUBE / 2 < col.gapTop || y + DASH_CUBE / 2 > col.gapBottom) { die('The dove missed the gap'); return; }
+            if (y - DASH_CUBE / 2 + dashHitInset < col.gapTop || y + DASH_CUBE / 2 - dashHitInset > col.gapBottom) { die('The dove missed the gap'); return; }
           }
         }
       } else {
-        var g = mode === 'flip' ? -2600 : 2600;
+        var g = mode === 'flip' ? -dashGrav : dashGrav;
         vy += g * dt;
         y += vy * dt;
-        if (!grounded) rot += dt * 9.07; // one full turn per full jump (0.69s), so the cube lands square
+        if (!grounded) rot += dt * dashRot; // one full turn per full jump (0.69s), so the cube lands square
         if (mode === 'flip') {
           if (y <= DASH_CEIL + DASH_CUBE / 2 && vy <= 0) {
             y = DASH_CEIL + DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0;
-            if (holding) { vy = 900; grounded = false; }
-            else if (bufferT > 0) { vy = 900; grounded = false; bufferT = 0; }
+            if (holding) { vy = dashJump; grounded = false; }
+            else if (bufferT > 0) { vy = dashJump; grounded = false; bufferT = 0; }
           }
           // Ceiling spikes
           if (mercyT <= 0) {
             for (var fi = 0; fi < layout.flipSpikes.length; fi++) {
               var fs = layout.flipSpikes[fi];
-              if (dist + DASH_CUBE / 2 - 4 > fs.x && dist - DASH_CUBE / 2 + 4 < fs.x + fs.w &&
-                  y - DASH_CUBE / 2 < DASH_CEIL + 20) { die('Caught on a ceiling thorn'); return; }
+              if (dist + DASH_CUBE / 2 - 4 - dashHitInset > fs.x && dist - DASH_CUBE / 2 + 4 + dashHitInset < fs.x + fs.w &&
+                  y - DASH_CUBE / 2 + dashHitInset < DASH_CEIL + 20) { die('Caught on a ceiling thorn'); return; }
             }
           }
         } else {
@@ -5249,8 +5528,8 @@
               if (vy >= 0 && prevBottom <= top + 10 && y + DASH_CUBE / 2 >= top) {
                 if (!grounded) spawnDust(120, top); // screen x: the cube sits at 120 on screen
                 y = top - DASH_CUBE / 2; vy = 0; grounded = true; rot = 0; chain = 0; landed = true;
-                if (holding) { vy = -900; grounded = false; }
-                else if (bufferT > 0) { vy = -900; grounded = false; bufferT = 0; }
+                if (holding) { vy = -dashJump; grounded = false; }
+                else if (bufferT > 0) { vy = -dashJump; grounded = false; bufferT = 0; }
                 break;
               }
               if (y + DASH_CUBE / 2 > top + 10 && y - DASH_CUBE / 2 < DASH_FLOOR) {
@@ -5272,8 +5551,8 @@
             if (y >= DASH_FLOOR - DASH_CUBE / 2 && vy >= 0) {
               y = DASH_FLOOR - DASH_CUBE / 2; vy = 0;
               if (!grounded) { grounded = true; rot = 0; chain = 0; spawnDust(120, DASH_FLOOR); }
-              if (holding) { vy = -900; grounded = false; }
-              else if (bufferT > 0) { vy = -900; grounded = false; bufferT = 0; }
+              if (holding) { vy = -dashJump; grounded = false; }
+              else if (bufferT > 0) { vy = -dashJump; grounded = false; bufferT = 0; }
             }
           }
           // Walked off a pew edge: start falling
@@ -5281,13 +5560,13 @@
           layout.pews.forEach(function (p2) {
             if (dist + DASH_CUBE / 2 > p2.x && dist - DASH_CUBE / 2 < p2.x + p2.w && Math.abs((y + DASH_CUBE / 2) - (DASH_FLOOR - p2.h)) < 1) onPew = true;
           });
-          if (grounded && !onPew && y < DASH_FLOOR - DASH_CUBE / 2) { grounded = false; coyoteT = 0.12; }
+          if (grounded && !onPew && y < DASH_FLOOR - DASH_CUBE / 2) { grounded = false; coyoteT = dashBuffer; }
           // Floor spikes
           if (mercyT <= 0) {
             for (var si = 0; si < layout.spikes.length; si++) {
               var sp = layout.spikes[si];
-              if (dist + DASH_CUBE / 2 - 4 > sp.x && dist - DASH_CUBE / 2 + 4 < sp.x + sp.w &&
-                  y + DASH_CUBE / 2 > DASH_FLOOR - 16) { die('Caught on a thorn'); return; }
+              if (dist + DASH_CUBE / 2 - 4 - dashHitInset > sp.x && dist - DASH_CUBE / 2 + 4 + dashHitInset < sp.x + sp.w &&
+                  y + DASH_CUBE / 2 - dashHitInset > DASH_FLOOR - 16) { die('Caught on a thorn'); return; }
             }
           }
         }
@@ -5297,7 +5576,7 @@
             var cn = layout.censers[ce];
             var ang = Math.sin(runT * 1.5 + cn.phase) * 0.5;
             var bx = cn.x + Math.sin(ang) * 70, by = 120 + Math.cos(ang) * 70;
-            if (Math.hypot(bx - dist, by - y) < 20) { die('Struck by a swinging censer'); return; }
+            if (Math.hypot(bx - dist, by - y) < 20 - dashHitInset) { die('Struck by a swinging censer'); return; }
           }
         }
       }
@@ -5399,6 +5678,756 @@
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('keyup', onKeyUp);
       cleanupPause();
+    };
+  }
+
+  // ================= Cathedral Defence =================
+  // A winding stone path crosses the field to the cathedral door. Waves
+  // of the seven deadly sins walk it; the player raises four kinds of
+  // tower on the grass plots beside the path and turns them back.
+  // Every tower is available from wave 1 (no unlock grind): difficulty
+  // comes from the waves. Each tower upgrades twice along one of two
+  // branches — choosing a branch locks the other for that tower, so a
+  // defence is a set of commitments, not a checklist. Every sin trait
+  // is named in the wave preview before it arrives and has at least
+  // two tower answers: armor falls to choir (piercing) and to font
+  // splash worn down by bells; veiled sins hide from candles only;
+  // regenerating Wrath falls to bell speed or choir burst; splitting
+  // Greed is answered by font splash or candle speed; swift Envy is
+  // slowed by fonts and outshot by candles; hearty sins fall to any
+  // sustained fire, choir fastest.
+  var DEF_PATH = [[-20, 50], [380, 50], [380, 130], [80, 130], [80, 220], [436, 220]];
+  var DEF_PLOTS = [[60, 90], [170, 90], [280, 90], [430, 90], [170, 175], [280, 175], [430, 175], [30, 175], [30, 270], [170, 270], [280, 270], [400, 270]];
+  var DEF_TOWERS = {
+    bell: { name: 'Bell Tower', cost: 50, range: 88, dmg: 8, rate: 0.38, color: '#6e1a26', letter: 'B', blurb: 'Cheap, quick shots, modest damage.' },
+    candle: { name: 'Candle Turret', cost: 40, range: 64, dmg: 3, rate: 0.18, color: '#b28a2e', letter: 'C', blurb: 'Very fast, short range. Cannot target Veiled sins.' },
+    font: { name: 'Holy Water Font', cost: 70, range: 78, dmg: 6, rate: 0.95, splash: 40, color: '#3a6ea5', letter: 'F', blurb: 'Splash damage, and its water slows sins.' },
+    choir: { name: 'Choir Tower', cost: 90, range: 135, dmg: 26, rate: 1.7, color: '#5b3a7a', letter: 'Ch', blurb: 'Long range, slow heavy shots that pierce armor.' }
+  };
+  var DEF_ORDER = ['bell', 'candle', 'font', 'choir'];
+  var DEF_UPGRADES = {
+    bell: { A: { name: 'Louder bells', desc: '+80% damage per step' }, B: { name: 'Quicker ringing', desc: 'fires about 60% faster per step' } },
+    candle: { A: { name: 'Brighter flames', desc: '+90% damage per step' }, B: { name: 'Taller candles', desc: '+35% range per step' } },
+    font: { A: { name: 'Wider font', desc: 'bigger splash, +50% damage per step' }, B: { name: 'Colder water', desc: 'stronger, longer slow per step' } },
+    choir: { A: { name: 'Deeper voices', desc: '+80% damage per step' }, B: { name: 'Farther voices', desc: '+30% range, a little faster per step' } }
+  };
+  var DEF_SINS = {
+    sloth: { name: 'Sloth', letter: 'S', color: '#6f6259', hp: 36, speed: 24, reward: 7, trait: 'Hearty' },
+    pride: { name: 'Pride', letter: 'P', color: '#5b2a4a', hp: 32, speed: 27, reward: 8, trait: 'Armored' },
+    envy: { name: 'Envy', letter: 'E', color: '#2e5e4e', hp: 17, speed: 58, reward: 7, trait: 'Swift' },
+    lust: { name: 'Lust', letter: 'L', color: '#b8452a', hp: 24, speed: 34, reward: 8, trait: 'Veiled' },
+    wrath: { name: 'Wrath', letter: 'W', color: '#a02c3c', hp: 30, speed: 32, reward: 9, trait: 'Regenerating' },
+    greed: { name: 'Greed', letter: 'G', color: '#b28a2e', hp: 22, speed: 30, reward: 8, trait: 'Splitting' },
+    gluttony: { name: 'Gluttony', letter: 'Gl', color: '#8a6d3b', hp: 60, speed: 22, reward: 10, trait: 'Hearty' },
+    imp: { name: 'Imp', letter: 'i', color: '#c49a3c', hp: 9, speed: 44, reward: 3, trait: 'Swift' }
+  };
+  var DEF_TRAIT_HINT = {
+    Armored: 'choir voices pierce armor',
+    Veiled: 'candles cannot see veiled sins; bells, fonts and choir can',
+    Regenerating: 'burst it down fast, with bells or choir, before it heals',
+    Splitting: 'font splash catches the imps it splits into',
+    Swift: 'fonts slow them and candles fire fastest',
+    Hearty: 'steady fire wears them down, choir fastest'
+  };
+  function mountDefence(parent, onBack) {
+    var api = createStage(parent, { title: 'Cathedral Defence', onBack: onBack });
+    var diff = readDiff('defence');
+    var startCoins = 160, startLives = 20, hpMult = 1, speedMult = 1;
+    function applyDiff() {
+      if (diff === 'easy') { startCoins = 230; startLives = 25; hpMult = 0.8; speedMult = 0.9; }
+      else if (diff === 'hard') { startCoins = 130; startLives = 15; hpMult = 1.25; speedMult = 1.12; }
+      else { startCoins = 160; startLives = 20; hpMult = 1; speedMult = 1; }
+    }
+    applyDiff();
+    // Path geometry: cumulative lengths once per mount.
+    var segLen = [], pathTotal = 0;
+    for (var si = 0; si < DEF_PATH.length - 1; si++) {
+      var sl = Math.hypot(DEF_PATH[si + 1][0] - DEF_PATH[si][0], DEF_PATH[si + 1][1] - DEF_PATH[si][1]);
+      segLen.push(sl); pathTotal += sl;
+    }
+    function posAt(d) {
+      var left = d;
+      for (var i = 0; i < segLen.length; i++) {
+        if (left <= segLen[i] || i === segLen.length - 1) {
+          var t = segLen[i] ? clamp(left / segLen[i], 0, 1) : 0;
+          return { x: DEF_PATH[i][0] + (DEF_PATH[i + 1][0] - DEF_PATH[i][0]) * t, y: DEF_PATH[i][1] + (DEF_PATH[i + 1][1] - DEF_PATH[i][1]) * t };
+        }
+        left -= segLen[i];
+      }
+      return { x: DEF_PATH[DEF_PATH.length - 1][0], y: DEF_PATH[DEF_PATH.length - 1][1] };
+    }
+    var state = 'ready', paused = false, destroyed = false, raf = 0, last = 0;
+    var coins = 0, lives = 0, wave = 0, wavesDone = 0, earned = 0, popped = 0, leaked = 0;
+    var towers = [], sins = [], projs = [], rings = [], queue = [], spawnT = 0;
+    var phase = 'build'; // build (between waves) | wave
+    var pending = 'bell'; // tower type the next plot tap places
+    var selected = -1; // index into towers, or -1
+    var best = readBest('defence');
+    function score() { return earned + 25 * wavesDone; }
+    function compFor(w) {
+      var pool = ['sloth', 'pride'];
+      if (w >= 2) pool.push('envy');
+      if (w >= 3) pool.push('lust');
+      if (w >= 4) pool.push('wrath');
+      if (w >= 5) pool.push('greed');
+      if (w >= 6) pool.push('gluttony');
+      var n = 4 + w * 2, out = [];
+      for (var i = 0; i < n; i++) out.push(pool[(i * 2 + w) % pool.length]);
+      if (w >= 2 && w <= 6) { out[n - 1] = pool[pool.length - 1]; out[n - 2] = pool[pool.length - 1]; }
+      return out;
+    }
+    function previewFor(w) {
+      var comp = compFor(w), seen = {}, names = [], hint = '';
+      comp.forEach(function (t) {
+        if (!seen[t]) { seen[t] = true; names.push(DEF_SINS[t].name); }
+        if (!hint && DEF_TRAIT_HINT[DEF_SINS[t].trait] && t !== 'sloth') hint = DEF_TRAIT_HINT[DEF_SINS[t].trait];
+      });
+      if (!hint) hint = DEF_TRAIT_HINT.Hearty;
+      return 'Wave ' + w + ': ' + names.join(', ') + ' \u2014 ' + hint + '.';
+    }
+    function towerStats(tw) {
+      var b = DEF_TOWERS[tw.type];
+      var st = { range: b.range, dmg: b.dmg, rate: b.rate, splash: b.splash || 0, slowF: 0.55, slowDur: 1.2, pierce: tw.type === 'choir' };
+      if (tw.branch) {
+        for (var lv = 0; lv < tw.level; lv++) {
+          if (tw.type === 'bell') { if (tw.branch === 'A') st.dmg *= 1.8; else st.rate *= 0.62; }
+          else if (tw.type === 'candle') { if (tw.branch === 'A') st.dmg *= 1.9; else st.range *= 1.35; }
+          else if (tw.type === 'font') { if (tw.branch === 'A') { st.splash += 22; st.dmg *= 1.5; } else { st.slowF = Math.max(0.25, st.slowF - 0.18); st.slowDur += 0.8; st.dmg *= 1.25; } }
+          else if (tw.type === 'choir') { if (tw.branch === 'A') st.dmg *= 1.8; else { st.range *= 1.3; st.rate *= 0.85; } }
+        }
+        if (tw.type === 'bell' && tw.branch === 'A' && tw.level >= 2) st.range *= 1.1;
+        if (tw.type === 'bell' && tw.branch === 'B' && tw.level >= 2) st.dmg *= 1.3;
+        if (tw.type === 'candle' && tw.branch === 'B' && tw.level >= 2) st.rate *= 0.8;
+      }
+      st.dmg = Math.round(st.dmg * 10) / 10;
+      st.range = Math.round(st.range);
+      return st;
+    }
+    function upCost(tw) { var b = DEF_TOWERS[tw.type]; return tw.level === 0 ? Math.round(b.cost * 0.8) : Math.round(b.cost * 1.2); }
+    function startGame() {
+      applyDiff();
+      parishSubmitted['defence'] = false;
+      coins = startCoins; lives = startLives; wave = 0; wavesDone = 0; earned = 0; popped = 0; leaked = 0;
+      towers = []; sins = []; projs = []; rings = []; queue = [];
+      phase = 'build'; pending = 'bell'; selected = -1; state = 'playing'; paused = false;
+      api.pauseBtn.textContent = 'Pause';
+      api.hideOverlay(); updateHud(); renderPanel();
+    }
+    function gameOver() {
+      state = 'over';
+      var fb = writeBest('defence', score()); best = fb;
+      submitParishScore('defence', score());
+      api.showOverlay('<h3>The cathedral fell</h3><p>The sins reached the door on wave ' + Math.max(1, wave) + '.<br>Score: ' + score() + ' &middot; Waves turned back: ' + wavesDone + ' &middot; Sins popped: ' + popped + '<br>Best: ' + fb + '</p>' +
+        '<button type="button" class="big-btn press" id="defence-again">Defend again</button>' +
+        kbdHint('Keyboard: Space or Enter defends again.') +
+        '<button type="button" class="linklike" id="defence-back">Back to arcade</button>');
+      var a = document.getElementById('defence-again');
+      if (a) a.addEventListener('click', startGame);
+      var b = document.getElementById('defence-back');
+      if (b) b.addEventListener('click', function () { onBack(); });
+      updateHud(); renderPanel();
+    }
+    function startWave() {
+      if (state !== 'playing' || phase !== 'build') return;
+      wave += 1;
+      queue = compFor(wave);
+      spawnT = 0; phase = 'wave';
+      api.showBanner(previewFor(wave), 2200);
+      updateHud(); renderPanel();
+    }
+    function spawnSin(type, dist) {
+      var d = DEF_SINS[type];
+      var hp = Math.round(d.hp * hpMult * (1 + (wave - 1) * 0.22));
+      sins.push({ type: type, hp: hp, maxHp: hp, dist: dist || 0, slowT: 0, slowF: 1, sinceHit: 9, dead: false });
+    }
+    function hurt(s, dmg, pierce) {
+      if (s.dead) return;
+      var dealt = dmg;
+      if (s.type === 'pride' && !pierce) dealt = dmg * 0.35; // armor: only piercing shots land full
+      s.hp -= dealt; s.sinceHit = 0;
+      if (s.hp <= 0) killSin(s);
+    }
+    function killSin(s) {
+      if (s.dead) return;
+      s.dead = true; popped += 1;
+      var r = DEF_SINS[s.type].reward + Math.floor(wave / 3);
+      coins += r; earned += r;
+      if (rings.length < 40) { var p = posAt(s.dist); rings.push({ x: p.x, y: p.y, r: 4, life: 0.3 }); }
+      if (s.type === 'greed') { // splitting: two imps carry on from where it fell
+        spawnSin('imp', Math.max(0, s.dist - 8));
+        spawnSin('imp', Math.max(0, s.dist - 20));
+      }
+    }
+    function placeTower(plotIdx) {
+      var b = DEF_TOWERS[pending];
+      for (var i = 0; i < towers.length; i++) if (towers[i].plot === plotIdx) { selected = i; renderPanel(); return; }
+      if (coins < b.cost) { api.showBanner('Not enough coins for a ' + b.name + ' (' + b.cost + ')', 1500); return; }
+      coins -= b.cost;
+      towers.push({ plot: plotIdx, type: pending, branch: '', level: 0, cd: 0 });
+      selected = towers.length - 1;
+      updateHud(); renderPanel();
+    }
+    function upgradeSelected(branch) {
+      if (selected < 0 || selected >= towers.length) return;
+      var tw = towers[selected];
+      if (tw.level >= 2) return;
+      if (tw.level === 0 && branch !== 'A' && branch !== 'B') return;
+      if (tw.level > 0 && branch !== tw.branch) return; // the first choice locks the other path
+      var cost = upCost(tw);
+      if (coins < cost) { api.showBanner('Not enough coins for that upgrade (' + cost + ')', 1500); return; }
+      coins -= cost;
+      if (tw.level === 0) tw.branch = branch;
+      tw.level += 1;
+      api.showBanner(DEF_TOWERS[tw.type].name + ': ' + DEF_UPGRADES[tw.type][tw.branch].name + ' ' + tw.level, 1400);
+      updateHud(); renderPanel();
+    }
+    function renderPanel() {
+      api.actions.innerHTML = '';
+      if (state !== 'playing') return;
+      var row = el('div', 'touch-row');
+      DEF_ORDER.forEach(function (t, i) {
+        var b = DEF_TOWERS[t];
+        var btn = el('button', 'press touch-btn', b.name + ' \u00b7 ' + b.cost);
+        btn.type = 'button'; btn.id = 'defence-tower-' + t;
+        if (pending === t) { btn.style.background = '#6e1a26'; btn.style.color = '#f7ecd4'; }
+        btn.addEventListener('click', function () { pending = t; selected = -1; renderPanel(); });
+        row.appendChild(btn);
+      });
+      api.actions.appendChild(row);
+      api.actions.appendChild(el('p', 'game-note', DEF_TOWERS[pending].name + ': ' + DEF_TOWERS[pending].blurb + ' Tap a grass plot to place it.'));
+      if (phase === 'build') {
+        api.actions.appendChild(el('p', 'game-note', previewFor(wave + 1)));
+        var wb = el('button', 'press touch-btn wide', 'Begin wave ' + (wave + 1));
+        wb.type = 'button'; wb.id = 'defence-wave';
+        wb.addEventListener('click', startWave);
+        api.actions.appendChild(wb);
+      }
+      if (selected >= 0 && towers[selected]) {
+        var tw = towers[selected], st = towerStats(tw), ub = DEF_TOWERS[tw.type];
+        var info = el('p', 'game-note', '');
+        info.id = 'defence-selected';
+        var txt = ub.name + (tw.level ? ' \u00b7 ' + DEF_UPGRADES[tw.type][tw.branch].name + ' ' + tw.level : ' \u00b7 no upgrade yet') +
+          ' \u00b7 Damage ' + st.dmg + ' \u00b7 Range ' + st.range + ' \u00b7 One shot every ' + (Math.round(st.rate * 100) / 100) + 's' +
+          (st.splash ? ' \u00b7 Splash ' + st.splash : '') + (st.pierce ? ' \u00b7 Pierces armor' : '');
+        info.textContent = txt;
+        api.actions.appendChild(info);
+        if (tw.level < 2) {
+          var cost = upCost(tw);
+          var branches = tw.level === 0 ? ['A', 'B'] : [tw.branch];
+          branches.forEach(function (br) {
+            var up = DEF_UPGRADES[tw.type][br];
+            var ubtn = el('button', 'press touch-btn', 'Upgrade: ' + up.name + ' \u00b7 ' + cost + ' coins (' + up.desc + ')');
+            ubtn.type = 'button'; ubtn.id = 'defence-up-' + br.toLowerCase();
+            ubtn.addEventListener('click', function () { upgradeSelected(br); });
+            api.actions.appendChild(ubtn);
+          });
+        } else {
+          api.actions.appendChild(el('p', 'game-note', 'Fully upgraded along its chosen path.'));
+        }
+      }
+    }
+    function updateHud() {
+      api.setHud('<span class="score">Score: ' + score() + '</span><span>Coins: ' + coins + '</span><span>Lives: ' + Math.max(0, lives) + '</span>' +
+        '<span>Wave: ' + wave + '</span><span>Sins: ' + (sins.length + queue.length) + '</span><span>Popped: ' + popped + '</span>' + diffTag(diff) + '<span>Best: ' + best + '</span>');
+    }
+    function tick(dt) {
+      // Spawning
+      if (phase === 'wave' && queue.length) {
+        spawnT -= dt;
+        if (spawnT <= 0) { spawnSin(queue.shift(), 0); spawnT = Math.max(0.42, 0.95 - wave * 0.03); }
+      }
+      // Sins walk
+      for (var i = 0; i < sins.length; i++) {
+        var s = sins[i];
+        if (s.dead) continue;
+        s.sinceHit += dt;
+        if (s.type === 'wrath' && s.sinceHit > 0.8 && s.hp < s.maxHp) s.hp = Math.min(s.maxHp, s.hp + 4 * dt); // regenerating
+        if (s.slowT > 0) s.slowT -= dt;
+        var spd = DEF_SINS[s.type].speed * speedMult * (s.slowT > 0 ? s.slowF : 1);
+        s.dist += spd * dt;
+        if (s.dist >= pathTotal) {
+          s.dead = true; leaked += 1; lives -= 1;
+          api.showBanner(DEF_SINS[s.type].name + ' reached the cathedral', 1100);
+          if (lives <= 0) { updateHud(); gameOver(); return; }
+        }
+      }
+      sins = sins.filter(function (x) { return !x.dead; });
+      // Towers fire
+      towers.forEach(function (tw) {
+        var st = towerStats(tw);
+        tw.cd -= dt;
+        var px = DEF_PLOTS[tw.plot][0], py = DEF_PLOTS[tw.plot][1];
+        var target = null;
+        for (var j = 0; j < sins.length; j++) {
+          var cand = sins[j];
+          if (tw.type === 'candle' && cand.type === 'lust') continue; // veiled: candles cannot target Lust
+          var cp = posAt(cand.dist);
+          if (Math.hypot(cp.x - px, cp.y - py) <= st.range && (!target || cand.dist > target.dist)) target = cand;
+        }
+        if (target && tw.cd <= 0 && projs.length < 60) { // projectile cap keeps late waves smooth
+          projs.push({ x: px, y: py - 10, target: target, dmg: st.dmg, pierce: st.pierce, splash: st.splash, slowF: st.slowF, slowDur: st.slowDur, font: tw.type === 'font' });
+          tw.cd = st.rate;
+        }
+      });
+      // Projectiles fly
+      for (var k = 0; k < projs.length; k++) {
+        var pr = projs[k];
+        if (!pr.target || pr.target.dead) { pr.done = true; continue; }
+        var tp = posAt(pr.target.dist);
+        var dx = tp.x - pr.x, dy = tp.y - pr.y, dd = Math.hypot(dx, dy);
+        var step = 340 * dt;
+        if (dd <= step + 2) {
+          pr.done = true;
+          if (pr.splash) {
+            if (rings.length < 40) rings.push({ x: tp.x, y: tp.y, r: 6, life: 0.35 });
+            sins.slice().forEach(function (vic) {
+              var vp = posAt(vic.dist);
+              if (Math.hypot(vp.x - tp.x, vp.y - tp.y) <= pr.splash) {
+                if (pr.font) { vic.slowT = pr.slowDur; vic.slowF = pr.slowF; }
+                hurt(vic, pr.dmg, pr.pierce);
+              }
+            });
+          } else hurt(pr.target, pr.dmg, pr.pierce);
+        } else { pr.x += dx / dd * step; pr.y += dy / dd * step; }
+      }
+      projs = projs.filter(function (x) { return !x.done; });
+      sins = sins.filter(function (x) { return !x.dead; });
+      rings.forEach(function (r) { r.life -= dt; r.r += 60 * dt; });
+      rings = rings.filter(function (r) { return r.life > 0; });
+      // Wave cleared?
+      if (phase === 'wave' && !queue.length && !sins.length) {
+        phase = 'build'; wavesDone = wave; coins += 10;
+        api.showBanner('Wave ' + wave + ' turned back. +25 score, +10 coins', 1700);
+        renderPanel();
+      }
+      updateHud();
+    }
+    function draw() {
+      var ctx = api.ctx;
+      ctx.fillStyle = '#7d8f57'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+      ctx.fillStyle = '#efe3c2'; ctx.fillRect(0, 0, GAME_W, 26);
+      ctx.fillStyle = '#2b1d12'; ctx.font = 'bold 12px Georgia'; ctx.textAlign = 'center';
+      ctx.fillText(phase === 'wave' ? 'Wave ' + wave + ' is marching' : 'Place your towers, then begin wave ' + (wave + 1), GAME_W / 2, 17);
+      ctx.textAlign = 'left';
+      // Stone path
+      ctx.strokeStyle = '#b8a88f'; ctx.lineWidth = 22; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      DEF_PATH.forEach(function (p, i) { if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]); });
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(43,29,18,0.25)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      DEF_PATH.forEach(function (p, i) { if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]); });
+      ctx.stroke();
+      // Cathedral at the path end
+      ctx.fillStyle = '#f7ecd4'; ctx.fillRect(438, 192, 38, 56);
+      ctx.fillStyle = '#6e1a26';
+      ctx.beginPath(); ctx.moveTo(432, 192); ctx.lineTo(457, 168); ctx.lineTo(482, 192); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#b28a2e'; ctx.fillRect(455, 150, 3, 14); ctx.fillRect(451, 155, 11, 3);
+      ctx.fillStyle = '#33261a'; ctx.fillRect(450, 222, 14, 26);
+      // Plots and towers
+      DEF_PLOTS.forEach(function (pl, idx) {
+        var occupied = false;
+        towers.forEach(function (tw) { if (tw.plot === idx) occupied = true; });
+        ctx.fillStyle = occupied ? '#8aa05c' : 'rgba(247,236,212,0.35)';
+        ctx.beginPath(); ctx.arc(pl[0], pl[1], 17, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(43,29,18,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+      });
+      if (selected >= 0 && towers[selected]) {
+        var spl = DEF_PLOTS[towers[selected].plot];
+        ctx.strokeStyle = 'rgba(110,26,38,0.55)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(spl[0], spl[1], towerStats(towers[selected]).range, 0, Math.PI * 2); ctx.stroke();
+      }
+      towers.forEach(function (tw) {
+        var pl = DEF_PLOTS[tw.plot], b = DEF_TOWERS[tw.type];
+        ctx.fillStyle = b.color; ctx.fillRect(pl[0] - 11, pl[1] - 8, 22, 20);
+        ctx.fillStyle = '#f7ecd4'; ctx.fillRect(pl[0] - 11, pl[1] - 14, 22, 7);
+        if (tw.type === 'candle') { ctx.fillStyle = '#e8b64c'; ctx.beginPath(); ctx.arc(pl[0], pl[1] - 19, 4, 0, Math.PI * 2); ctx.fill(); }
+        if (tw.type === 'font') { ctx.fillStyle = '#3a6ea5'; ctx.beginPath(); ctx.arc(pl[0], pl[1] - 12, 8, 0, Math.PI); ctx.fill(); }
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText(b.letter, pl[0], pl[1] + 8);
+        if (tw.level) ctx.fillText(tw.branch + tw.level, pl[0], pl[1] + 24);
+        ctx.textAlign = 'left';
+      });
+      // Sins: colored orbs with a letter; armor ring, veil arc, health bar
+      sins.forEach(function (s) {
+        var d = DEF_SINS[s.type], p = posAt(s.dist);
+        var r = s.type === 'imp' ? 8 : s.type === 'gluttony' ? 14 : 11;
+        ctx.fillStyle = d.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+        if (s.type === 'pride') { ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, r + 2, 0, Math.PI * 2); ctx.stroke(); }
+        if (s.type === 'lust') { ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, r - 3, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+        ctx.fillStyle = '#fff'; ctx.font = 'bold ' + (r >= 11 ? 11 : 9) + 'px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText(d.letter, p.x, p.y + 4);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#33261a'; ctx.fillRect(p.x - r, p.y - r - 8, r * 2, 4);
+        ctx.fillStyle = '#b28a2e'; ctx.fillRect(p.x - r, p.y - r - 8, r * 2 * clamp(s.hp / s.maxHp, 0, 1), 4);
+      });
+      // Projectiles and splash rings (both capped)
+      ctx.fillStyle = '#f7ecd4';
+      projs.forEach(function (pr) { ctx.beginPath(); ctx.arc(pr.x, pr.y, 3, 0, Math.PI * 2); ctx.fill(); });
+      rings.forEach(function (r) {
+        ctx.globalAlpha = Math.max(0, r.life / 0.35);
+        ctx.strokeStyle = '#3a6ea5'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+      if (paused) {
+        ctx.fillStyle = 'rgba(20,12,8,0.6)'; ctx.fillRect(0, 0, GAME_W, GAME_H);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText(hasKeyboard() ? 'Paused \u2014 press P to resume' : 'Paused \u2014 tap Resume', GAME_W / 2, GAME_H / 2); ctx.textAlign = 'left';
+      }
+    }
+    function loop(t) {
+      if (destroyed) return;
+      var dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
+      if (!paused && state === 'playing') tick(dt);
+      draw();
+      raf = requestAnimationFrame(loop);
+    }
+    function doPause() { if (state === 'playing') { paused = true; api.pauseBtn.textContent = 'Resume'; } }
+    function doResume() { paused = false; api.pauseBtn.textContent = 'Pause'; }
+    var cleanupPause = wirePause(api, function () { return paused; }, doPause, doResume);
+    document.addEventListener('keydown', onKey);
+    function onKey(e) {
+      if (kbdTyping(e)) return;
+      var k = e.key.toLowerCase();
+      var go = (k === ' ' || k === 'enter');
+      if ((state === 'ready' || state === 'over') && go && !kbdOnButton(e)) { e.preventDefault(); startGame(); return; }
+      if (state === 'playing' && !paused && !kbdOnButton(e)) {
+        if (k === 'b') { e.preventDefault(); startWave(); }
+        var n = parseInt(k, 10);
+        if (n >= 1 && n <= 4) { pending = DEF_ORDER[n - 1]; selected = -1; renderPanel(); }
+      }
+    }
+    api.canvas.addEventListener('pointerdown', function (e) {
+      if (state !== 'playing' || paused) return;
+      e.preventDefault();
+      var p = canvasPoint(api.canvas, e);
+      var bestI = -1, bestD = 1e9;
+      DEF_PLOTS.forEach(function (pl, idx) {
+        var d = Math.hypot(pl[0] - p.x, pl[1] - p.y);
+        if (d < bestD) { bestD = d; bestI = idx; }
+      });
+      if (bestI >= 0 && bestD <= 24) placeTower(bestI);
+    });
+    api.showOverlay('<h3>Cathedral Defence</h3><p>The seven sins are marching on the cathedral along the stone path. Raise bell, candle, font and choir towers on the grass plots and turn them back before they reach the door. Every tower is yours from wave 1; each one upgrades twice along a single chosen path, and the wave preview names what is coming so you can plan. ' + gameMark('defence') + '</p>' +
+      diffPickerHtml('defence', diff) +
+      '<button type="button" class="big-btn press" id="defence-start">Start defending</button>' +
+      kbdHint('Keyboard: Space or Enter starts. 1 to 4 choose a tower, B begins the wave.'));
+    wireDiffButtons(api.overlay, 'defence', function () { return diff; }, function (d) { diff = d; writeDiff('defence', d); applyDiff(); });
+    var s = document.getElementById('defence-start');
+    if (s) s.addEventListener('click', startGame);
+    updateHud();
+    last = performance.now(); raf = requestAnimationFrame(loop);
+    return function cleanup() {
+      destroyed = true; cancelAnimationFrame(raf);
+      document.removeEventListener('keydown', onKey);
+      cleanupPause();
+    };
+  }
+
+  // ================= The Pilgrim Path =================
+  // A stick-figure life in the Church, one day at a time. Each day the
+  // pilgrim spends his energy at four places — the chapel, the library,
+  // the parish hall and the town — and the stats he gathers there carry
+  // him up the ranks: Seminarian, Deacon, Parish Priest, Pastor,
+  // Monsignor, Bishop. No single stat is enough on its own: every rank
+  // asks for a mix, every stat unlocks its own perk, and the actions
+  // themselves grow up as he does (Pray becomes a Day of Retreat, Serve
+  // becomes running the food bank), so grinding one button in one place
+  // cannot carry him to the mitre. Rest ends the day: a little upkeep,
+  // a fresh morning, and now and then the world knocks first — a
+  // visitor, a request, a gift — remembering what he has been doing.
+  var PILGRIM_RANKS = ['Seminarian', 'Deacon', 'Parish Priest', 'Pastor', 'Monsignor', 'Bishop'];
+  // What each promotion asks for, before the difficulty offset.
+  var PILGRIM_REQS = [
+    null,
+    { faith: 20 },
+    { faith: 35, wisdom: 25 },
+    { charity: 40, wisdom: 35 },
+    { faith: 55, wisdom: 55, charity: 55 },
+    { faith: 70, wisdom: 70, charity: 70, rep: 30 }
+  ];
+  // The parish's gift at each promotion, in coins: rising costs a little.
+  var PILGRIM_FEES = [0, 0, 10, 15, 20, 25];
+  function mountPilgrim(parent, onBack) {
+    var wrap = el('div', 'pilgrim-wrap');
+    var head = el('div', 'game-head');
+    var backBtn = el('button', 'back-btn press', '\u2190 Back to arcade'); backBtn.type = 'button';
+    backBtn.addEventListener('click', function () { onBack(); });
+    head.appendChild(backBtn);
+    head.appendChild(el('h2', 'font-display', 'The Pilgrim Path'));
+    wrap.appendChild(head);
+    var stats = el('div', 'pilgrim-stats');
+    wrap.appendChild(stats);
+    var figure = el('div', 'pilgrim-figure');
+    wrap.appendChild(figure);
+    var card = el('div', 'pilgrim-card');
+    wrap.appendChild(card);
+    var ledger = el('div', 'pilgrim-ledger');
+    wrap.appendChild(ledger);
+    parent.appendChild(wrap);
+    var diff = readDiff('pilgrim'); // Easy / Medium / Hard; Medium is the tuned default
+    var maxEnergy = 8, dayLimit = 40, upkeep = 3, reqOff = 0, repOff = 0;
+    function applyPilgrimDiff() {
+      // Easy: more breath in the day, gentler thresholds, a longer road.
+      // Hard: shorter days, higher thresholds, a shorter road.
+      if (diff === 'easy') { maxEnergy = 10; dayLimit = 50; upkeep = 2; reqOff = -10; repOff = -6; }
+      else if (diff === 'hard') { maxEnergy = 7; dayLimit = 32; upkeep = 5; reqOff = 12; repOff = 6; }
+      else { maxEnergy = 8; dayLimit = 40; upkeep = 3; reqOff = 0; repOff = 0; }
+    }
+    applyPilgrimDiff();
+    var best = readBest('pilgrim');
+    var day = 1, rank = 0, faith = 5, wisdom = 5, charity = 5, rep = 0, coins = 20, energy = maxEnergy;
+    var over = false, started = false, note = '';
+    function reqFor(target) {
+      var base = PILGRIM_REQS[target];
+      if (!base) return null;
+      var req = {};
+      ['faith', 'wisdom', 'charity'].forEach(function (k) { if (base[k]) req[k] = Math.max(10, base[k] + reqOff); });
+      if (base.rep) req.rep = Math.max(10, base.rep + repOff);
+      return req;
+    }
+    function statVal(k) { return k === 'faith' ? faith : k === 'wisdom' ? wisdom : k === 'charity' ? charity : rep; }
+    function meetsReq(target) {
+      var req = reqFor(target);
+      if (!req) return false;
+      var ok = true;
+      ['faith', 'wisdom', 'charity', 'rep'].forEach(function (k) { if (req[k] && statVal(k) < req[k]) ok = false; });
+      return ok;
+    }
+    function reqText(target) {
+      var req = reqFor(target);
+      var parts = [];
+      ['faith', 'wisdom', 'charity', 'rep'].forEach(function (k) {
+        if (req[k]) parts.push((k === 'rep' ? 'Reputation' : k.charAt(0).toUpperCase() + k.slice(1)) + ' ' + req[k] + (statVal(k) >= req[k] ? ' \u2713' : ' (now ' + statVal(k) + ')'));
+      });
+      return parts.join(' \u00b7 ');
+    }
+    // The actions grow up with the stat behind them: at 25 and again at
+    // 55 the same place offers a new scene, a new name and a better yield.
+    function tierOf(v) { return v >= 55 ? 2 : v >= 25 ? 1 : 0; }
+    function actions() {
+      var ft = tierOf(faith), wt = tierOf(wisdom), ct = tierOf(charity);
+      return [
+        { place: 'Chapel', name: ['Pray', 'Morning Prayer', 'Day of Retreat'][ft], cost: ft === 2 ? 3 : 2,
+          gain: 'Faith +' + [3, 4, 6][ft] + ', a little breath back',
+          flavor: ['A quiet hour in the chapel. The candles do the talking.', 'Morning Prayer with the psalms, sung slowly and meant.', 'A whole day of retreat. He comes back quieter, and stronger.'][ft] },
+        { place: 'Library', name: ['Study', 'Read', 'Research & Write'][wt], cost: wt === 2 ? 3 : 2,
+          gain: 'Wisdom +' + [3, 4, 6][wt] + (wt === 2 ? ', a few coins for the writing' : ''),
+          flavor: ['Notes in the margins, questions in the margins of the notes.', 'One book leads to three more. That is how it always goes.', 'His article goes out to the diocesan paper. People write back.'][wt] },
+        { place: 'Parish Hall', name: ['Serve', 'Serve Suppers', 'Run the Food Bank'][ct], cost: ct === 2 ? 3 : 2,
+          gain: 'Charity +' + [3, 4, 6][ct] + ', Reputation +' + [2, 3, 4][ct],
+          flavor: ['Dishes washed, tables wiped, nobody turned away.', 'Supper for forty, and he knows most of them by name now.', 'The food bank runs on his lists and his Saturdays. The town notices.'][ct] },
+        { place: 'Town', name: ['Work', 'Odd Jobs', 'Skilled Work'][wt], cost: 3,
+          gain: 'Coins +' + (wt === 0 ? 8 : wt === 1 ? 13 : 18),
+          flavor: ['Honest hours for honest pay. The roof fund grows a little.', 'Word gets round: he can fix things, and he shows up.', 'Skilled work at a skilled wage. Study pays its own way in the end.'][wt] }
+      ];
+    }
+    function figureSvg() {
+      var s = '<svg viewBox="0 0 120 150" width="120" height="150" role="img" aria-label="Your pilgrim, a ' + PILGRIM_RANKS[rank] + '">';
+      if (rank >= 5) s += '<path d="M97 26 q15 0 15 13 q0 11 -11 11" fill="none" stroke="#b28a2e" stroke-width="3"/><line x1="97" y1="34" x2="97" y2="140" stroke="#b28a2e" stroke-width="3"/>';
+      if (rank >= 2) {
+        // The chasuble: burgundy as a priest, deepening with gold at Monsignor and beyond.
+        s += '<path d="M60 36 L42 94 L78 94 Z" fill="' + (rank >= 4 ? '#571521' : '#6e1a26') + '" stroke="#2e2205" stroke-width="2"/>';
+        if (rank >= 4) s += '<line x1="60" y1="40" x2="60" y2="90" stroke="#b28a2e" stroke-width="3"/>';
+      } else {
+        s += '<line x1="60" y1="37" x2="60" y2="94" stroke="#333" stroke-width="3"/>';
+      }
+      if (rank === 1) s += '<line x1="50" y1="42" x2="70" y2="80" stroke="#b28a2e" stroke-width="5"/>';
+      if (rank >= 2) { s += '<line x1="53" y1="40" x2="53" y2="76" stroke="#f7ecd4" stroke-width="3"/><line x1="67" y1="40" x2="67" y2="76" stroke="#f7ecd4" stroke-width="3"/>'; }
+      s += '<line x1="60" y1="56" x2="38" y2="72" stroke="#333" stroke-width="3"/><line x1="60" y1="56" x2="82" y2="72" stroke="#333" stroke-width="3"/>';
+      if (rank >= 4) s += '<circle cx="82" cy="72" r="4" fill="none" stroke="#b28a2e" stroke-width="2.5"/>';
+      if (rank >= 3) s += '<line x1="60" y1="58" x2="60" y2="68" stroke="#b28a2e" stroke-width="2.5"/><line x1="56" y1="62" x2="64" y2="62" stroke="#b28a2e" stroke-width="2.5"/>';
+      s += '<line x1="60" y1="94" x2="46" y2="126" stroke="#333" stroke-width="3"/><line x1="60" y1="94" x2="74" y2="126" stroke="#333" stroke-width="3"/>';
+      s += '<circle cx="60" cy="26" r="11" fill="#f7ecd4" stroke="#333" stroke-width="2.5"/>';
+      if (rank >= 5) s += '<path d="M49 22 L71 22 L60 3 Z" fill="#fffdf6" stroke="#b28a2e" stroke-width="2"/><line x1="60" y1="9" x2="60" y2="17" stroke="#6e1a26" stroke-width="2"/><line x1="57" y1="12" x2="63" y2="12" stroke="#6e1a26" stroke-width="2"/>';
+      s += '</svg>';
+      return s;
+    }
+    function scoreNow() {
+      return Math.max(0, Math.round(faith + wisdom + charity + rep + Math.floor(coins / 5) + rank * 100 - 2 * day));
+    }
+    function renderStats() {
+      stats.innerHTML = '<span>Day <b>' + Math.min(day, dayLimit) + '</b> of ' + dayLimit + '</span>' +
+        '<span>Rank: <b>' + PILGRIM_RANKS[rank] + '</b></span>' +
+        '<span>Faith: <b>' + faith + '</b></span>' +
+        '<span>Wisdom: <b>' + wisdom + '</b></span>' +
+        '<span>Charity: <b>' + charity + '</b></span>' +
+        '<span>Reputation: <b>' + rep + '</b></span>' +
+        '<span>Coins: <b>' + coins + '</b></span>' +
+        '<span>Energy: <b>' + energy + '/' + maxEnergy + '</b></span>' +
+        '<span>Score: <b>' + scoreNow() + '</b></span>' +
+        (diff !== 'medium' ? '<span>Difficulty: ' + DIFF_LABEL[diff] + '</span>' : '') +
+        '<span>Best: ' + best + '</span>';
+      figure.innerHTML = figureSvg() + '<p class="pilgrim-rankname">' + PILGRIM_RANKS[rank] + '</p>';
+    }
+    function ledgerEntry(html) {
+      var d = document.createElement('div');
+      d.className = 'pilgrim-entry';
+      d.innerHTML = html;
+      ledger.appendChild(d);
+      ledger.scrollTop = ledger.scrollHeight;
+    }
+    function endRun(reason, won) {
+      over = true;
+      var score = scoreNow();
+      var fb = writeBest('pilgrim', score); best = fb;
+      submitParishScore('pilgrim', score);
+      // The kind of churchman he became, named by his strongest stat.
+      var kind;
+      if (faith >= wisdom && faith >= charity) kind = 'a praying ' + (won ? 'bishop, first at the altar' : 'soul, first at the altar');
+      else if (wisdom >= charity) kind = 'a teaching ' + (won ? 'bishop, whose sermons people wrote down' : 'soul, whose words people wrote down');
+      else kind = 'a shepherd ' + (won ? 'bishop, beloved in every parish' : 'soul, beloved in every parish he served');
+      var verdict = won ? 'He became ' + kind + '.' : 'He finished as ' + PILGRIM_RANKS[rank] + ' \u2014 ' + kind + '.';
+      if (rep >= 40) verdict += ' His reputation travelled ahead of him: doors opened before he knocked.';
+      else if (rep >= 25) verdict += ' People spoke well of him in the towns he passed through.';
+      card.innerHTML = '<h3>' + esc(reason) + '</h3>' +
+        '<p>' + esc(verdict) + '<br>' +
+        'Final rank: ' + PILGRIM_RANKS[rank] + ' &middot; Faith ' + faith + ' &middot; Wisdom ' + wisdom + ' &middot; Charity ' + charity + ' &middot; Reputation ' + rep + ' &middot; Coins ' + coins + '<br>' +
+        'Score: <b>' + score + '</b> &middot; Best: ' + fb + '</p>' +
+        '<button type="button" class="big-btn press" id="pilgrim-again">Walk the path again</button> ' +
+        kbdHint('Keyboard: Space or Enter walks the path again.') +
+        '<button type="button" class="linklike" id="pilgrim-back2">Back to arcade</button>';
+      var a = document.getElementById('pilgrim-again');
+      if (a) a.addEventListener('click', startRun);
+      var b = document.getElementById('pilgrim-back2');
+      if (b) b.addEventListener('click', function () { onBack(); });
+      renderStats();
+    }
+    function showDay() {
+      var acts = actions();
+      var html = '<h3>Day ' + day + ' \u2014 ' + PILGRIM_RANKS[rank] + '</h3>';
+      if (note) html += '<p class="pilgrim-scene">' + esc(note) + '</p>';
+      if (rank < 5) {
+        html += '<p class="pilgrim-next">Next: <b>' + PILGRIM_RANKS[rank + 1] + '</b> \u2014 needs ' + reqText(rank + 1) +
+          (PILGRIM_FEES[rank + 1] > 0 ? ' \u00b7 and ' + PILGRIM_FEES[rank + 1] + ' coins as the parish\u2019s gift' : '') + '.</p>';
+        if (meetsReq(rank + 1) && coins >= PILGRIM_FEES[rank + 1]) {
+          html += '<p><button type="button" class="pilgrim-promote press">Seek promotion to ' + PILGRIM_RANKS[rank + 1] + (PILGRIM_FEES[rank + 1] > 0 ? ' (' + PILGRIM_FEES[rank + 1] + ' coins)' : '') + '</button></p>';
+        } else if (meetsReq(rank + 1)) {
+          html += '<p class="pilgrim-ready-note">The call has come, but the parish\u2019s gift of ' + PILGRIM_FEES[rank + 1] + ' coins is not yet in hand. Work in the town will see to it.</p>';
+        }
+      }
+      html += '<div class="pilgrim-actions">';
+      acts.forEach(function (a, i) {
+        html += '<button type="button" class="pilgrim-action press" data-i="' + i + '"' + (energy < a.cost ? ' disabled' : '') + '>' +
+          '<span class="pilgrim-place">' + esc(a.place) + '</span> <b>' + esc(a.name) + '</b><br>' +
+          '<span class="pilgrim-gain">' + esc(a.gain) + ' \u00b7 Energy ' + a.cost + '</span>' + kbdChip(String(i + 1)) + '</button>';
+      });
+      html += '</div>' +
+        '<p style="margin:12px 0 0;"><button type="button" class="pilgrim-rest press">Rest \u2014 end the day (upkeep ' + upkeep + ' coins)</button></p>' +
+        kbdHint('Keyboard: 1 to 4 chooses a place \u00b7 Space or Enter rests.');
+      card.innerHTML = html;
+      card.querySelectorAll('.pilgrim-action').forEach(function (btn) {
+        btn.addEventListener('click', function () { doAction(parseInt(btn.getAttribute('data-i'), 10)); });
+      });
+      var promo = card.querySelector('.pilgrim-promote');
+      if (promo) promo.addEventListener('click', promote);
+      var rest = card.querySelector('.pilgrim-rest');
+      if (rest) rest.addEventListener('click', restDay);
+      renderStats();
+    }
+    function doAction(i) {
+      if (over || !started) return;
+      var a = actions()[i];
+      if (!a || energy < a.cost) return;
+      energy -= a.cost;
+      if (i === 0) {
+        var ft = tierOf(faith);
+        faith = clamp(faith + [3, 4, 6][ft], 0, 100);
+        // The Faith perk: prayer gives a little of the day back.
+        energy = Math.min(maxEnergy, energy + 1);
+      } else if (i === 1) {
+        var wt = tierOf(wisdom);
+        wisdom = clamp(wisdom + [3, 4, 6][wt], 0, 100);
+        if (wt === 2) coins += 3;
+      } else if (i === 2) {
+        var ct = tierOf(charity);
+        charity = clamp(charity + [3, 4, 6][ct], 0, 100);
+        rep = clamp(rep + [2, 3, 4][ct], 0, 100);
+        coins += [1, 2, 2][ct];
+      } else {
+        // The Wisdom perk: study turns into better pay in the town.
+        var wt2 = tierOf(wisdom);
+        coins += wt2 === 0 ? 8 : wt2 === 1 ? 13 : 18;
+      }
+      note = a.flavor;
+      ledgerEntry('<b>Day ' + day + ' \u2014 ' + esc(a.place) + ':</b> ' + esc(a.name) + '. ' + esc(a.gain) + '.');
+      showDay();
+    }
+    function promote() {
+      if (over || rank >= 5 || !meetsReq(rank + 1) || coins < PILGRIM_FEES[rank + 1]) return;
+      coins -= PILGRIM_FEES[rank + 1];
+      rank += 1;
+      note = 'The letter came at breakfast. ' + PILGRIM_RANKS[rank] + ' now \u2014 the parish turned out to see the new marks on him.';
+      ledgerEntry('<b>Day ' + day + ':</b> Promoted to <b>' + PILGRIM_RANKS[rank] + '</b>' + (PILGRIM_FEES[rank] > 0 ? ', the parish\u2019s gift of ' + PILGRIM_FEES[rank] + ' coins given' : '') + '.');
+      if (rank >= 5) { endRun('The mitre fits \u2014 he is a bishop.', true); return; }
+      showDay();
+    }
+    function restDay() {
+      if (over || !started) return;
+      if (day >= dayLimit) { endRun('The road ends here \u2014 for now.', false); return; }
+      day += 1;
+      var paid = Math.min(coins, upkeep);
+      coins -= paid;
+      energy = maxEnergy;
+      // The world remembers: from the third morning on, some days begin
+      // with the parish answering back. A charitable pilgrim hears from
+      // grateful givers most of all.
+      var morning = 'A new morning. The bell, the breviary, the day\u2019s work waiting.';
+      if (day >= 3) {
+        if (charity >= 30 && Math.random() < 0.22) {
+          var gift = randInt(5, 10);
+          coins += gift;
+          morning = 'A gift at the door before Mass: ' + gift + ' coins from a family he once fed, with a note that just says thank you.';
+        } else if (Math.random() < 0.30) {
+          var ev = randInt(0, 3);
+          if (ev === 0) { coins += 6; morning = 'A visitor passing through left 6 coins for the poor box \u2014 and a kind word for the man who keeps it.'; }
+          else if (ev === 1) { rep = clamp(rep + 2, 0, 100); morning = 'A note of thanks arrived from the next town over. Word of his service is travelling. Reputation +2.'; }
+          else if (ev === 2) { charity = clamp(charity + 2, 0, 100); morning = 'Before breakfast, a neighbour needed help with a flooded kitchen. He went. Charity +2.'; }
+          else { wisdom = clamp(wisdom + 1, 0, 100); morning = 'A letter from an old teacher, full of hard questions. He read it twice. Wisdom +1.'; }
+        }
+      }
+      note = morning;
+      ledgerEntry('<b>Day ' + day + ':</b> ' + esc(morning) + ' <span class="pilgrim-nums">Upkeep -' + paid + ' coins \u00b7 Energy restored.</span>');
+      showDay();
+    }
+    function startRun() {
+      applyPilgrimDiff();
+      parishSubmitted['pilgrim'] = false;
+      day = 1; rank = 0; faith = 5; wisdom = 5; charity = 5; rep = 0; coins = 20; energy = maxEnergy;
+      over = false; started = true;
+      note = 'First morning in the seminary. Plain room, plain cassock, one long road ahead of him.';
+      ledger.innerHTML = '';
+      ledgerEntry('<b>Day 1:</b> The path begins. Pray, study, serve and work \u2014 and mind the coins, for rising costs a little.');
+      showDay();
+    }
+    card.innerHTML = '<h3>The Pilgrim Path</h3><p>One stick figure, one calling. Each day, spend his energy at the chapel, the library, the parish hall or in the town, and rise from Seminarian to Bishop before the days run out. Every rank asks for a mix of Faith, Wisdom and Charity, and Reputation besides \u2014 no single road gets him there. Score is his three stats, plus Reputation, a little for his coins, and 100 for every rank, less 2 for every day taken. ' + gameMark('pilgrim') + '</p>' +
+      diffPickerHtml('pilgrim', diff) +
+      '<button type="button" class="big-btn press" id="pilgrim-start">Begin the path</button>' +
+      kbdHint('Keyboard: Space or Enter begins the path \u00b7 1 to 4 chooses a place.');
+    wireDiffButtons(card, 'pilgrim', function () { return diff; }, function (d) { diff = d; writeDiff('pilgrim', d); applyPilgrimDiff(); });
+    var s = document.getElementById('pilgrim-start');
+    if (s) s.addEventListener('click', startRun);
+    document.addEventListener('keydown', onKey);
+    function onKey(e) {
+      if (kbdTyping(e)) return;
+      var k = e.key.toLowerCase();
+      if (k === '1' || k === '2' || k === '3' || k === '4') {
+        if (!over && started && card.querySelector('.pilgrim-action')) doAction(parseInt(k, 10) - 1);
+        return;
+      }
+      var go = (k === ' ' || k === 'enter');
+      if (!go || kbdOnButton(e)) return;
+      e.preventDefault();
+      if (over) { startRun(); return; }
+      if (!started) { startRun(); return; }
+      restDay();
+    }
+    renderStats();
+    return function cleanup() {
+      document.removeEventListener('keydown', onKey);
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
     };
   }
 

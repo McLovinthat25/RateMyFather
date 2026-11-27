@@ -551,6 +551,8 @@ form .guidance { background:var(--surface-alt); border-radius:var(--radius);
 .pastor-stats b { font-size:1.05rem; }
 .pastor-choices { display:flex; flex-direction:column; gap:8px; max-width:480px; margin:10px auto 0; }
 .pastor-choices button { text-align:left; padding:10px 14px; line-height:1.4; }
+.pastor-scene { margin:10px auto 4px; max-width:480px; }
+.pastor-scene svg { display:block; width:100%; height:auto; border-radius:10px; }
 /* ---------- Chat widget ---------- */
 #chat-widget { position:fixed; right:16px; bottom:16px; z-index:50;
   display:flex; flex-direction:column-reverse; align-items:flex-end; gap:12px; }
@@ -1004,12 +1006,13 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
 .how-page .how-cats { margin-top:0; }
 .how-section.band h2 { margin-top:0; }
 
-/* ---------- Arcade: editorial intro, four-across shelf ----------
-   The shelf is one column on a phone, two on a tablet, and four across
-   on desktop, so the eight games sit in two rows of four. The cards
-   keep their gold top rule, and Play is a gold pill. The intro is the
-   arcade's own heading, dressed as a section head; the "Take a
-   breather" kicker matches the homepage arcade invite. */
+/* ---------- Arcade: editorial intro, two-across shelf ----------
+   The shelf is one column on a phone and two across on anything
+   wider, so the ten games sit in five tidy rows of two and no card
+   is ever squeezed. The cards keep their gold top rule, and Play is
+   a gold pill. The intro is the arcade's own heading, dressed as a
+   section head; the "Take a breather" kicker matches the homepage
+   arcade invite. */
 .arcade-head { display:block; margin-bottom:var(--space-block); }
 .arcade-head::before { content:"Take a breather"; display:block;
   font-size:var(--size-caption); font-weight:700; text-transform:uppercase;
@@ -1022,8 +1025,14 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
   color:#2e2205; box-shadow:0 2px 8px rgb(0 0 0 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.35); }
 .arcade-shelf { grid-template-columns:minmax(0, 1fr); }
 @media (min-width:640px) { .arcade-shelf { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-@media (min-width:1024px) { .arcade-shelf { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+@media (min-width:1024px) { .arcade-shelf { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 .game-card { border-top:3px solid var(--gold); }
+/* Cards in a row stretch to one height; the blurb absorbs the slack
+   so the Play rows line up across the row. */
+.arcade-shelf .game-card { display:flex; flex-direction:column; }
+.arcade-shelf .game-card .blurb { flex:1 0 auto; }
+.game-card .diff-tag { font-size:0.8rem; color:var(--dim); border:1px solid var(--border);
+  border-radius:999px; padding:2px 9px; white-space:nowrap; }
 .game-card .play-row button { background:linear-gradient(180deg, var(--gold-bright), var(--gold));
   color:#2e2205; box-shadow:0 2px 8px rgb(0 0 0 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.35); }
 .game-stage { border-top:3px solid var(--gold); }
@@ -1175,3 +1184,29 @@ h3 { font-size:var(--size-h3); line-height:1.4; }
      never cover the Save button, which sits at the right of each card. */
   #chat-widget { left:12px; right:auto; align-items:flex-start; }
 }
+
+/* ---------- The Pilgrim Path (arcade) ---------- */
+/* A DOM life-sim: stats bar, the stick figure himself, the day card with
+   its four places, and the ledger of his days underneath. Burgundy and
+   amber over the site's warm neutrals, like Parish Pastor. */
+.pilgrim-wrap { max-width:560px; margin:0 auto; }
+.pilgrim-stats { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin:8px 0; font-size:0.95rem; }
+.pilgrim-stats b { font-size:1.05rem; }
+.pilgrim-figure { text-align:center; margin:6px 0 2px; }
+.pilgrim-rankname { margin:2px 0 8px; font-size:12px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:#6b5636; }
+.pilgrim-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow-card); }
+.pilgrim-scene { font-style:italic; }
+.pilgrim-next { font-size:0.95rem; }
+.pilgrim-actions { display:grid; gap:10px; margin-top:12px; }
+@media (min-width:640px) { .pilgrim-actions { grid-template-columns:1fr 1fr; } }
+.pilgrim-action { text-align:left; padding:12px 14px; min-height:56px; line-height:1.45; background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; font-size:15px; }
+.pilgrim-action:hover:not(:disabled) { border-color:#b28a2e; }
+.pilgrim-action:disabled { opacity:0.5; cursor:default; }
+.pilgrim-place { font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#6e1a26; }
+.pilgrim-gain { font-size:13px; color:var(--dim); }
+.pilgrim-promote { padding:12px 18px; min-height:48px; font-size:16px; font-weight:700; background:#6e1a26; color:#f7ecd4; border:1px solid #6e1a26; border-radius:var(--radius); cursor:pointer; }
+.pilgrim-ready-note { color:#6e1a26; font-weight:600; }
+.pilgrim-rest { padding:12px 18px; min-height:48px; font-size:15px; font-weight:600; background:#b28a2e; color:#2e2205; border:1px solid #b28a2e; border-radius:var(--radius); cursor:pointer; }
+.pilgrim-ledger { max-width:560px; margin:12px auto 0; font-size:0.92rem; max-height:220px; overflow-y:auto; }
+.pilgrim-entry { border-bottom:1px solid var(--border); padding:5px 8px; text-align:left; }
+.pilgrim-nums { color:var(--dim); }
